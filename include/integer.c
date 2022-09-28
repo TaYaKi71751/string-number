@@ -37,6 +37,7 @@ struct IntegerStruct* IntegerConstructor(char* value) {
 		* Functions -> Calculate
 		*/
 	r->add = addInteger;
+	r->sub = subInteger;
 
 	/**
 		* Functions -> Print
@@ -125,7 +126,15 @@ struct IntegerStruct* addInteger(struct IntegerStruct* a,struct IntegerStruct* b
 	char* r = calloc(length,sizeof(char));
 	char over = 0x00;
 	char current = 0x00;
+	if(a->isNegative(a) || b->isNegative(b)) goto NEGATIVE;
 	if(a->isPositive(a) && b->isPositive(b)) goto POSITIVE;
+NEGATIVE:
+		a_positive = a->isPositive(a) ? a : IntegerConstructor(a->number->value);
+		b_positive = b->isPositive(b) ? b : IntegerConstructor(b->number->value);
+		if(a->isPositive(a) && b->isNegative(b)) return result->sub(a,b_positive); // (a = 3) + (b = -5) = (a = 3) - (|b| = 5)
+		if(a->isNegative(a) && b->isPositive(b)) return result->sub(b,a_positive); // (a = -1) + (b = 2) = (b = 2) - (|a| = 1)
+		if(a->isNegative(a) && b->isNegative(b)) return result->sub(b,a_positive); // (a = -1) + (b = -2) = (b = -2) - (|a| = 1)
+		goto POSITIVE;
 POSITIVE:
 	for(int i = length;i >= 0;i--){
 		if(i == length && !over) continue;
@@ -148,6 +157,82 @@ POSITIVE:
 	result = IntegerConstructor(r);
 	result = result->trim(result);
 	result->raw = result->toString(result);
+	return result;
+}
+
+struct IntegerStruct* subInteger(struct IntegerStruct* a,struct IntegerStruct* b){
+	a = a->trim(a);
+	b = b->trim(b);
+	struct IntegerStruct* a_positive;
+	struct IntegerStruct* b_positive;
+	struct IntegerStruct* result = IntegerConstructor("0");
+	struct IntegerStruct* max = IntegerConstructor("0");
+	struct IntegerStruct* min = IntegerConstructor("0");
+	const size_t length = (a->number->length > b->number->length?a:b)->number->length;
+	char* r = calloc(length,sizeof(char));
+	char borrow = 0x00;
+	if(a->isNegative(a) || b->isNegative(b)) goto NEGATIVE;
+	if(a->isPositive(a) && b->isPositive(b)) goto POSITIVE;
+NEGATIVE:
+		a_positive = a->isPositive(a) ? a : IntegerConstructor(a->number->value);
+		b_positive = b->isPositive(b) ? b : IntegerConstructor(b->number->value);
+		if(a->isPositive(a) && b->isNegative(b)) return result->add(a,b_positive); // (a = 7) - (b = -5) = (a = 7) + (|b| = 5)
+		if(a->isNegative(a) && b->isPositive(b)){ // (a = -5) - (b = 8) = -|(|a| = 5) + (b = 8)|
+			result = result->add(a_positive,b);
+			result->sign = '-';
+			goto RETURN;
+		}
+		if(a->isNegative(a) && b->isNegative(b)) return result->sub(b_positive,a_positive); // (a = -2) - (b = -5) = (|b| = 5) - (|a| = 2)
+POSITIVE:
+	max = max->max(a,b);
+	min = min->min(a,b);
+	if(max == min) return IntegerConstructor("0");
+	if((max == b) && max != min){
+		result = result->sub(max, min);
+		result->sign = result->isNegative(result) ? 0x00:'-';
+		goto RETURN;
+	}
+	for(int i = length;i >= 0;i--){
+		if(i == length) continue;
+		char _a = a->number->charAt(a->number,(int)a->number->length - (i + 1)); _a = _a == (char)0x00 ? _a : _a - 0x30;
+		char _b = b->number->charAt(b->number,(int)b->number->length - (i + 1)); _b = _b == (char)0x00 ? _b : _b - 0x30;
+		r[(int)length - (i + 1)] += _a - _b;
+		if(r[length - (i + 1)] < 0 && (length - (i + 1)) > 0){
+			r[length - (i + 1)] += 10;
+			r[length - (i + 2)] -= 1;
+		}
+	}
+	for(int i = length;i >= 0;i--){
+		if(
+			(r[0] < 0x00 || r[length - (i + 1)] < 0x00) && (length - (i + 1)) > 0
+		){
+			r[length - (i + 1)] = (
+					r[length - (i + 1)] * (
+					r[length - (i + 1)] < 0x00 ? 1 : -1
+			) + 10) % 10;
+			r[length - (i + 2)] -= 1;
+		}
+		if(r[length - (i + 1)] < 0x00 && (length - (i + 1)) == 0){
+			r[length - (i + 1)] += r[length - (i + 1)] < 0x00 ? 1 : -1;
+		}
+	}
+	bool negative = false;
+	if(r[0] < 0) negative = true;
+
+	for(int i = 0;i<length;i++){
+		if(i == length - 1) continue;
+		if(r[i] < 0) negative = true;
+		if(negative) break;
+	}
+	for(int i = 0;i < length;i++){
+		r[i]+= 0x30;
+	}
+	result = IntegerConstructor(r);
+	result->sign = negative ? '-' : '+';
+
+RETURN:
+	result->raw = result->toString(result);
+	result = IntegerConstructor(result->raw->value);
 	return result;
 }
 

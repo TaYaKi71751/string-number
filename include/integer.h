@@ -65,6 +65,7 @@ typedef struct IntegerStruct {
 		* Functions -> Calculate
 		*/
 	struct IntegerStruct* (*add)(struct IntegerStruct* a,struct IntegerStruct* b);
+	struct IntegerStruct* (*sub)(struct IntegerStruct* a,struct IntegerStruct* b);
 
 	/**
 		* Functions -> Print
@@ -108,5 +109,6 @@ struct IntegerStruct* minInteger(struct IntegerStruct* a,struct IntegerStruct* b
 	* Functions -> Calculate
 	*/
 struct IntegerStruct* addInteger(struct IntegerStruct* a,struct IntegerStruct* b);
+struct IntegerStruct* subInteger(struct IntegerStruct* a,struct IntegerStruct* b);
 
 #endif
