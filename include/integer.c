@@ -37,21 +37,33 @@ struct IntegerStruct* IntegerConstructor(char* value) {
 	* Functions -> Calculate
 	*/
 struct IntegerStruct* addInteger(struct IntegerStruct* a,struct IntegerStruct* b){
-	const size_t length = (a->number->length > b->number->length?a:b)->number->length;
+	struct IntegerStruct* a_positive;
+	struct IntegerStruct* b_positive;
+	struct IntegerStruct* result = IntegerConstructor("0");
+	const size_t length = (a->number->length > b->number->length?a:b)->number->length + 1;
 	char* r = calloc(length,sizeof(char));
 	char over = 0x00;
+	char current = 0x00;
 	for(int i = length;i >= 0;i--){
-		if(i == length) continue;
+		if(i == length && !over) continue;
 		char _a = a->number->charAt(a->number,(int)a->number->length - (i + 1)); _a = _a == (char)0x00 ? _a : _a - 0x30;
 		char _b = b->number->charAt(b->number,(int)b->number->length - (i + 1)); _b = _b == (char)0x00 ? _b : _b - 0x30;
-		if(_a == 0x00 && _b == 0x00) continue;
-		r[length - (i + 1)] += (_a + _b + over) % 10;
-		over = (_a + _b + over) / 10;
+		current = (_a + _b) % 10;
+		r[length - (i + 1)] += current;
+ 	over = (_a + _b) / 10;
+		if(over) r[length - (i + 2)] += over;
+	}
+	over = 0;
+	for(int i = 0;i < length;i++){
+		over = r[i] / 10;
+		r[i] = r[i] % 10;
+		if(over) r[i - 1] += over;
 	}
 	for(int i = 0;i < length;i++){
 		r[i]+= 0x30;
 	}
-	return IntegerConstructor(r);
+	result = IntegerConstructor(r);
+	return result;
 }
 
 /**
@@ -60,7 +72,7 @@ struct IntegerStruct* addInteger(struct IntegerStruct* a,struct IntegerStruct* b
 void printIntegerStruct(struct IntegerStruct* i){
 	printf("IntegerStruct = %x\n",i);
 	printf("IntegerStruct->raw = {value:%s,length:%lu}\n",i->raw->value,i->raw->length);
-	printf("IntegerStruct->sign = %s\n",i->sign);
+	printf("IntegerStruct->sign = %c\n",i->sign);
 	printf("IntegerStruct->number = {value:%s,length:%lu}\n",i->number->value,i->number->length);
 }
 
@@ -102,4 +114,3 @@ SIGNED:				start = value + 1;		goto RETURN;
 UNSIGNED:  start = value;						goto RETURN;
 RETURN:	return StringConstructor(start);
 }
-
