@@ -55,6 +55,13 @@ typedef struct IntegerStruct {
 	struct IntegerStruct* (*trim)(struct IntegerStruct* s);
 
 	/**
+		* Functions -> Compare
+		*/
+	struct IntegerStruct* (*max)(struct IntegerStruct* a,struct IntegerStruct* b);
+	struct IntegerStruct* (*min)(struct IntegerStruct* a,struct IntegerStruct* b);
+
+
+	/**
 		* Functions -> Calculate
 		*/
 	struct IntegerStruct* (*add)(struct IntegerStruct* a,struct IntegerStruct* b);
@@ -88,6 +95,12 @@ bool isPositiveInteger(struct IntegerStruct* i);
  * Functions -> trim 
  */
 struct IntegerStruct* trimInteger(struct IntegerStruct* s);
+
+/**
+	* Functions -> Compare
+	*/
+struct IntegerStruct* maxInteger(struct IntegerStruct* a,struct IntegerStruct* b);
+struct IntegerStruct* minInteger(struct IntegerStruct* a,struct IntegerStruct* b);
 
 /**
 	* Functions -> Calculate
