@@ -70,6 +70,7 @@ typedef struct IntegerStruct {
 		* Functions -> Print
 		*/
 	void (*print)(struct IntegerStruct* i);
+	struct StringStruct* (*toString)(struct IntegerStruct* i);
 
 } IntegerStruct;
 
@@ -82,6 +83,7 @@ extern struct IntegerStruct* IntegerConstructor(char* value);
 	* Functions -> Print
 	*/
 void printIntegerStruct(struct IntegerStruct* i);
+struct StringStruct* toStringFromInteger(struct IntegerStruct* i);
 
 /**
 	* Functions -> is
