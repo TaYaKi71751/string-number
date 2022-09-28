@@ -23,6 +23,11 @@ struct IntegerStruct* IntegerConstructor(char* value) {
 	r->getNumber = getInteger;
 
 	/**
+		* Functions -> trim
+		*/
+	r->trim = trimInteger;
+
+	/**
 		* Functions -> Calculate
 		*/
 	r->add = addInteger;
@@ -33,6 +38,22 @@ struct IntegerStruct* IntegerConstructor(char* value) {
 	r->print = printIntegerStruct;
 
 	return r;
+}
+
+/**
+	* Functions -> trim
+	*/
+struct IntegerStruct* trimInteger(struct IntegerStruct* s){
+	for(int i = 0;i < s->number->length;i++){
+		if(s->number->value[i] == 0x30 && s->number->value[s->number->length - 1] != 0x30) continue;
+		char* tmp = s->number->value;
+		size_t tmp_length = s->number->length;
+		s->number->length = tmp_length - i;
+		s->number->value = calloc(s->number->length,sizeof(char));
+		memcpy(s->number->value,tmp + i,s->number->length);
+		return s;
+	}
+	return s;
 }
 
 /**
@@ -67,6 +88,7 @@ POSITIVE:
 		r[i]+= 0x30;
 	}
 	result = IntegerConstructor(r);
+	result = result->trim(result);
 	return result;
 }
 

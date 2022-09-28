@@ -50,6 +50,11 @@ typedef struct IntegerStruct {
 	struct StringStruct* (*getNumber)(char* value);
 
 	/**
+		* Functions -> trim
+		*/
+	struct IntegerStruct* (*trim)(struct IntegerStruct* s);
+
+	/**
 		* Functions -> Calculate
 		*/
 	struct IntegerStruct* (*add)(struct IntegerStruct* a,struct IntegerStruct* b);
@@ -78,6 +83,11 @@ bool isInteger(char* value);
 bool isIntegerSigned(char* value);
 bool isNegativeInteger(struct IntegerStruct* i);
 bool isPositiveInteger(struct IntegerStruct* i);
+
+/**
+ * Functions -> trim 
+ */
+struct IntegerStruct* trimInteger(struct IntegerStruct* s);
 
 /**
 	* Functions -> Calculate
