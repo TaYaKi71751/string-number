@@ -13,6 +13,8 @@ struct IntegerStruct* IntegerConstructor(char* value) {
 		*/
 	r->isSigned = isIntegerSigned;
 	r->isValid = isInteger;
+	r->isNegative = isNegativeInteger;
+	r->isPositive = isPositiveInteger;
 
 	/**
 		* Functions -> get
@@ -44,6 +46,8 @@ struct IntegerStruct* addInteger(struct IntegerStruct* a,struct IntegerStruct* b
 	char* r = calloc(length,sizeof(char));
 	char over = 0x00;
 	char current = 0x00;
+	if(a->isPositive(a) && b->isPositive(b)) goto POSITIVE;
+POSITIVE:
 	for(int i = length;i >= 0;i--){
 		if(i == length && !over) continue;
 		char _a = a->number->charAt(a->number,(int)a->number->length - (i + 1)); _a = _a == (char)0x00 ? _a : _a - 0x30;
@@ -74,6 +78,13 @@ void printIntegerStruct(struct IntegerStruct* i){
 	printf("IntegerStruct->raw = {value:%s,length:%lu}\n",i->raw->value,i->raw->length);
 	printf("IntegerStruct->sign = %c\n",i->sign);
 	printf("IntegerStruct->number = {value:%s,length:%lu}\n",i->number->value,i->number->length);
+}
+
+bool isNegativeInteger(struct IntegerStruct* i){
+	return i->sign == '-';
+}
+bool isPositiveInteger(struct IntegerStruct* i){
+	return i->sign == '+' || i->sign == 0x00;
 }
 
 /**

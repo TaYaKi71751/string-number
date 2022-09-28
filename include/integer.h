@@ -17,11 +17,6 @@
 #ifndef __CUSTOM_INTEGER_H__
 #define __CUSTOM_INTEGER_H__
 
-/**
-	* Functions -> is
-	*/
-bool isInteger(char* value);
-bool isIntegerSigned(char* value);
 
 /**
 	* Functions -> get
@@ -45,6 +40,8 @@ typedef struct IntegerStruct {
 		*/
 	bool (*isSigned)(char* value);
 	bool (*isValid)(char* value);
+	bool (*isNegative)(struct IntegerStruct* i);
+	bool (*isPositive)(struct IntegerStruct* i);
 
 	/**
 		* Functions -> get
@@ -73,6 +70,14 @@ extern struct IntegerStruct* IntegerConstructor(char* value);
 	* Functions -> Print
 	*/
 void printIntegerStruct(struct IntegerStruct* i);
+
+/**
+	* Functions -> is
+	*/
+bool isInteger(char* value);
+bool isIntegerSigned(char* value);
+bool isNegativeInteger(struct IntegerStruct* i);
+bool isPositiveInteger(struct IntegerStruct* i);
 
 /**
 	* Functions -> Calculate
