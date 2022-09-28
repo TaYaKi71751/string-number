@@ -42,6 +42,7 @@ struct IntegerStruct* IntegerConstructor(char* value) {
 		* Functions -> Print
 		*/
 	r->print = printIntegerStruct;
+	r->toString = toStringFromInteger;
 
 	return r;
 }
@@ -146,6 +147,7 @@ POSITIVE:
 	}
 	result = IntegerConstructor(r);
 	result = result->trim(result);
+	result->raw = result->toString(result);
 	return result;
 }
 
@@ -203,4 +205,27 @@ struct StringStruct* getInteger(char* value){
 SIGNED:				start = value + 1;		goto RETURN;
 UNSIGNED:  start = value;						goto RETURN;
 RETURN:	return StringConstructor(start);
+}
+
+struct StringStruct* toStringFromInteger(struct IntegerStruct* i){
+	i = i->trim(i);
+	char* tmp;
+	size_t sign_length = 0;
+	switch(i->sign){
+		case '-': {
+			sign_length = strlen(&(i->sign));
+			tmp = calloc(sign_length + i->number->length,sizeof(char));
+			sprintf(tmp,"%s%s",&(i->sign),i->number->value);
+			break;
+		}
+		case '+':
+		case 0x00:
+		default: {
+			sign_length = 0;
+			tmp = calloc(sign_length + i->number->length,sizeof(char));
+			sprintf(tmp,"%s",i->number->value);
+			break;
+		}
+	}
+	return StringConstructor(tmp);
 }
