@@ -28,6 +28,12 @@ struct IntegerStruct* IntegerConstructor(char* value) {
 	r->trim = trimInteger;
 
 	/**
+		* Functions -> Compare
+		*/
+	r->max = maxInteger;
+	r->min = minInteger;
+
+	/**
 		* Functions -> Calculate
 		*/
 	r->add = addInteger;
@@ -54,6 +60,57 @@ struct IntegerStruct* trimInteger(struct IntegerStruct* s){
 		return s;
 	}
 	return s;
+}
+
+/**
+	*	@if (a>b)	@returns a
+	*	@if (a<b)	@returns b
+	*	@if (a==b)	@returns 0x00
+	*/
+struct IntegerStruct* maxInteger(struct IntegerStruct* a,struct IntegerStruct* b){
+	a = a->trim(a);
+	b = b->trim(b);
+	if(a->isNegative(a) || b->isNegative(b)) goto NEGATIVE;
+	if(a->isPositive(a) && b->isPositive(b)) goto POSITIVE;
+NEGATIVE:
+		if(a->isPositive(a) && b->isNegative(b)) goto A;
+		if(a->isNegative(a) && b->isPositive(b)) goto B;
+		struct IntegerStruct* a_positive = a->isPositive(a) ? a : IntegerConstructor(a->number->value);
+		struct IntegerStruct* b_positive = b->isPositive(b) ? b : IntegerConstructor(b->number->value);
+		struct IntegerStruct* result = IntegerConstructor("0");
+		if(a->isNegative(a) && b->isNegative(b)){
+			result = result->max(a_positive,b_positive);
+			if(result == 0x00) goto EQUAL;
+			if(result->number->value == a->number->value) goto B;
+			if(result->number->value == b->number->value) goto A;
+		}
+POSITIVE:
+	if(a->number->length > b->number->length) goto A;
+	if(a->number->length < b->number->length) goto B;
+	// else = a->number->length == b->number->length
+	size_t length = a->number->length;
+	for(int i = 0;i < length;i++){
+		if(a->number->value[i] == b->number->value[i]) continue;
+		if(a->number->value[i] > b->number->value[i]) goto A;
+		if(a->number->value[i] < b->number->value[i]) goto B;
+	}
+	goto EQUAL;
+A: return a;
+B: return b;
+EQUAL: return 0x00; // Returns 0x00 if equals
+}
+
+struct IntegerStruct* minInteger(struct IntegerStruct* a,struct IntegerStruct* b){
+	a = a->trim(a);
+	b = a->trim(b);
+	struct IntegerStruct* result = IntegerConstructor("0");
+	result = result->max(a,b);
+	if(result == 0x00) goto EQUAL;
+	if(result->number->value == a->number->value) goto B;
+	if(result->number->value == b->number->value) goto A;
+A: return a;
+B: return b;
+EQUAL: return 0x00;
 }
 
 /**
