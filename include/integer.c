@@ -53,7 +53,8 @@ struct IntegerStruct* IntegerConstructor(char* value) {
 	*/
 struct IntegerStruct* trimInteger(struct IntegerStruct* s){
 	for(int i = 0;i < s->number->length;i++){
-		if(s->number->value[i] == 0x30 && s->number->value[s->number->length - 1] != 0x30) continue;
+		if(s->number->value[i] == 0x30 && i < s->number->length - 1) continue;
+		if(i == 0) return s;
 		char* tmp = s->number->value;
 		size_t tmp_length = s->number->length;
 		s->number->length = tmp_length - i;
