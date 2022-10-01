@@ -18,5 +18,14 @@
 #include<string.h>
 #endif
 
-#include "./integer_class.h"
-#include "./integer_function.h"
+#include "./memory.h"
+
+#ifndef __CUSTOM_INTEGER_CLASS_H__
+#define __CUSTOM_INTEGER_CLASS_H__
+
+typedef struct IntegerClassStruct {
+ char* raw;
+ size_t length;
+} IntegerClassStruct;
+
+#endif

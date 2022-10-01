@@ -1,8 +1,16 @@
-#ifndef size_t
+#ifndef __STDIO_H__
+#include<stdio.h>
+#endif
+
+#ifndef __STDLIB_H__
+#include<stdlib.h>
+#endif
+
+#ifndef __STDDEF_H__
 #include<stddef.h>
 #endif
 
-#ifndef true
+#ifndef __STDBOOL_H__
 #include<stdbool.h>
 #endif
 
@@ -10,38 +18,5 @@
 #include<string.h>
 #endif
 
-#ifndef calloc
-#include<stdlib.h>
-#endif
-
-#ifndef printf
-#include<stdio.h>
-#endif
-
-#ifndef __CUSTOM_STRING_H__
-#define __CUSTOM_STRING_H__
-
-typedef struct StringStruct {
-	/**
-		* Variables
-		*/
-	char* value;
-	size_t length;
-
-	/**
-		* Functions
-		*/
-	char (*charAt)(struct StringStruct* s,int index);
-} StringStruct;
-
-/**
-	* Functions -> Constructor
-	*/
-extern struct StringStruct* StringConstructor(char* value);
-
-/**
-	* Functions
-	*/
-char charAt(struct StringStruct* s,int index);
-
-#endif
+#include "./string_class.h"
+#include "./string_function.h"

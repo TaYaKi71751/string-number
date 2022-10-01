@@ -2,17 +2,31 @@
 #include<stdio.h>
 #endif
 
-#ifndef __STDIO_H__
+#ifndef __STDLIB_H__
 #include<stdlib.h>
 #endif
 
-#ifndef __CUSTOM_INTEGER_H__
-#include "../include/integer.h"
+#ifndef __STDDEF_H__
+#include<stddef.h>
 #endif
 
-#ifndef __CUSTOM_TEST_H__
-#define __CUSTOM_TEST_H__
+#ifndef __STDBOOL_H__
+#include<stdbool.h>
+#endif
 
-extern void testCalculate(struct IntegerStruct* a,struct IntegerStruct* b);
-extern void testCalculateMatrix(struct IntegerStruct* min,struct IntegerStruct* max);
+#ifndef __STRING_H__
+#include<string.h>
+#endif
+
+#include "../include/memory_class.h"
+#include "../include/memory_function.h"
+#include "../include/integer_class.h"
+#include "../include/integer_function.h"
+
+#ifndef __CUSTOM_TEST_CALCULATE_H__
+#define __CUSTOM_TEST_CALCULATE_H__
+
+extern void testCalculate(struct IntegerClassStruct* a,struct IntegerClassStruct* b);
+extern void testCalculateMatrix(struct IntegerClassStruct* min,struct IntegerClassStruct* max);
+
 #endif

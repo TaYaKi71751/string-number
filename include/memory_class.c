@@ -1,4 +1,4 @@
-#include "./class.h"
+#include "./memory_class.h"
 
 /** MEMORY_CLASS_CONSTRUCTOR_START **/
 struct MemoryClassStruct* MemoryClassConstructor(void* target,size_t size){

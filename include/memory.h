@@ -18,10 +18,5 @@
 #include<string.h>
 #endif
 
-#ifndef __CUSTOM_MEM_H__
-#define __CUSTOM_MEM_H__
-
-#include "./memory/class.h"
-#include "./memory/function.h"
-
-#endif
+#include "./memory_class.h"
+#include "./memory_function.h"

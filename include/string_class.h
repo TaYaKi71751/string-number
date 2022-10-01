@@ -18,5 +18,15 @@
 #include<string.h>
 #endif
 
-#include "./integer_class.h"
-#include "./integer_function.h"
+#include "./memory_class.h"
+#include "./memory_function.h"
+
+#ifndef __CUSTOM_STRING_CLASS_H__
+#define __CUSTOM_STRING_CLASS_H__
+
+typedef struct StringClassStruct {
+	char* target;
+	size_t length;
+} StringClassStruct;
+
+#endif

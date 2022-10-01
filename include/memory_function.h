@@ -18,10 +18,10 @@
 #include<string.h>
 #endif
 
+#include "./memory_class.h"
+
 #ifndef __CUSTOM_MEMEORY_FUNCTION_H__
 #define __CUSTOM_MEMEORY_FUNCTION_H__
-
-#include "./class.h"
 
 typedef struct MemoryFunctionStruct {
 	void* (*free)(void* target);

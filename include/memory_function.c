@@ -1,5 +1,5 @@
-#include "./class.h"
-#include "./function.h"
+#include "./memory_class.h"
+#include "./memory_function.h"
 
 /** MEMORY_FUNCTION_CONSTRUCTOR_START **/
 struct MemoryFunctionStruct* MemoryFunctionConstructor(){

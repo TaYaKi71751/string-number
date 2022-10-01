@@ -1,0 +1,14 @@
+{
+ "files.associations": {
+  "calculate.h": "c",
+  "integer.h": "c",
+  "class.h": "c",
+  "string.h": "c",
+  "memory.h": "c",
+  "streambuf": "c",
+  "memory_function.h": "c",
+  "stdlib.h": "c",
+  "stdio.h": "c",
+  "string_class.h": "c"
+ }
+}
