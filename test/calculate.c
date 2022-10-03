@@ -1,38 +1,80 @@
+#include<stdlib.h>
 #include "./calculate.h"
 
-void testCalculate(struct IntegerClassStruct* a,struct IntegerClassStruct* b){
+void testCalculate(struct IntegerClassStruct* a,struct IntegerClassStruct* b,bool printAny){
 	struct IntegerFunctionStruct* Integer = IntegerFunctionConstructor();
-	struct IntegerClassStruct* ri = NULL;
-	int rii= 0;
+	struct IntegerClassStruct* r = NULL;
+
 	int ai = atoi(Integer->getSign(a) == '-' ? a->raw : Integer->getNumber(a));
 	int bi = atoi(Integer->getSign(b) == '-' ? b->raw : Integer->getNumber(b));
-	ri = Integer->add(a,b);
-	rii= ai + bi;
-	bool match = false;
+	int ri = ai + bi;
+	bool mi = false;
 
-	match = atoi(Integer->getSign(ri) == '-' ? ri->raw : Integer->getNumber(ri)) == rii;
-		printf("[string] ( a = \"%s\" ) + ( b = \"%s\" ) = ( result = \"%s\" ) %s ",
+	long al = atol(Integer->getSign(a) == '-' ? a->raw : Integer->getNumber(a));
+	long bl = atol(Integer->getSign(b) == '-' ? b->raw : Integer->getNumber(b));
+	long rl = al + bl;
+	bool ml = false;
+
+	long long all = atoll(Integer->getSign(a) == '-' ? a->raw : Integer->getNumber(a));
+	long long bll = atoll(Integer->getSign(b) == '-' ? b->raw : Integer->getNumber(b));
+	long long rll = all + bll;
+	bool mll = false;
+
+	r = Integer->add(a,b);
+	ri = ai + bi;
+	rl = al + bl;
+	rll = all + bll;
+
+	mi = atoi(Integer->getSign(r) == '-' ? r->raw : Integer->getNumber(r)) == ri;
+	ml = atol(Integer->getSign(r) == '-' ? r->raw : Integer->getNumber(r)) == rl;
+	mll = atoll(Integer->getSign(r) == '-' ? r->raw : Integer->getNumber(r)) == rll;
+
+	if(!mi || !ml || !mll || printAny){
+		printf("[string][int = %s][long = %s][long long = %s] ( a = \"%s\" ) + ( b = \"%s\" ) = ( r = \"%s\" )\n",
+			mi ? "true" : "false",
+			ml ? "true" : "false",
+			mll ? "true" : "false",
 			Integer->getSign(a) == '-' ? a->raw : Integer->getNumber(a),
 			Integer->getSign(b) == '-' ? b->raw : Integer->getNumber(b),
-			Integer->getSign(ri) == '-' ? ri->raw : Integer->getNumber(ri),
-			match ? " == " : " != "
+			Integer->getSign(r) == '-' ? r->raw : Integer->getNumber(r)
 		);
-		printf("[int] ( a = %d ) + ( b = %d ) = ( result = %d )\n",ai,bi,rii);
-	ri = Integer->sub(a,b);
-	rii = ai - bi;
-	match = atoi(Integer->getSign(ri) == '-' ? ri->raw : Integer->getNumber(ri)) == rii;
-		printf("[string] ( a = \"%s\" ) - ( b = \"%s\" ) = ( result = \"%s\" ) %s ",
-			Integer->getSign(a) == '-' ? a->raw : Integer->getNumber(a),
-			Integer->getSign(b) == '-' ? b->raw : Integer->getNumber(b),
-			Integer->getSign(ri) == '-' ? ri->raw : Integer->getNumber(ri),
-			match ? " == " : " != "
-		);
-		printf("[int] ( a = %d ) - ( b = %d ) = ( result = %d )\n",ai,bi,rii);
+		printf("[int][%s] ( ai = %d ) + ( bi = %d ) = ( ri = %d )\n",mi?"true":"false",ai,bi,ri);
+		printf("[long][%s] ( al = %d ) + ( bl = %d ) = ( rl = %d )\n",ml?"true":"false",al,bl,rl);
+		printf("[long long][%s] ( all = %d ) + ( bll = %d ) = ( rll = %d )\n",mll?"true":"false",all,bll,rll);
+	}
+	freeMemory(r->raw);
+	freeMemory(r);
+
+	// r = Integer->sub(a,b);
+	// ri = ai - bi;
+	// rl = al - bl;
+	// rll = all - bll;
+
+	// mi = atoi(Integer->getSign(r) == '-' ? r->raw : Integer->getNumber(r)) == ri;
+	// ml = atol(Integer->getSign(r) == '-' ? r->raw : Integer->getNumber(r)) == rl;
+	// mll = atoll(Integer->getSign(r) == '-' ? r->raw : Integer->getNumber(r)) == rll;
+
+	// if(!mi || !ml || !mll || printAny){
+	// 	printf("[string][int = %s][long = %s][long long = %s] ( a = \"%s\" ) - ( b = \"%s\" ) = ( r = \"%s\" )\n",
+	// 		mi ? "true" : "false",
+	// 		ml ? "true" : "false",
+	// 		mll ? "true" : "false",
+	// 		Integer->getSign(a) == '-' ? a->raw : Integer->getNumber(a),
+	// 		Integer->getSign(b) == '-' ? b->raw : Integer->getNumber(b),
+	// 		Integer->getSign(r) == '-' ? r->raw : Integer->getNumber(r)
+	// 	);
+	// 	printf("[int][%s] ( ai = %d ) - ( bi = %d ) = ( ri = %d )\n",mi?"true":"false",ai,bi,ri);
+	// 	printf("[long][%s] ( al = %ld ) - ( bl = %ld ) = ( rl = %ld )\n",ml?"true":"false",al,bl,rl);
+	// 	printf("[long long][%s] ( all = %lld ) - ( bll = %lld ) = ( rll = %lld )\n",mll?"true":"false",all,bll,rll);
+	// }
+	// freeMemory(r->raw);
+	// freeMemory(r);
+
 	freeMemory(Integer);
 }
 
 void testCalculateMatrix(struct IntegerClassStruct* min,struct IntegerClassStruct* max){
-	char* signs = "---++-++";
+	char* signs = "++";
 	char* one_string = "1";
 	one_string = cloneMemory(one_string,strlen_runtime(one_string));
 	struct IntegerClassStruct* one = (IntegerClassStruct*) MemoryClassConstructor(one_string,strlen_runtime(one_string));
@@ -59,8 +101,6 @@ void testCalculateMatrix(struct IntegerClassStruct* min,struct IntegerClassStruc
 		maxInteger(_a,max) == max;
 
 		(
-			(freeMemory(_a_tmp->raw)),
-			(_a_tmp->length = 0),
 
 			(_an = getNumberInteger(_a)),
 			(_anl = strlen_runtime(_an)),
@@ -74,6 +114,9 @@ void testCalculateMatrix(struct IntegerClassStruct* min,struct IntegerClassStruc
 
 			(_a = addInteger(_a_tmp,one)),
 
+			(freeMemory(_a_tmp->raw)),
+			(_a_tmp->length = 0),
+
 			(NULL)
 		)
 	){
@@ -81,8 +124,8 @@ void testCalculateMatrix(struct IntegerClassStruct* min,struct IntegerClassStruc
 			_b = _b;
 			maxInteger(_b,max) == max;
 		(
-			(freeMemory(_b_tmp->raw)),
-			(_b_tmp->length = 0),
+			// (freeMemory(_b_tmp->raw)),
+			// (_b_tmp->length = 0),
 
 			(_bn = getNumberInteger(_b)),
 			(_bnl = strlen_runtime(_bn)),
@@ -109,8 +152,8 @@ void testCalculateMatrix(struct IntegerClassStruct* min,struct IntegerClassStruc
 				char* tmp_b = calloc(1 + b->length + 1,sizeof(char));
 				char* an = getNumberInteger(a);
 				char* bn = getNumberInteger(b);
-				an = cloneMemory(an,strlen_runtime(an));
-				bn = cloneMemory(bn,strlen_runtime(bn));
+				// an = cloneMemory(an,strlen_runtime(an));
+				// bn = cloneMemory(bn,strlen_runtime(bn));
 				memcpy(tmp_a,signs + i,1);
 				memcpy(tmp_b,signs + i + 1,1);
 				memcpy(tmp_a + 1,an,strlen_runtime(an));
@@ -118,38 +161,43 @@ void testCalculateMatrix(struct IntegerClassStruct* min,struct IntegerClassStruc
 				allocMemory(a,tmp_a,1 + strlen_runtime(an));
 				allocMemory(b,tmp_b,1 + strlen_runtime(bn));
 
-				testCalculate(a,b);
+				// freeMemory(an);
+				// freeMemory(bn);
+
+				testCalculate(a,b,true);
 			}
 			printf("");
 		}
 	}
 }
 
-//int main(){
-//	char* mins = "123";
-//	char* maxs = "412";
-//	mins = cloneMemory(mins,strlen_runtime(mins));
-//	maxs = cloneMemory(maxs,strlen_runtime(maxs));
-//	struct IntegerClassStruct* mini = (IntegerClassStruct*)MemoryClassConstructor(mins,strlen_runtime(mins));
-//	struct IntegerClassStruct* maxi = (IntegerClassStruct*)MemoryClassConstructor(maxs,strlen_runtime(maxs));
-//
-//	testCalculateMatrix(mini, maxi);
-//
-//	return 0;
-//}
-
 int main(){
-	char* ac = "9223372036854775807";
-	char* bc = "9223372036854775808";
+	char* mins = "474836";
+	char* maxs = "4122147";
 
-	struct IntegerClassStruct* a = NULL;
-	struct IntegerClassStruct* b = NULL;
+	mins = cloneMemory(mins,strlen_runtime(mins));
+	maxs = cloneMemory(maxs,strlen_runtime(maxs));
 
-	ac = cloneMemory(ac, strlen_runtime(ac));
-	bc = cloneMemory(bc, strlen_runtime(bc));
+	struct IntegerClassStruct* mini = (IntegerClassStruct*)MemoryClassConstructor(mins,strlen_runtime(mins));
+	struct IntegerClassStruct* maxi = (IntegerClassStruct*)MemoryClassConstructor(maxs,strlen_runtime(maxs));
 
-	a = (IntegerClassStruct*) MemoryClassConstructor(ac, strlen_runtime(ac));
-	b = (IntegerClassStruct*) MemoryClassConstructor(bc, strlen_runtime(bc));
+	testCalculateMatrix(mini, maxi);
 
-	testCalculate(a, b);
+	return 0;
 }
+
+//int main(){
+//	char* ac = "9223372036854775807";
+//	char* bc = "9223372036854775808";
+//
+//	struct IntegerClassStruct* a = NULL;
+//	struct IntegerClassStruct* b = NULL;
+//
+//	ac = cloneMemory(ac, strlen_runtime(ac));
+//	bc = cloneMemory(bc, strlen_runtime(bc));
+//
+//	a = (IntegerClassStruct*) MemoryClassConstructor(ac, strlen_runtime(ac));
+//	b = (IntegerClassStruct*) MemoryClassConstructor(bc, strlen_runtime(bc));
+//
+//	testCalculate(a, b);
+//}

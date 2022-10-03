@@ -26,7 +26,10 @@
 #ifndef __CUSTOM_TEST_CALCULATE_H__
 #define __CUSTOM_TEST_CALCULATE_H__
 
-extern void testCalculate(struct IntegerClassStruct* a,struct IntegerClassStruct* b);
+extern char* itoa(int i);
+extern char* ltoa(long l);
+extern char* lltoa(long long ll);
+extern void testCalculate(struct IntegerClassStruct* a,struct IntegerClassStruct* b,bool printAny);
 extern void testCalculateMatrix(struct IntegerClassStruct* min,struct IntegerClassStruct* max);
 
 #endif
