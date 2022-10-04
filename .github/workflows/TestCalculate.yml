@@ -6,7 +6,7 @@ jobs:
   build:
     name: Build 🔧 & Test 🔧
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 120
     steps:
     - uses: actions/checkout@v3
     - name: Set up GCC
