@@ -42,8 +42,8 @@ void testCalculate(struct IntegerClassStruct* a,struct IntegerClassStruct* b,boo
 			Integer->getSign(r) == '-' ? r->raw : Integer->getNumber(r)
 		);
 		printf("[int][%s] ( ai = %d ) + ( bi = %d ) = ( ri = %d )\n",mi?"true":"false",ai,bi,ri);
-		printf("[long][%s] ( al = %d ) + ( bl = %d ) = ( rl = %d )\n",ml?"true":"false",al,bl,rl);
-		printf("[long long][%s] ( all = %d ) + ( bll = %d ) = ( rll = %d )\n",mll?"true":"false",all,bll,rll);
+		printf("[long][%s] ( al = %ld ) + ( bl = %ld ) = ( rl = %ld )\n",ml?"true":"false",al,bl,rl);
+		printf("[long long][%s] ( all = %lld ) + ( bll = %lld ) = ( rll = %lld )\n",mll?"true":"false",all,bll,rll);
 	}
 	freeMemory(r->raw);
 	freeMemory(r);
