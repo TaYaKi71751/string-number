@@ -1,6 +1,9 @@
 #include<stdlib.h>
 #include "./calculate.h"
 
+const size_t FIRST_SIGN_BYTE_SIZE = 0x01;
+const size_t END_BYTE_SIZE = 0x01;
+
 void testCalculate(struct IntegerClassStruct* a,struct IntegerClassStruct* b,bool printAny){
 	struct IntegerFunctionStruct* Integer = IntegerFunctionConstructor();
 	struct IntegerClassStruct* r = NULL;
@@ -145,35 +148,50 @@ void testCalculateMatrix(struct IntegerClassStruct* min,struct IntegerClassStruc
 			(NULL)
 		)
 		){
-			struct IntegerClassStruct* a = _a;
-			struct IntegerClassStruct* b = _b;
-			for(int i = 0;i < strlen_runtime(signs);i+=2){
-				char* tmp_a = calloc(1 + a->length + 1,sizeof(char));
-				char* tmp_b = calloc(1 + b->length + 1,sizeof(char));
-				char* an = getNumberInteger(a);
-				char* bn = getNumberInteger(b);
+			struct IntegerClassStruct* a = NULL;
+			struct IntegerClassStruct* b = NULL;
+			for(long i = 0;i < strlen_runtime(signs);i+=2){
+				char* an = getNumberInteger(_a);
+				char* bn = getNumberInteger(_b);
+
+				size_t anl = strlen_runtime(an);
+				size_t bnl = strlen_runtime(bn);
+
+				char* an_tmp = calloc(FIRST_SIGN_BYTE_SIZE + anl + END_BYTE_SIZE,sizeof(char));
+				char* bn_tmp = calloc(FIRST_SIGN_BYTE_SIZE + bnl + END_BYTE_SIZE,sizeof(char));
 				// an = cloneMemory(an,strlen_runtime(an));
 				// bn = cloneMemory(bn,strlen_runtime(bn));
-				memcpy(tmp_a,signs + i,1);
-				memcpy(tmp_b,signs + i + 1,1);
-				memcpy(tmp_a + 1,an,strlen_runtime(an));
-				memcpy(tmp_b + 1,bn,strlen_runtime(bn));
-				allocMemory(a,tmp_a,1 + strlen_runtime(an));
-				allocMemory(b,tmp_b,1 + strlen_runtime(bn));
+				memcpy(an_tmp,signs + i,1);
+				memcpy(bn_tmp,signs + i + 1,1);
+				memcpy(an_tmp + 1,an,anl);
+				memcpy(bn_tmp + 1,bn,bnl);
+				a =(IntegerClassStruct*) MemoryClassConstructor(an_tmp,FIRST_SIGN_BYTE_SIZE + anl);
+				b =(IntegerClassStruct*) MemoryClassConstructor(bn_tmp,FIRST_SIGN_BYTE_SIZE + bnl);
 
 				// freeMemory(an);
 				// freeMemory(bn);
 
-				testCalculate(a,b,true);
+				testCalculate(a,b,false);
+
+				freeMemory(a->raw);
+				freeMemory(b->raw);
+
+				freeMemory(a);
+				freeMemory(b);
 			}
-			printf("");
 		}
+		freeMemory(_b->raw);
+		freeMemory(b_);
+		b_ = cloneMemory(min->raw,min->length);
+  _b = (IntegerClassStruct*) MemoryClassConstructor(b_,strlen_runtime(b_));
 	}
+	freeMemory(_a->raw);
+	freeMemory(a_);
 }
 
 int main(){
-	char* mins = "474836";
-	char* maxs = "4122147";
+	char* mins = "0";
+	char* maxs = "2147483647";
 
 	mins = cloneMemory(mins,strlen_runtime(mins));
 	maxs = cloneMemory(maxs,strlen_runtime(maxs));
