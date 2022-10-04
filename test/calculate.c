@@ -1,6 +1,9 @@
 #include<stdlib.h>
 #include "./calculate.h"
 
+const size_t FIRST_SIGN_BYTE_SIZE = 0x01;
+const size_t END_BYTE_SIZE = 0x01;
+
 void testCalculate(struct IntegerClassStruct* a,struct IntegerClassStruct* b,bool printAny){
 	struct IntegerFunctionStruct* Integer = IntegerFunctionConstructor();
 	struct IntegerClassStruct* r = NULL;
@@ -42,8 +45,8 @@ void testCalculate(struct IntegerClassStruct* a,struct IntegerClassStruct* b,boo
 		printf("[long][%s] ( al = %d ) + ( bl = %d ) = ( rl = %d )\n",ml?"true":"false",al,bl,rl);
 		printf("[long long][%s] ( all = %d ) + ( bll = %d ) = ( rll = %d )\n",mll?"true":"false",all,bll,rll);
 	}
-	freeMemory(r->raw);
-	freeMemory(r);
+	((freeMemory(r->raw)),																																				(r->raw = NULL));
+	((freeMemory(r)),																																									(r = NULL));
 
 	// r = Integer->sub(a,b);
 	// ri = ai - bi;
@@ -70,7 +73,7 @@ void testCalculate(struct IntegerClassStruct* a,struct IntegerClassStruct* b,boo
 	// freeMemory(r->raw);
 	// freeMemory(r);
 
-	freeMemory(Integer);
+	((freeMemory(Integer)),																																			(Integer = NULL));
 }
 
 void testCalculateMatrix(struct IntegerClassStruct* min,struct IntegerClassStruct* max){
@@ -86,6 +89,7 @@ void testCalculateMatrix(struct IntegerClassStruct* min,struct IntegerClassStruc
 	struct IntegerClassStruct* _b = (IntegerClassStruct*) MemoryClassConstructor(b_,strlen_runtime(b_));
 	struct IntegerClassStruct* _a_tmp = (IntegerClassStruct*) MemoryClassConstructor(NULL,0x00);
 	struct IntegerClassStruct* _b_tmp = (IntegerClassStruct*) MemoryClassConstructor(NULL,0x00);
+
 
 	char* _an = NULL;
 	char* _bn = NULL;
@@ -108,13 +112,13 @@ void testCalculateMatrix(struct IntegerClassStruct* min,struct IntegerClassStruc
 			(_a_tmp->raw = cloneMemory(_an,_anl)),
 			(_a_tmp->length = _anl),
 
-			(freeMemory(_a->raw)),
 			(_a->length = 0),
-			(freeMemory(_a)),
+			((freeMemory(_a->raw)),																																	(_a->raw = NULL)),
+			((freeMemory(_a)),																																						(_a = NULL)),
 
 			(_a = addInteger(_a_tmp,one)),
 
-			(freeMemory(_a_tmp->raw)),
+			((freeMemory(_a_tmp->raw)),																													(_a_tmp->raw = NULL)),
 			(_a_tmp->length = 0),
 
 			(NULL)
@@ -133,47 +137,62 @@ void testCalculateMatrix(struct IntegerClassStruct* min,struct IntegerClassStruc
 			(_b_tmp->raw = cloneMemory(_bn,_bnl)),
 			(_b_tmp->length = _bnl),
 
-			(freeMemory(_b->raw)),
 			(_b->length = 0),
-			(freeMemory(_b)),
+			((freeMemory(_b->raw)),																																	(_b->raw = NULL)),
+			((freeMemory(_b)),																																						(_b = NULL)),
 
 			(_b = addInteger(_b_tmp,one)),
 
-			(freeMemory(_b_tmp->raw)),
+			((freeMemory(_b_tmp->raw)),																													(_b_tmp->raw = NULL)),
 			(_b_tmp->length = 0),
 
 			(NULL)
 		)
 		){
-			struct IntegerClassStruct* a = _a;
-			struct IntegerClassStruct* b = _b;
-			for(int i = 0;i < strlen_runtime(signs);i+=2){
-				char* tmp_a = calloc(1 + a->length + 1,sizeof(char));
-				char* tmp_b = calloc(1 + b->length + 1,sizeof(char));
-				char* an = getNumberInteger(a);
-				char* bn = getNumberInteger(b);
+			struct IntegerClassStruct* a = NULL;
+			struct IntegerClassStruct* b = NULL;
+			for(long i = 0;i < strlen_runtime(signs);i+=2){
+				char* an = getNumberInteger(_a);
+				char* bn = getNumberInteger(_b);
+
+				size_t anl = strlen_runtime(an);
+				size_t bnl = strlen_runtime(bn);
+
+				char* an_tmp = calloc(FIRST_SIGN_BYTE_SIZE + anl + END_BYTE_SIZE,sizeof(char));
+				char* bn_tmp = calloc(FIRST_SIGN_BYTE_SIZE + bnl + END_BYTE_SIZE,sizeof(char));
 				// an = cloneMemory(an,strlen_runtime(an));
 				// bn = cloneMemory(bn,strlen_runtime(bn));
-				memcpy(tmp_a,signs + i,1);
-				memcpy(tmp_b,signs + i + 1,1);
-				memcpy(tmp_a + 1,an,strlen_runtime(an));
-				memcpy(tmp_b + 1,bn,strlen_runtime(bn));
-				allocMemory(a,tmp_a,1 + strlen_runtime(an));
-				allocMemory(b,tmp_b,1 + strlen_runtime(bn));
+				memcpy(an_tmp,signs + i,1);
+				memcpy(bn_tmp,signs + i + 1,1);
+				memcpy(an_tmp + 1,an,anl);
+				memcpy(bn_tmp + 1,bn,bnl);
+				a =(IntegerClassStruct*) MemoryClassConstructor(an_tmp,FIRST_SIGN_BYTE_SIZE + anl);
+				b =(IntegerClassStruct*) MemoryClassConstructor(bn_tmp,FIRST_SIGN_BYTE_SIZE + bnl);
 
 				// freeMemory(an);
 				// freeMemory(bn);
 
-				testCalculate(a,b,true);
-			}
-			printf("");
-		}
-	}
-}
+				testCalculate(a,b,false);
 
+				((freeMemory(a->raw)),																																	(a->raw = NULL));
+				((freeMemory(b->raw)),																																	(b->raw = NULL));
+
+				((freeMemory(a)),																																						(a = NULL));
+				((freeMemory(b)),																																						(b = NULL));
+			}
+		}
+
+		((freeMemory(_b->raw)),																																		(_b->raw = NULL));
+		_b->raw = cloneMemory(min->raw,min->length);
+		_bn = getNumberInteger(_b);
+  _b->length = strlen_runtime(_bn);
+	}
+	((freeMemory(_a->raw)),																																			(_a->raw = NULL));
+	((freeMemory(_a)),																																								(_a = NULL));
+}
 int main(){
-	char* mins = "474836";
-	char* maxs = "4122147";
+	char* mins = "0";
+	char* maxs = "2147483647";
 
 	mins = cloneMemory(mins,strlen_runtime(mins));
 	maxs = cloneMemory(maxs,strlen_runtime(maxs));
@@ -183,6 +202,11 @@ int main(){
 
 	testCalculateMatrix(mini, maxi);
 
+	((freeMemory(mini->raw)),																																	(mini->raw = NULL));
+	((freeMemory(maxi->raw)),																																	(maxi->raw = NULL));
+
+	((freeMemory(mini)),																																						(mini = NULL));
+	((freeMemory(maxi)),																																						(maxi = NULL));
 	return 0;
 }
 

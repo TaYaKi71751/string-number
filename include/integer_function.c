@@ -123,7 +123,7 @@ RESULT_ZERO:
 	char* rnr = calloc(rnl + END_BYTE_SIZE,sizeof(char));
 	memcpy(rnr,&rs,FIRST_SIGN_BYTE_SIZE);
 	memcpy(rnr + FIRST_SIGN_BYTE_SIZE,rn,strlen_runtime(rn));
-	if(ri != NULL && (ri != a || ri != b)) freeMemory(ri);
+	if(ri != NULL && ri != a && ri != b) (freeMemory(ri),					(ri = NULL));
 	ri = (IntegerClassStruct*) MemoryClassConstructor(rnr,rnl);
 	goto VALUE_END;
 NEGATIVE:
@@ -211,14 +211,14 @@ POSITIVE:
 		ur = calloc(FIRST_SIGN_BYTE_SIZE + rnl + END_BYTE_SIZE,sizeof(char));
 		memcpy(ur,&rs,strlen_runtime(&rs));
 		memcpy(ur + FIRST_SIGN_BYTE_SIZE,r + i,rnl);
-		freeMemory(r);
+		((freeMemory(r)),																																								(r = NULL));
 		ri = (IntegerClassStruct*)MemoryClassConstructor(ur,FIRST_SIGN_BYTE_SIZE + rnl);
 		break;
 	}
 VALUE_END:
 FREE:
-	if(api != a && api != NULL) freeMemory(api);
-	if(bpi != b && bpi != NULL) freeMemory(bpi);
+	if(api != a && api != NULL) ((freeMemory(api)),											(api = NULL));
+	if(bpi != b && bpi != NULL) ((freeMemory(bpi)),											(bpi = NULL));
 RETURN:
 	return ri;
 }
@@ -340,8 +340,8 @@ B: ri = b; goto VALUE_END;
 EQUAL: ri = 0x00; goto VALUE_END; // Returns 0x00 if equals
 VALUE_END:
 FREE:
-	if(api != a && api != NULL) freeMemory(api);
-	if(bpi != b && bpi != NULL) freeMemory(bpi);
+	if(api != a && api != NULL) ((freeMemory(api)),											(api = NULL));
+	if(bpi != b && bpi != NULL) ((freeMemory(bpi)),											(bpi = NULL));
 RETURN:
  return ri;
 }
