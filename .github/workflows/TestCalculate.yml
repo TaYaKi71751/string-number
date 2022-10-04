@@ -15,6 +15,6 @@ jobs:
         version: latest
         platform: x64
     - name: Build test/calculate.c
-      run: gcc ./include/**.c ./test/calculate.c -o ./caculate.out
+      run: gcc ./include/**.c ./test/calculate.c -o ./calculate.out
     - name: Test ./calculate.out 🔧
       run: ./calculate.out
