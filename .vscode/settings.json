@@ -9,6 +9,14 @@
   "memory_function.h": "c",
   "stdlib.h": "c",
   "stdio.h": "c",
-  "string_class.h": "c"
+  "string_class.h": "c",
+  "atomic": "c",
+  "*.tcc": "c",
+  "compare": "c",
+  "optional": "c",
+  "future": "c",
+  "numeric": "c",
+  "sstream": "c",
+  "cmath": "c"
  }
 }
