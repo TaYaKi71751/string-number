@@ -81,7 +81,6 @@ struct IntegerClassStruct* addInteger(struct IntegerClassStruct* a,struct Intege
 		char* zst = "0";
 
  size_t length = 0x00;
- size_t i = 0x00;
  char over = 0x00;
  char current = 0x00;
 		api = (IntegerClassStruct*)MemoryClassConstructor(an,strlen_runtime(an));
@@ -182,8 +181,7 @@ POSITIVE:
 	/** (a > 0,b > 0) **/
  rnl = (length = (anl > bnl ? anl : bnl) + 1);
  r = calloc(length + END_BYTE_SIZE,sizeof(char));
- i = length;
-	for(i = length;i - 1 <= i;i--){
+	for(long i = length;i >= 0;i--){
 		if(i == length) continue;
 		char ai = (anl - (length - (i + 1)) - 1 <= anl - 1) ? (an[anl - (length - (i + 1)) - 1]) : 0x00;
 		char bi = (bnl - (length - (i + 1)) - 1 <= bnl - 1) ? (bn[bnl - (length - (i + 1)) - 1]) : 0x00;
@@ -196,18 +194,15 @@ POSITIVE:
 		// r[i] += (ai + bi);
 	}
 	over = 0;
-	i = 0;
-	for(i = 0;i <= length;i++){
+	for(long i = 0;i < length;i++){
 		over = r[i] / 10;
 		r[i] = r[i] % 10;
 		if(over && !(length - (i + 1))) r[length - (i + 1)] += over;
 	}
- i = 0;
- for(i = 0;(i + 1) <= length;i++) r[i]+= 0x30; /** itoa **/
- i = 0;
- for(i = 0;i <= length;i++){ /** TRIM **/
+ for(long i = 0;i < length;i++) r[i]+= 0x30; /** itoa **/
+ for(long i = 0;i < length;i++){ /** TRIM **/
 		rnl = length - i;
-		if(r[i] == 0x30 && (length - rnl)) continue;
+		if(r[i] == 0x30 && (rnl > 0)) continue;
 		ur = calloc(FIRST_SIGN_BYTE_SIZE + rnl + END_BYTE_SIZE,sizeof(char));
 		memcpy(ur,&rs,strlen_runtime(&rs));
 		memcpy(ur + FIRST_SIGN_BYTE_SIZE,r + i,rnl);
@@ -288,7 +283,10 @@ struct IntegerClassStruct* maxInteger(struct IntegerClassStruct* a,struct Intege
 
  char* an = getNumberInteger(a);
  char* bn = getNumberInteger(b);
- char* rn = NULL;
+	char* rn = NULL;
+
+	size_t anl = strlen_runtime(an);
+	size_t bnl = strlen_runtime(bn);
 
  char as = getSignInteger(a);
  char bs = getSignInteger(b);
@@ -314,8 +312,8 @@ ZERO:
 NEGATIVE:
 		if(ap && bm) goto A;
 		if(am && bp) goto B;
-	api = (IntegerClassStruct*)MemoryClassConstructor(an,strlen_runtime(an));
-	bpi = (IntegerClassStruct*)MemoryClassConstructor(bn,strlen_runtime(bn));
+	api = (IntegerClassStruct*)MemoryClassConstructor(an,anl);
+	bpi = (IntegerClassStruct*)MemoryClassConstructor(bn,bnl);
 		
 		if(am && bm){
 			ri = maxInteger(api,bpi);
