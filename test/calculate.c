@@ -45,8 +45,8 @@ void testCalculate(struct IntegerClassStruct* a,struct IntegerClassStruct* b,boo
 		printf("[long][%s] ( al = %ld ) + ( bl = %ld ) = ( rl = %ld )\n",ml?"true":"false",al,bl,rl);
 		printf("[long long][%s] ( all = %lld ) + ( bll = %lld ) = ( rll = %lld )\n",mll?"true":"false",all,bll,rll);
 	}
-	freeMemory(r->raw);
-	freeMemory(r);
+	((freeMemory(r->raw)),																																				(r->raw = NULL));
+	((freeMemory(r)),																																									(r = NULL));
 
 	// r = Integer->sub(a,b);
 	// ri = ai - bi;
@@ -73,7 +73,7 @@ void testCalculate(struct IntegerClassStruct* a,struct IntegerClassStruct* b,boo
 	// freeMemory(r->raw);
 	// freeMemory(r);
 
-	freeMemory(Integer);
+	((freeMemory(Integer)),																																			(Integer = NULL));
 }
 
 void testCalculateMatrix(struct IntegerClassStruct* min,struct IntegerClassStruct* max){
@@ -89,6 +89,9 @@ void testCalculateMatrix(struct IntegerClassStruct* min,struct IntegerClassStruc
 	struct IntegerClassStruct* _b = (IntegerClassStruct*) MemoryClassConstructor(b_,strlen_runtime(b_));
 	struct IntegerClassStruct* _a_tmp = (IntegerClassStruct*) MemoryClassConstructor(NULL,0x00);
 	struct IntegerClassStruct* _b_tmp = (IntegerClassStruct*) MemoryClassConstructor(NULL,0x00);
+
+	((freeMemory(a_)),																																								(a_ = NULL));
+	((freeMemory(b_)),																																								(b_ = NULL));
 
 	char* _an = NULL;
 	char* _bn = NULL;
@@ -111,13 +114,13 @@ void testCalculateMatrix(struct IntegerClassStruct* min,struct IntegerClassStruc
 			(_a_tmp->raw = cloneMemory(_an,_anl)),
 			(_a_tmp->length = _anl),
 
-			(freeMemory(_a->raw)),
 			(_a->length = 0),
-			(freeMemory(_a)),
+			((freeMemory(_a->raw)),																																	(_a->raw = NULL)),
+			((freeMemory(_a)),																																						(_a = NULL)),
 
 			(_a = addInteger(_a_tmp,one)),
 
-			(freeMemory(_a_tmp->raw)),
+			((freeMemory(_a_tmp->raw)),																													(_a_tmp->raw = NULL)),
 			(_a_tmp->length = 0),
 
 			(NULL)
@@ -136,13 +139,13 @@ void testCalculateMatrix(struct IntegerClassStruct* min,struct IntegerClassStruc
 			(_b_tmp->raw = cloneMemory(_bn,_bnl)),
 			(_b_tmp->length = _bnl),
 
-			(freeMemory(_b->raw)),
 			(_b->length = 0),
-			(freeMemory(_b)),
+			(freeMemory(_b->raw),																																			(_b->raw = NULL)),
+			(freeMemory(_b),																																								(_b = NULL)),
 
 			(_b = addInteger(_b_tmp,one)),
 
-			(freeMemory(_b_tmp->raw)),
+			(freeMemory(_b_tmp->raw),																															(_b_tmp->raw = NULL)),
 			(_b_tmp->length = 0),
 
 			(NULL)
@@ -173,22 +176,22 @@ void testCalculateMatrix(struct IntegerClassStruct* min,struct IntegerClassStruc
 
 				testCalculate(a,b,false);
 
-				freeMemory(a->raw);
-				freeMemory(b->raw);
+				((freeMemory(a->raw)),																																	(a->raw = NULL));
+				((freeMemory(b->raw)),																																	(b->raw = NULL));
 
-				freeMemory(a);
-				freeMemory(b);
+				((freeMemory(a)),																																						(a = NULL));
+				((freeMemory(b)),																																						(b = NULL));
 			}
 		}
-		freeMemory(_b->raw);
-		freeMemory(b_);
-		b_ = cloneMemory(min->raw,min->length);
-  _b = (IntegerClassStruct*) MemoryClassConstructor(b_,strlen_runtime(b_));
-	}
-	freeMemory(_a->raw);
-	freeMemory(a_);
-}
 
+		((freeMemory(_b->raw)),																																		(_b->raw = NULL));
+		_b->raw = cloneMemory(min->raw,min->length);
+		_bn = getNumberInteger(_b);
+  _b->length = strlen_runtime(_bn);
+	}
+	((freeMemory(_a->raw)),																																			(_a->raw = NULL));
+	((freeMemory(_a)),																																								(_a = NULL));
+}
 int main(){
 	char* mins = "0";
 	char* maxs = "2147483647";
@@ -201,6 +204,11 @@ int main(){
 
 	testCalculateMatrix(mini, maxi);
 
+	((freeMemory(mini->raw)),																																	(mini->raw = NULL));
+	((freeMemory(maxi->raw)),																																	(maxi->raw = NULL));
+
+	((freeMemory(mini)),																																						(mini = NULL));
+	((freeMemory(maxi)),																																						(maxi = NULL));
 	return 0;
 }
 
