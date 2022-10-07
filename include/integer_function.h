@@ -21,6 +21,11 @@
 #include "./memory.h"
 #include "./string.h"
 #include "./integer_class.h"
+#include "./integer_function_get_number.h"
+#include "./integer_function_get_sign.h"
+#include "./integer_function_max.h"
+#include "./integer_function_min.h"
+#include "./integer_function_add.h"
 
 #ifndef __CUSTOM_INTEGER_FUNCTION_H__
 #define __CUSTOM_INTEGER_FUNCTION_H__

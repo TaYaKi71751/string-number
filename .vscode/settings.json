@@ -17,6 +17,7 @@
   "future": "c",
   "numeric": "c",
   "sstream": "c",
-  "cmath": "c"
+  "cmath": "c",
+  "integer_function_add.h": "c"
  }
 }
