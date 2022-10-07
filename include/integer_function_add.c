@@ -55,63 +55,65 @@ RESULT_ZERO:
 		rn = an;
 		rs = as;
 	}
-	rnl = FIRST_SIGN_BYTE_SIZE + strlen_runtime(rn);
-	char* rnr = calloc(rnl + END_BYTE_SIZE,sizeof(char));
-	memcpy(rnr,&rs,FIRST_SIGN_BYTE_SIZE);
-	memcpy(rnr + FIRST_SIGN_BYTE_SIZE,rn,strlen_runtime(rn));
+	tnl = FIRST_SIGN_BYTE_SIZE + strlen_runtime(rn);
+	tn = calloc(rnl + END_BYTE_SIZE,sizeof(char));
+	memcpy(tn,&rs,FIRST_SIGN_BYTE_SIZE);
+	memcpy(tn + FIRST_SIGN_BYTE_SIZE,rn,strlen_runtime(rn));
 	if(ri != NULL && ri != a && ri != b) (freeMemory(ri),					(ri = NULL));
-	ri = (IntegerClassStruct*) MemoryClassConstructor(rnr,rnl);
+	ri = (IntegerClassStruct*) MemoryClassConstructor(tn,tnl);
 	goto VALUE_END;
 NEGATIVE:
-		// /** addInteger(a,b) **/ /** a + b **/
-		// if(ap && bm) { /** (a > 0,b < 0) **/
-		// 	mxi = maxInteger(api,bpi);
-		// 	if(mxi == 0x00) /** (|a| = |b|) **/ goto RESULT_ZERO; /** (r = 0) **/
-		// 	if(mxi == api){ /** (|a| > |b|) **/
-		// 		ri = subInteger(api,bpi); /** r = (|a| - |b|) **/
-		// 		rs = 0x00; /** (r > 0) **/
-		// 	}
-		// 	if(mxi == bpi){ /** (|a| < |b|) **/
-		// 		ri = subInteger(bpi,api);
-		// 		rs = '-'; /** (r < 0) **/
-		// 	}
-		// }
-		// /** addInteger(a,b) **/ /** a + b **/
-		// if(am && bp){ /**(a < 0,b > 0) **/
-		// 	mxi = maxInteger(api,bpi);
-		// 	if(mxi == 0x00) /** (|a| = |b|) **/ goto RESULT_ZERO; /** (r = 0) **/
-		// 	if(mxi == api){ /** (|a| > |b|) **/
-		// 		ri = subInteger(api,bpi); /**  **/
-		// 		rs = '-'; /** (r < 0) **/
-		// 	}
-		// 	if(mxi == bpi){
-		// 		ri = subInteger(bpi,api);
-		// 		rs = 0x00; /** (r > 0) **/
-		// 	}
-		// }
-		// /** addInteger(a,b) **/ /** a + b **/
-		// if(am && bm){ /** (a < 0,b < 0) **/
-		// 	mxi = maxInteger(api,bpi);
-		// 	if(mxi == 0){ /** (|a| = |b|) **/
-		// 		ri = addInteger(api,bpi);
-		// 		rs = '-'; /** (r < 0) **/
-		// 	}
+		/** addInteger(a,b) **/ /** a + b **/
+		if(ap && bm) { /** (a > 0,b < 0) **/
+			mxi = maxInteger(api,bpi);
+			if(mxi == 0x00) /** (|a| = |b|) **/ goto RESULT_ZERO; /** (r = 0) **/
+			if(mxi == api){ /** (|a| > |b|) **/
+				ri = subInteger(api,bpi); /** r = (|a| - |b|) **/
+				rs = 0x00; /** (r > 0) **/
+			}
+			if(mxi == bpi){ /** (|a| < |b|) **/
+				ri = subInteger(bpi,api);
+				rs = '-'; /** (r < 0) **/
+			}
+		}
+		/** addInteger(a,b) **/ /** a + b **/
+		if(am && bp){ /**(a < 0,b > 0) **/
+			mxi = maxInteger(api,bpi);
+			if(mxi == 0x00) /** (|a| = |b|) **/ goto RESULT_ZERO; /** (r = 0) **/
+			if(mxi == api){ /** (|a| > |b|) **/
+				ri = subInteger(api,bpi); /**  **/
+				rs = '-'; /** (r < 0) **/
+			}
+			if(mxi == bpi){
+				ri = subInteger(bpi,api);
+				rs = 0x00; /** (r > 0) **/
+			}
+		}
+		/** addInteger(a,b) **/ /** a + b **/
+		if(am && bm){ /** (a < 0,b < 0) **/
+			mxi = maxInteger(api,bpi);
+			if(mxi == 0){ /** (|a| = |b|) **/
+				ri = addInteger(api,bpi);
+				rs = '-'; /** (r < 0) **/
+			}
 			
-		// 	if(mxi == api){ /** (|a| > |b|) **/
-		// 		ri = addInteger(api,bpi);
-		// 		rs = '-'; /** (r < 0) **/
-		// 	}
-		// 	if(mxi == bpi){ /** (|a| < |b|) **/
-		// 		ri = addInteger(api,bpi);
-		// 		rs = '-'; /** (r < 0) **/
-		// 	}
-		// }
-		// rn = getNumberInteger(ri);
-		// rnl = FIRST_SIGN_BYTE_SIZE + strlen_runtime(rn);
-		// rnr = calloc(rnl + END_BYTE_SIZE,sizeof(char));
-		// memcpy(rnr,&rs,FIRST_SIGN_BYTE_SIZE);
-		// memcpy(rnr+FIRST_SIGN_BYTE_SIZE,rn,strlen_runtime(rn));
-		// ri = (IntegerClassStruct*)MemoryClassConstructor(rnr,rnl);
+			if(mxi == api){ /** (|a| > |b|) **/
+				ri = addInteger(api,bpi);
+				rs = '-'; /** (r < 0) **/
+			}
+			if(mxi == bpi){ /** (|a| < |b|) **/
+				ri = addInteger(api,bpi);
+				rs = '-'; /** (r < 0) **/
+			}
+		}
+		rn = getNumberInteger(ri);
+		tnl = FIRST_SIGN_BYTE_SIZE + strlen_runtime(rn);
+		tn = calloc(rnl + END_BYTE_SIZE,sizeof(char));
+		memcpy(tn,&rs,FIRST_SIGN_BYTE_SIZE);
+		memcpy(tn+FIRST_SIGN_BYTE_SIZE,rn,strlen_runtime(rn));
+		((freeMemory(rn)),																																							(rn = NULL));
+		((freeMemory(ri)),																																							(ri = NULL));
+		ri = (IntegerClassStruct*)MemoryClassConstructor(tn,tnl);
 		goto VALUE_END;	
 POSITIVE:
 	/** addInteger(a,b) **/ /** a + b **/

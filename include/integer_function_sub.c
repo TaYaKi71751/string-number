@@ -1,17 +1,106 @@
 #include "./integer_function_sub.h"
-
+/** SUB_INTEGER_START **/
 struct IntegerClassStruct* subInteger(struct IntegerClassStruct* a,struct IntegerClassStruct* b){
 	const size_t FIRST_SIGN_BYTE_SIZE = 0x01;
 	const size_t END_BYTE_SIZE = 0x01;
 
-	struct IntegerClassStruct* ri = NULL;
-	char *an = NULL,*bn = NULL,*rn = NULL,*tn = NULL;
+	char *an = NULL,*bn = NULL,*rn = NULL,*tn = NULL,*zst = "0";
+	char as = 0x00,bs = 0x00,rs = 0x00;
 	size_t anl = 0x00,bnl = 0x00,rnl = 0x00,tnl = 0x00;
+	bool az = false,bz = false,am = false,bm = false,ap = false,bp = false;
+	struct IntegerClassStruct *ri = NULL,*api = NULL,*bpi = NULL,*mxi = NULL,*mni = NULL;
+
+ ((an = getNumberInteger(a)),(bn = getNumberInteger(b)));
+	((anl = strlen_runtime(an)),(bnl = strlen_runtime(bn)),(rnl = (anl > bnl ? anl : bnl) + 1));
+	((as = getSignInteger(a)),(bs = getSignInteger(b)));
+
+	((az = an[0] == 0x30),(bz = bn[0] == 0x30));
+	((am = as == '-' && !az),(bm = bs == '-' && !bz));
+	((ap = as != '-' && !az),(bp = bs != '-' && !bz));
+
 	bool negative = false;
 	char sign = 0x00;
 
 	(an = getNumberInteger(a),bn = getNumberInteger(b));
 	((anl = strlen_runtime(an)),(bnl = strlen_runtime(bn)),(rnl = anl > bnl ? anl : bnl));
+
+		api = (IntegerClassStruct*)MemoryClassConstructor(an,strlen_runtime(an));
+		bpi = (IntegerClassStruct*)MemoryClassConstructor(bn,strlen_runtime(bn));
+		mxi = maxInteger(a,b);
+		mni = minInteger(a,b);
+
+	if(az || bz) goto ZERO;
+	if(am || bm) goto NEGATIVE;
+	if(ap && bp) goto POSITIVE;
+ZERO:
+	/** subInteger(a,b) **/ /** a - b **/
+	if(az && bz) { /** (a = 0,b = 0) **/
+RESULT_ZERO:
+		rn = zst;
+		rs = '+';
+	}
+	/** addInteger(a,b) **/ /** a - b **/
+	if(az && bp) { /** (a = 0,b > 0) **/
+		rn = bn;
+		rs = '-'; /** (r < 0) **/
+	}
+	/** addInteger(a,b) **/ /** a - b **/
+	if(az && bm) { /** (a = 0,b < 0) **/
+		rn = bn;
+		rs = '+'; /** (r > 0) **/
+	}
+	/** addInteger(a,b) **/ /** a - b **/
+	if(bz && am) { /** (a < 0,b = 0) **/
+		rn = an;
+		rs = as; /** (r < 0) **/
+	}
+	/** addInteger(a,b) **/ /** a - b **/
+	if(bz && ap) { /** (a > 0,b = 0) **/
+		rn = an;
+		rs = as; /** (r > 0) **/
+	}
+	rnl = FIRST_SIGN_BYTE_SIZE + strlen_runtime(rn);
+	tn = calloc(rnl + END_BYTE_SIZE,sizeof(char));
+	memcpy(tn,&rs,FIRST_SIGN_BYTE_SIZE);
+	memcpy(tn + FIRST_SIGN_BYTE_SIZE,rn,strlen_runtime(rn));
+	if(ri != NULL && ri != a && ri != b) (freeMemory(ri),					(ri = NULL));
+	ri = (IntegerClassStruct*) MemoryClassConstructor(tn,rnl);
+	goto VALUE_END;
+NEGATIVE:
+		/** subInteger(a,b) **/ /** a - b **/
+		if(ap && bm) { /** (a > 0,b < 0) **/
+			ri = addInteger(api,bpi);
+			rs = '+';
+		}
+		/** subInteger(a,b) **/ /** a - b **/
+		if(am && bp){ /**(a < 0,b > 0) **/
+			ri = addInteger(api,bpi);
+			rs = '-';
+		}
+		/** subInteger(a,b) **/ /** a - b **/
+		if(am && bm){ /** (a < 0,b < 0) **/
+			mxi = maxInteger(api,bpi);
+			if(mxi == 0) /** (|a| = |b|) **/ goto RESULT_ZERO; /** (r = 0) **/
+			
+			if(mxi == api){ /** (|a| > |b|) **/
+				ri = subInteger(api,bpi);
+				rs = '-'; /** (r < 0) **/
+			}
+			if(mxi == bpi){ /** (|a| < |b|) **/
+				ri = subInteger(api,bpi);
+				rs = '+'; /** (r > 0) **/
+			}
+		}
+		rn = getNumberInteger(ri);
+		rnl = FIRST_SIGN_BYTE_SIZE + strlen_runtime(rn);
+		tn = calloc(rnl + END_BYTE_SIZE,sizeof(char));
+		memcpy(tn,&rs,FIRST_SIGN_BYTE_SIZE);
+		memcpy(tn+FIRST_SIGN_BYTE_SIZE,rn,strlen_runtime(rn));
+		((freeMemory(rn)),																																							(rn = NULL));
+		((freeMemory(ri)),																																							(ri = NULL));
+		ri = (IntegerClassStruct*)MemoryClassConstructor(tn,rnl);
+		goto VALUE_END;	
+POSITIVE:
 	(rn = calloc(rnl + 1,sizeof(char)));
 	for(long i = rnl - 1;i >= 0;i--){
 		char ai = (anl - (rnl - (i + 1)) - 1 <= anl - 1) ? (an[anl - (rnl - (i + 1)) - 1]) : 0x00;
@@ -65,5 +154,11 @@ struct IntegerClassStruct* subInteger(struct IntegerClassStruct* a,struct Intege
 	}
 	for(long i = 1;i < rnl;i++) rn[i] += 0x30;
 	ri = (IntegerClassStruct*)MemoryClassConstructor(rn, rnl);
+VALUE_END:
+FREE:
+	if(api != a && api != NULL) ((freeMemory(api)),											(api = NULL));
+	if(bpi != b && bpi != NULL) ((freeMemory(bpi)),											(bpi = NULL));
+RETURN:
 	return ri;
 }
+/** SUB_INTEGER_END **/

@@ -23,9 +23,12 @@
 #include "./integer_class.h"
 #include "./integer_function_get_number.h"
 #include "./integer_function_get_sign.h"
+#include "./integer_function_max.h"
+#include "./integer_function_min.h"
 
 #ifndef __CUSTOM_INTEGER_FUNCTION_SUB_H__
 #define __CUSTOM_INTEGER_FUNCTION_SUB_H__
+#include "./integer_function_add.h"
 
 struct IntegerClassStruct* subInteger(struct IntegerClassStruct* a,struct IntegerClassStruct* b);
 

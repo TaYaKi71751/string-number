@@ -77,7 +77,7 @@ void testCalculate(struct IntegerClassStruct* a,struct IntegerClassStruct* b,boo
 }
 
 void testCalculateMatrix(struct IntegerClassStruct* min,struct IntegerClassStruct* max){
-	char* signs = "++";
+	char* signs = "---++-++";
 	char* one_string = "1";
 	one_string = cloneMemory(one_string,strlen_runtime(one_string));
 	struct IntegerClassStruct* one = (IntegerClassStruct*) MemoryClassConstructor(one_string,strlen_runtime(one_string));
@@ -191,7 +191,7 @@ void testCalculateMatrix(struct IntegerClassStruct* min,struct IntegerClassStruc
 	((freeMemory(_a)),																																								(_a = NULL));
 }
 int main(){
-	char* mins = "0";
+	char* mins = "0";	
 	char* maxs = "2147483647";
 
 	mins = cloneMemory(mins,strlen_runtime(mins));
