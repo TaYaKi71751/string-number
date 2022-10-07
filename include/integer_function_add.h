@@ -29,6 +29,7 @@
 #ifndef __CUSTOM_INTEGER_FUNCTION_ADD_H__
 #define __CUSTOM_INTEGER_FUNCTION_ADD_H__
 
+#include "./integer_function_sub.h"
 struct IntegerClassStruct* addInteger(struct IntegerClassStruct* a,struct IntegerClassStruct* b);
 
 #endif

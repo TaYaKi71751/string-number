@@ -18,6 +18,7 @@
   "numeric": "c",
   "sstream": "c",
   "cmath": "c",
-  "integer_function_add.h": "c"
+  "integer_function_add.h": "c",
+  "integer_function_sub.h": "c"
  }
 }
