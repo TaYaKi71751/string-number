@@ -48,30 +48,30 @@ void testCalculate(struct IntegerClassStruct* a,struct IntegerClassStruct* b,boo
 	((freeMemory(r->raw)),																																				(r->raw = NULL));
 	((freeMemory(r)),																																									(r = NULL));
 
-	// r = Integer->sub(a,b);
-	// ri = ai - bi;
-	// rl = al - bl;
-	// rll = all - bll;
+	r = Integer->sub(a,b);
+	ri = ai - bi;
+	rl = al - bl;
+	rll = all - bll;
 
-	// mi = atoi(Integer->getSign(r) == '-' ? r->raw : Integer->getNumber(r)) == ri;
-	// ml = atol(Integer->getSign(r) == '-' ? r->raw : Integer->getNumber(r)) == rl;
-	// mll = atoll(Integer->getSign(r) == '-' ? r->raw : Integer->getNumber(r)) == rll;
+	mi = atoi(Integer->getSign(r) == '-' ? r->raw : Integer->getNumber(r)) == ri;
+	ml = atol(Integer->getSign(r) == '-' ? r->raw : Integer->getNumber(r)) == rl;
+	mll = atoll(Integer->getSign(r) == '-' ? r->raw : Integer->getNumber(r)) == rll;
 
-	// if(!mi || !ml || !mll || printAny){
-	// 	printf("[string][int = %s][long = %s][long long = %s] ( a = \"%s\" ) - ( b = \"%s\" ) = ( r = \"%s\" )\n",
-	// 		mi ? "true" : "false",
-	// 		ml ? "true" : "false",
-	// 		mll ? "true" : "false",
-	// 		Integer->getSign(a) == '-' ? a->raw : Integer->getNumber(a),
-	// 		Integer->getSign(b) == '-' ? b->raw : Integer->getNumber(b),
-	// 		Integer->getSign(r) == '-' ? r->raw : Integer->getNumber(r)
-	// 	);
-	// 	printf("[int][%s] ( ai = %d ) - ( bi = %d ) = ( ri = %d )\n",mi?"true":"false",ai,bi,ri);
-	// 	printf("[long][%s] ( al = %ld ) - ( bl = %ld ) = ( rl = %ld )\n",ml?"true":"false",al,bl,rl);
-	// 	printf("[long long][%s] ( all = %lld ) - ( bll = %lld ) = ( rll = %lld )\n",mll?"true":"false",all,bll,rll);
-	// }
-	// freeMemory(r->raw);
-	// freeMemory(r);
+	if(!mi || !ml || !mll || printAny){
+		printf("[string][int = %s][long = %s][long long = %s] ( a = \"%s\" ) - ( b = \"%s\" ) = ( r = \"%s\" )\n",
+			mi ? "true" : "false",
+			ml ? "true" : "false",
+			mll ? "true" : "false",
+			Integer->getSign(a) == '-' ? a->raw : Integer->getNumber(a),
+			Integer->getSign(b) == '-' ? b->raw : Integer->getNumber(b),
+			Integer->getSign(r) == '-' ? r->raw : Integer->getNumber(r)
+		);
+		printf("[int][%s] ( ai = %d ) - ( bi = %d ) = ( ri = %d )\n",mi?"true":"false",ai,bi,ri);
+		printf("[long][%s] ( al = %ld ) - ( bl = %ld ) = ( rl = %ld )\n",ml?"true":"false",al,bl,rl);
+		printf("[long long][%s] ( all = %lld ) - ( bll = %lld ) = ( rll = %lld )\n",mll?"true":"false",all,bll,rll);
+	}
+	freeMemory(r->raw);
+	freeMemory(r);
 
 	((freeMemory(Integer)),																																			(Integer = NULL));
 }
@@ -210,18 +210,18 @@ int main(){
 	return 0;
 }
 
-//int main(){
-//	char* ac = "9223372036854775807";
-//	char* bc = "9223372036854775808";
-//
-//	struct IntegerClassStruct* a = NULL;
-//	struct IntegerClassStruct* b = NULL;
-//
-//	ac = cloneMemory(ac, strlen_runtime(ac));
-//	bc = cloneMemory(bc, strlen_runtime(bc));
-//
-//	a = (IntegerClassStruct*) MemoryClassConstructor(ac, strlen_runtime(ac));
-//	b = (IntegerClassStruct*) MemoryClassConstructor(bc, strlen_runtime(bc));
-//
-//	testCalculate(a, b);
-//}
+// int main(){
+// 	char* ac = "100000322";
+// 	char* bc = "7";
+
+// 	struct IntegerClassStruct* a = NULL;
+// 	struct IntegerClassStruct* b = NULL;
+
+// 	ac = cloneMemory(ac, strlen_runtime(ac));
+// 	bc = cloneMemory(bc, strlen_runtime(bc));
+
+// 	a = (IntegerClassStruct*) MemoryClassConstructor(ac, strlen_runtime(ac));
+// 	b = (IntegerClassStruct*) MemoryClassConstructor(bc, strlen_runtime(bc));
+
+// 	testCalculate(a, b,true);
+// }

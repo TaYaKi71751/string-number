@@ -11,7 +11,7 @@ struct IntegerFunctionStruct* IntegerFunctionConstructor(){
  s->add = addInteger;
  s->max = maxInteger;
  s->min = minInteger;
- // s->sub = subInteger;
+ s->sub = subInteger;
  /** INTEGER_FUNCTION_COSNTRUCTOR_ASSIGN_FUNCTION_END **/
  /** INTEGER_FUNCTION_COSNTRUCTOR_RETURN **/
  return s;

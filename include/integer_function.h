@@ -26,6 +26,7 @@
 #include "./integer_function_max.h"
 #include "./integer_function_min.h"
 #include "./integer_function_add.h"
+#include "./integer_function_sub.h"
 
 #ifndef __CUSTOM_INTEGER_FUNCTION_H__
 #define __CUSTOM_INTEGER_FUNCTION_H__
