@@ -41,9 +41,13 @@ void testCalculate(struct IntegerClassStruct* a,struct IntegerClassStruct* b,boo
 			Integer->getSign(b) == '-' ? b->raw : Integer->getNumber(b),
 			Integer->getSign(r) == '-' ? r->raw : Integer->getNumber(r)
 		);
+		fflush(stdout);
 		printf("[int][%s] ( ai = %d ) + ( bi = %d ) = ( ri = %d )\n",mi?"true":"false",ai,bi,ri);
+		fflush(stdout);
 		printf("[long][%s] ( al = %ld ) + ( bl = %ld ) = ( rl = %ld )\n",ml?"true":"false",al,bl,rl);
+		fflush(stdout);
 		printf("[long long][%s] ( all = %lld ) + ( bll = %lld ) = ( rll = %lld )\n",mll?"true":"false",all,bll,rll);
+		fflush(stdout);
 	}
 	((freeMemory(r->raw)),																																				(r->raw = NULL));
 	((freeMemory(r)),																																									(r = NULL));
@@ -66,9 +70,13 @@ void testCalculate(struct IntegerClassStruct* a,struct IntegerClassStruct* b,boo
 			Integer->getSign(b) == '-' ? b->raw : Integer->getNumber(b),
 			Integer->getSign(r) == '-' ? r->raw : Integer->getNumber(r)
 		);
+		fflush(stdout);
 		printf("[int][%s] ( ai = %d ) - ( bi = %d ) = ( ri = %d )\n",mi?"true":"false",ai,bi,ri);
+		fflush(stdout);
 		printf("[long][%s] ( al = %ld ) - ( bl = %ld ) = ( rl = %ld )\n",ml?"true":"false",al,bl,rl);
+		fflush(stdout);
 		printf("[long long][%s] ( all = %lld ) - ( bll = %lld ) = ( rll = %lld )\n",mll?"true":"false",all,bll,rll);
+		fflush(stdout);
 	}
 	freeMemory(r->raw);
 	freeMemory(r);
@@ -193,6 +201,8 @@ void testCalculateMatrix(struct IntegerClassStruct* min,struct IntegerClassStruc
 int main(){
 	char* mins = "0";	
 	char* maxs = "2147483647";
+	
+	setbuf(stdout, NULL);
 
 	mins = cloneMemory(mins,strlen_runtime(mins));
 	maxs = cloneMemory(maxs,strlen_runtime(maxs));
