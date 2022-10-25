@@ -96,7 +96,7 @@ NEGATIVE:
 		tn = calloc(rnl + END_BYTE_SIZE,sizeof(char));
 		memcpy(tn,&rs,FIRST_SIGN_BYTE_SIZE);
 		memcpy(tn+FIRST_SIGN_BYTE_SIZE,rn,strlen_runtime(rn));
-		((freeMemory(rn)),																																							(rn = NULL));
+		((freeMemory(ri->raw)),																																							(ri->raw = NULL),(rn = NULL));
 		((freeMemory(ri)),																																							(ri = NULL));
 		ri = (IntegerClassStruct*)MemoryClassConstructor(tn,rnl);
 		goto VALUE_END;	
@@ -106,8 +106,8 @@ POSITIVE:
 		char ai = (anl - (rnl - (i + 1)) - 1 <= anl - 1) ? (an[anl - (rnl - (i + 1)) - 1]) : 0x00;
 		char bi = (bnl - (rnl - (i + 1)) - 1 <= bnl - 1) ? (bn[bnl - (rnl - (i + 1)) - 1]) : 0x00;
 
-		ai = 0x29 < ai && ai < 0x40 ? ai - 0x30 : 0x00;
-		bi = 0x29 < bi && bi < 0x40 ? bi - 0x30 : 0x00;
+		ai = '0' <= ai && ai <= '9' ? ai - 0x30 : 0x00;
+		bi = '0' <= bi && bi <= '9' ? bi - 0x30 : 0x00;
 
 		rn[i] += (ai - bi);
 	}

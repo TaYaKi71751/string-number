@@ -7,10 +7,10 @@ char* getNumberInteger(struct IntegerClassStruct* s){
  for(i = 0;(s->length - (i + 1)) < s->length;i++){
 		char a = s->raw[i];
 		// NON_ZERO_NUMBER_CHAR OR (i == S_LAST_INDEX)
-		if((0x30 < a && a < 0x40) //[1-9]
+		if(('1' <= a && a <= '9') //[1-9]
 		 || !(s->length - (i + 1)) // i < length - 1
 		) return s->raw + i;
-		if(a == 0x30) continue; // IF_ZERO
+		if(a == '0') continue; // IF_ZERO
  }
  return s->raw + i;
 }
