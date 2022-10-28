@@ -20,6 +20,18 @@
   "cmath": "c",
   "integer_function_add.h": "c",
   "integer_function_sub.h": "c",
-  "integer_function_get_sign.h": "c"
+  "integer_function_get_sign.h": "c",
+  "integer_def_number.h": "c",
+  "integer_function.h": "c",
+  "integer_class.h": "c",
+  "integer_function_get_number.h": "c",
+  "integer_function_max.h": "c",
+  "integer_function_min.h": "c",
+  "integer_def_decimal.h": "c",
+  "memory_class.h": "c",
+  "string_function.h": "c",
+  "integer_function_cmp.h": "c",
+  "integer_def_sign.h": "c",
+  "parse.h": "c"
  }
 }

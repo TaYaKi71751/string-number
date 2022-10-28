@@ -8,6 +8,8 @@
     "-fdiagnostics-color=always",
     "-g",
     "-include",
+    "${fileDirname}/${fileBasenameNoExtension}.h",
+    "-include",
     "${workspaceFolder}/include/*.h",
     "${workspaceFolder}/include/*.c",
     "${file}",
