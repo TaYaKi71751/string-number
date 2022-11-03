@@ -73,12 +73,12 @@ int __CMP_CHARSET__(char *a,char *b){
 	if(!a_start || !b_start) abort();
 	((a_end = __END_NUMBER__(a_start - a,a_length,a)),(b_end = __END_NUMBER__(b_start - b,b_length,b)));
 	if(!a_end || !b_end) abort();
-	((a_length = a_end - a_start),(b_length = b_end - b_start));
+	((a_length = a_end + 1 - a_start),(b_length = b_end + 1 - b_start));
 	if(a_length > b_length) return 1;
 	if(a_length < b_length) return -1;
 	if(a_length == b_length){
 		int __CURRENT_CMP_RESULT__ = 0x00;
-		for(size_t index = a_length;index - 1 < index || index == 0;index--){
+		for(size_t index = 0;index < a_length && index < (index + 1);index++){
 			__CURRENT_CMP_RESULT__ = __CMP_CURRENT_CHARSET__(a_start[index],b_start[index]);
 			if(!__CURRENT_CMP_RESULT__) continue;
 			return __CURRENT_CMP_RESULT__;
