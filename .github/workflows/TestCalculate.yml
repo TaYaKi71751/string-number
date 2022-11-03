@@ -2,8 +2,20 @@ on:
   workflow_dispatch:
   push:
 jobs:
-  build:
+  list-test:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@main
+      - id: set-matrix
+        run: echo "matrix=$(ls test/*.c | jq -R -s -c 'split("\n")' | jq -c '.[0:-1]' | jq -c -r '.[] |= "\(.[0:index(".c")])"')" >> $GITHUB_OUTPUT
+  build-and-test:
     name: Build 🔧 & Test 🔧
+    needs: list-test
+    strategy:
+      matrix:
+        target: ${{ fromJSON(needs.list-test.outputs.matrix) }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -15,8 +27,8 @@ jobs:
     - name: Setup Valgrind
       run: sudo apt install -y valgrind
 
-    - name: Build 🔧 test/calculate.c
-      run: gcc -g ./include/**.c ./test/calculate.c -o ./calculate.out
+    - name: Build 🔧 ${{ matrix.target }}.c => ${{ matrix.target }}.out
+      run: gcc -g -include ${{ matrix.target }}.h -include ./include/**.h ./include/**.c ${{ matrix.target }}.c -o ${{ matrix.target }}.out
 
-    - name: Leak Test 🔧 with valgrind ./calculate.out
-      run: valgrind --leak-check=full ./calculate.out
+    - name: Leak Test 🔧 with valgrind ${{ matrix.target }}.out
+      run: valgrind --leak-check=full ${{ matrix.target }}.out
