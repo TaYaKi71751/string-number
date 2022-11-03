@@ -11,7 +11,6 @@
 #include "./integer_def_decimal.h"
 
 
-/** START DEFINE SIGN_MINUS **/
 #ifndef __CUSTOM_INTEGER_DEF_SIGN_MINUS__
 #define __CUSTOM_INTEGER_DEF_SIGN_MINUS__() ("-")
 #endif 
@@ -21,18 +20,7 @@
 #ifndef __SIGN_NEGATIVE__
 #define __SIGN_NEGATIVE__() (__CUSTOM_INTEGER_DEF_SIGN_MINUS__())
 #endif
-// #ifndef __IS_SIGN_MINUS__
-// #define __IS_SIGN_MINUS__(sign) (\
-//  strlen_runtime(sign) && \
-// 	strlen_runtime(__CUSTOM_INTEGER_DEF_SIGN_MINUS__()) && \
-// 	strlen_runtime(sign) >= strlen_runtime(__CUSTOM_INTEGER_DEF_SIGN_MINUS__()) ? \
-//   strncmp(sign,__CUSTOM_INTEGER_DEF_SIGN_MINUS__(),strlen_runtime(__CUSTOM_INTEGER_DEF_SIGN_MINUS__())) == 0 : \
-//   false\
-// )
-// #endif
-/** END DEFINE SIGN_MINUS **/
 
-/** START DEFINE SIGN_PLUS **/
 #ifndef __CUSTOM_INTEGER_DEF_SIGN_PLUS__
 #define __CUSTOM_INTEGER_DEF_SIGN_PLUS__() ("")
 #endif
@@ -42,43 +30,22 @@
 #ifndef __SIGN_POSITIVE__
 #define __SIGN_POSITIVE__() (__CUSTOM_INTEGER_DEF_SIGN_PLUS__())
 #endif
-// #ifndef __IS_SIGN_PLUS__
-// #define __IS_SIGN_PLUS__(sign) (\
-// 	strlen_runtime(sign) && \
-// 	strlen_runtime(__CUSTOM_INTEGER_DEF_SIGN_PLUS__()) && \
-// 	strlen_runtime(sign) >= strlen_runtime(__CUSTOM_INTEGER_DEF_SIGN_PLUS__()) ? \
-// 		strncmp(sign,__CUSTOM_INTEGER_DEF_SIGN_PLUS__(),strlen_runtime(__CUSTOM_INTEGER_DEF_SIGN_PLUS__())) == 0 : \
-// 		false\
-// )
-// #endif
-/** END DEFINE SIGN_PLUS **/
 
-// #ifndef __IS_SIGN_NULL__
-// #define __IS_SIGN_NULL__(index,sign) (\
-// 	index < strlen_runtime(__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__()) ? (\
-// 		sign[0] == __CUSTOM_INTEGER_DEF_NUMBER_CHARSET__()[index] ? \
-// 			true : \
-// 			__IS_SIGN_NULL__(index + 1,sign)\
-// 	) : false\
-// )
-
-// #endif
-
-bool __IS_SIGN_NEGATIVE__(char *sign);
-bool __IS_SIGN_POSITIVE__(char *sign);
-bool __IS_SIGN_NULL__(char *sign);
+bool __IS_SIGN_NEGATIVE__(size_t sign_index,size_t sign_length,char *sign);
+bool __IS_SIGN_POSITIVE__(size_t sign_index,size_t sign_length,char *sign);
+bool __IS_SIGN_NULL__(size_t sign_index,size_t sign_length,char *sign);
 
 #ifndef __IS_SIGN_MINUS__
-#define __IS_SIGN_MINUS__(sign) __IS_SIGN_NEGATIVE__(sign)
+#define __IS_SIGN_MINUS__(sign_index,sign_length,sign) __IS_SIGN_NEGATIVE__(sign_index,sign_lengthsign)
 #endif
 #ifndef __IS_SIGN_PLUS__
-#define __IS_SIGN_PLUS__(sign) __IS_SIGN_POSITIVE__(sign)
+#define __IS_SIGN_PLUS__(sign_index,sign_length,sign) __IS_SIGN_POSITIVE__(sign_index,sign_length,sign)
 #endif
 #ifndef __IS_SIGN_UNSIGNED__
-#define __IS_SIGN_UNSIGNED__(sign) __IS_SIGN_NULL__(sign)
+#define __IS_SIGN_UNSIGNED__(sign_index,sign_length,sign) __IS_SIGN_NULL__(sign_index,sign_length,sign)
 #endif
 #ifndef __IS_UNSIGNED__
-#define __IS_UNSIGNED__(sign) __IS_SIGN_NULL__(sign)
+#define __IS_UNSIGNED__(sign_index,sign_length,sign) __IS_SIGN_NULL__(sign_index,sign_length,sign)
 #endif
 
 #endif
