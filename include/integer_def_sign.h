@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "./string_function.h"
+#include "./string_def.h"
 
 #ifndef __CUSTOM_INTEGER_DEF_SIGN_H__
 #define __CUSTOM_INTEGER_DEF_SIGN_H__
