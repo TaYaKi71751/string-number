@@ -87,3 +87,88 @@ int __CMP_CHARSET__(char *a,char *b){
 	}
 	abort();
 }
+
+char *ctoa(char c){
+char *out = 0x00;
+size_t out_size = 0x00;
+out_size = snprintf(NULL,0,"%d\0",c);
+out = calloc(out_size + 1,sizeof(char));
+sprintf(out,"%d\0",c);
+return out;
+}
+char *uctoa(unsigned char uc){
+char *out = 0x00;
+size_t out_size = 0x00;
+out_size = snprintf(NULL,0,"%u\0",uc);
+out = calloc(out_size + 1,sizeof(char));
+sprintf(out,"%u\0",uc);
+return out;
+}
+
+char *stoa(short s){
+char *out = 0x00;
+size_t out_size = 0x00;
+out_size = snprintf(NULL,0,"%d\0",s);
+out = calloc(out_size + 1,sizeof(char));
+sprintf(out,"%d\0",s);
+return out;
+}
+char *ustoa(unsigned short us){
+char *out = 0x00;
+size_t out_size = 0x00;
+out_size = snprintf(NULL,0,"%u\0",us);
+out = calloc(out_size + 1,sizeof(char));
+sprintf(out,"%u\0",us);
+return out;
+}
+
+char *itoa(int i){
+char *out = 0x00;
+size_t out_size = 0x00;
+out_size = snprintf(NULL,0,"%d\0",i);
+out = calloc(out_size + 1,sizeof(char));
+sprintf(out,"%d\0",i);
+return out;
+}
+char *uitoa(unsigned int ui){
+char *out = 0x00;
+size_t out_size = 0x00;
+out_size = snprintf(NULL,0,"%u\0",ui);
+out = calloc(out_size + 1,sizeof(char));
+sprintf(out,"%u\0",ui);
+return out;
+}
+
+char *ltoa(long l){
+char *out = 0x00;
+size_t out_size = 0x00;
+out_size = snprintf(NULL,0,"%ld\0",l);
+out = calloc(out_size + 1,sizeof(char));
+sprintf(out,"%ld\0",l);
+return out;
+}
+char *ultoa(unsigned long ul){
+char *out = 0x00;
+size_t out_size = 0x00;
+out_size = snprintf(NULL,0,"%lu\0",ul);
+out = calloc(out_size + 1,sizeof(char));
+sprintf(out,"%lu\0",ul);
+return out;
+}
+
+char *lltoa(long long ll){
+char *out = 0x00;
+size_t out_size = 0x00;
+out_size = snprintf(NULL,0,"%lld\0",ll);
+out = calloc(out_size + 1,sizeof(char));
+sprintf(out,"%lld\0",ll);
+return out;
+}
+char *ulltoa(unsigned long long ull){
+char *out = 0x00;
+size_t out_size = 0x00;
+out_size = snprintf(NULL,0,"%llu\0",ull);
+out = calloc(out_size + 1,sizeof(char));
+sprintf(out,"%llu\0",ull);
+return out;
+}
