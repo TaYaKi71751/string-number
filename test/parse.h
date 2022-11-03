@@ -8,9 +8,7 @@
 #include<stdbool.h>
 #include<string.h>
 
-#include "../include/memory_class.h"
-#include "../include/memory_function.h"
-#include "../include/integer_class.h"
+#include "../include/integer_def_sign.h"
 #include "../include/integer_def_number.h"
 
 #ifndef __CUSTOM_TEST_PARSE_H__
