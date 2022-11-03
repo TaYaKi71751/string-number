@@ -7,7 +7,7 @@ char* parseCustomString(char *str) {
 	if(!str_start) abort();
 	str_end = __END_NUMBER__(str_start - str,str_length,str);
 	if(!str_end) abort();
-	str_length = str_end - str_start;
+	str_length = str_end + 1 - str_start;
 	str_tmp = calloc(str_length + 1,sizeof(char));
 	memcpy(str_tmp,str_start,str_length);
 	str_tmp[str_length] = 0x00;
