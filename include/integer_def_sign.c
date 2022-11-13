@@ -1,5 +1,12 @@
 #include "./integer_def_sign.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
+
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 bool __IS_SIGN_NEGATIVE__(size_t sign_index,size_t sign_length,char* sign){
  return (
 	sign_length && 
@@ -13,6 +20,9 @@ bool __IS_SIGN_NEGATIVE__(size_t sign_index,size_t sign_length,char* sign){
  );
 }
 
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 bool __IS_SIGN_POSITIVE__(size_t sign_index,size_t sign_length,char* sign){
  return (
 	sign_length && 
@@ -26,6 +36,9 @@ bool __IS_SIGN_POSITIVE__(size_t sign_index,size_t sign_length,char* sign){
  );
 }
 
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 bool __IS_SIGN_NULL__(size_t sign_index,size_t sign_length,char* sign){
  return (
 	!__IS_SIGN_NEGATIVE__(sign_index,sign_length,sign) &&

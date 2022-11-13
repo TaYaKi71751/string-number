@@ -1,10 +1,20 @@
 #include "./integer_def_number.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
+
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char __CHARSET_AT__(size_t index){
 	if(index > strlen_runtime(__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__())) __OUT_OF_INDEX_ABORT__();
 	return __CUSTOM_INTEGER_DEF_NUMBER_CHARSET__()[index];
 }
 
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 bool __IS_CURRENT_NUMBER_CHARSET__(size_t charset_index,char current){
  __CHARSET_LEN_CHECK__();
  return (charset_index) < strlen_runtime(__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__()) ? (
@@ -13,10 +23,16 @@ bool __IS_CURRENT_NUMBER_CHARSET__(size_t charset_index,char current){
    true
  ) : false;
 }
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 bool __IS_CURRENT_CHARSET_ZERO__(char current){
  return current == __CHARSET_AT__(0);
 }
 
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char* __START_NUMBER__(size_t index, size_t length, char* n){
  __CHARSET_LEN_CHECK__();
  return index < (index + 1) && (index + 1) < length ? (
@@ -30,6 +46,9 @@ char* __START_NUMBER__(size_t index, size_t length, char* n){
  );
 }
 
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char* __END_NUMBER__(size_t index, size_t length, char* n){
  __CHARSET_LEN_CHECK__();
  return index < (index + 1) && (index + 1) < length ? (
@@ -43,6 +62,9 @@ char* __END_NUMBER__(size_t index, size_t length, char* n){
  );
 }
 
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 size_t __INDEX_OF_CURRENT_CHARSET__(size_t charset_index,char current){
 	__CHARSET_LEN_CHECK__();
 	if(!__IS_CURRENT_NUMBER_CHARSET__(0,current)) abort();
@@ -54,6 +76,9 @@ size_t __INDEX_OF_CURRENT_CHARSET__(size_t charset_index,char current){
 	);
 }
 
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 int __CMP_CURRENT_CHARSET__(char a_current,char b_current){
 	__CHARSET_LEN_CHECK__();
 	size_t a_index = __INDEX_OF_CURRENT_CHARSET__(0,a_current);
@@ -64,6 +89,9 @@ int __CMP_CURRENT_CHARSET__(char a_current,char b_current){
 	abort();
 }
 
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 int __CMP_CHARSET__(char *a,char *b){
 	__CHARSET_LEN_CHECK__();
 	size_t a_length = 0x00,b_length = 0x00;
@@ -88,6 +116,9 @@ int __CMP_CHARSET__(char *a,char *b){
 	abort();
 }
 
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char *ctoa(char c){
 char *out = 0x00;
 size_t out_size = 0x00;
@@ -96,6 +127,9 @@ out = calloc(out_size + 1,sizeof(char));
 sprintf(out,"%d\0",c);
 return out;
 }
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char *uctoa(unsigned char uc){
 char *out = 0x00;
 size_t out_size = 0x00;
@@ -105,6 +139,9 @@ sprintf(out,"%u\0",uc);
 return out;
 }
 
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char *stoa(short s){
 char *out = 0x00;
 size_t out_size = 0x00;
@@ -113,6 +150,9 @@ out = calloc(out_size + 1,sizeof(char));
 sprintf(out,"%d\0",s);
 return out;
 }
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char *ustoa(unsigned short us){
 char *out = 0x00;
 size_t out_size = 0x00;
@@ -122,6 +162,9 @@ sprintf(out,"%u\0",us);
 return out;
 }
 
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char *itoa(int i){
 char *out = 0x00;
 size_t out_size = 0x00;
@@ -130,6 +173,9 @@ out = calloc(out_size + 1,sizeof(char));
 sprintf(out,"%d\0",i);
 return out;
 }
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char *uitoa(unsigned int ui){
 char *out = 0x00;
 size_t out_size = 0x00;
@@ -139,6 +185,9 @@ sprintf(out,"%u\0",ui);
 return out;
 }
 
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char *ltoa(long l){
 char *out = 0x00;
 size_t out_size = 0x00;
@@ -147,6 +196,9 @@ out = calloc(out_size + 1,sizeof(char));
 sprintf(out,"%ld\0",l);
 return out;
 }
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char *ultoa(unsigned long ul){
 char *out = 0x00;
 size_t out_size = 0x00;
@@ -156,6 +208,9 @@ sprintf(out,"%lu\0",ul);
 return out;
 }
 
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char *lltoa(long long ll){
 char *out = 0x00;
 size_t out_size = 0x00;
@@ -164,6 +219,9 @@ out = calloc(out_size + 1,sizeof(char));
 sprintf(out,"%lld\0",ll);
 return out;
 }
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char *ulltoa(unsigned long long ull){
 char *out = 0x00;
 size_t out_size = 0x00;
