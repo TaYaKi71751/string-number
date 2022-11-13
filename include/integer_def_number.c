@@ -39,7 +39,7 @@ char* __END_NUMBER__(size_t index, size_t length, char* n){
  ) : (
   __IS_CURRENT_NUMBER_CHARSET__(0,n[index]) ?
    n + index :
-   0x00
+   n + index - 1
  );
 }
 
