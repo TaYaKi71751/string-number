@@ -1,5 +1,12 @@
 #include "./integer_def_calc.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
+
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char *__SUB_INTEGER_OR_NEGATIVE__(char *a_negativable,char *b_negativable){
 char *a_start = 0x00,*a_end = 0x00,*b_start = 0x00,*b_end = 0x00,*a_sign_start = 0x00,*a_sign_end = 0x00,*b_sign_start = 0x00,*b_sign_end = 0x00;
 size_t a_length = 0x00,b_length = 0x00,a_start_length = 0x00,b_start_length = 0x00,a_sign_length = 0x00,b_sign_length = 0x00;
@@ -95,6 +102,9 @@ result = result_tmp;
 return result;
 }
 
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char *__SUB_INTEGER_AND_POSITIVE__(char *a_positive,char *b_positive){
 char *charset = __CUSTOM_INTEGER_DEF_NUMBER_CHARSET__();
 size_t charset_length = strlen_runtime(charset);
@@ -274,6 +284,9 @@ result = result_tmp;
 return result;
 }
 
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char *__ADD_INTEGER_OR_NEGATIVE__(char *a_negativable,char *b_negativable){
 char *a_start = 0x00,*a_end = 0x00,*b_start = 0x00,*b_end = 0x00,*a_sign_start = 0x00,*a_sign_end = 0x00,*b_sign_start = 0x00,*b_sign_end = 0x00;
 size_t a_length = 0x00,b_length = 0x00,a_start_length = 0x00,b_start_length = 0x00,a_sign_length = 0x00,b_sign_length = 0x00;
@@ -379,6 +392,9 @@ result = result_tmp;
 return result;
 }
 
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char *__ADD_INTEGER_AND_POSITIVE__(char *a_positive,char *b_positive){
 // .__ADD_INTEGER_AND_POSITIVE__ __CHAR_PTR__
 // char *a = "1234567890",*b = "0987654321";
@@ -503,6 +519,9 @@ __ADD_INTEGER_AND_POSITIVE_STRCAT_END:
 return result;
 }
 
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char *__SUB_INTEGER__(char *a,char *b){
 char *a_start = 0x00,*b_start = 0x00,*a_end = 0x00,*b_end = 0x00,*a_sign_start = 0x00,*b_sign_start = 0x00,*a_sign_end = 0x00,*b_sign_end = 0x00;
 size_t a_length = 0x00,b_length = 0x00,a_start_length = 0x00,b_start_length = 0x00,a_sign_length = 0x00,b_sign_length = 0x00;
@@ -546,6 +565,9 @@ else if((a_zero || !a_negative) && (b_zero || !b_negative)) return __SUB_INTEGER
 abort();
 }
 
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char *__ADD_INTEGER__(char *a,char *b){
 char *a_start = 0x00,*b_start = 0x00,*a_end = 0x00,*b_end = 0x00,*a_sign_start = 0x00,*b_sign_start = 0x00,*a_sign_end = 0x00,*b_sign_end = 0x00;
 size_t a_length = 0x00,b_length = 0x00,a_start_length = 0x00,b_start_length = 0x00,a_sign_length = 0x00,b_sign_length = 0x00;
