@@ -1,5 +1,9 @@
 #include "./integer_def_sign.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
+
 char *__SIGN_NEGATIVE__ = 0x00; 
 #ifdef __EMSCRIPTEN__
 EMSCRIPTEN_KEEPALIVE

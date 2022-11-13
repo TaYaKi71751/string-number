@@ -1,0 +1,37 @@
+on:
+  workflow_dispatch:
+  push:
+jobs:
+  build-emcc:
+    name: Build 🔧 with emscripten ⚡
+    strategy:
+      matrix:
+        js-target: [ 'cjs','mjs' ]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    - name: Set up GCC
+      uses: egor-tensin/setup-gcc@v1
+      with:
+        version: latest
+        platform: x64
+    - uses: actions/checkout@master
+    - uses: pnpm/action-setup@master
+      with:
+        version: latest
+    - uses: actions/setup-node@main
+      with:
+        node-version: latest 
+        cache: 'pnpm'
+    - run: pnpm i
+    - uses: mymindstorm/setup-emsdk@master
+    - name: Build 🔧 include/*.c => wasm/index.{js,wasm}
+      run: |
+        mkdir -p wasm | true
+        pnpm build:emcc-${{ matrix.js-target }}
+        pnpm build:tsc-${{ matrix.js-target }}
+    - uses: corcc/publish@node
+      with:
+        TZ: 'Asia/Seoul'
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+        TASK_NAME:  🔧⚡(build:emcc-${{ matrix.js-target }})

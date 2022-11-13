@@ -1,6 +1,10 @@
 #include "./integer_def_calc.h"
 
 #ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
+
+#ifdef __EMSCRIPTEN__
 EMSCRIPTEN_KEEPALIVE
 #endif
 char *__SUB_INTEGER_OR_NEGATIVE__(char *a_negativable,char *b_negativable){
@@ -97,7 +101,6 @@ result = result_tmp;
 
 return result;
 }
-
 
 #ifdef __EMSCRIPTEN__
 EMSCRIPTEN_KEEPALIVE
@@ -281,7 +284,6 @@ result = result_tmp;
 return result;
 }
 
-
 #ifdef __EMSCRIPTEN__
 EMSCRIPTEN_KEEPALIVE
 #endif
@@ -389,7 +391,6 @@ result = result_tmp;
 
 return result;
 }
-
 
 #ifdef __EMSCRIPTEN__
 EMSCRIPTEN_KEEPALIVE
@@ -518,7 +519,6 @@ __ADD_INTEGER_AND_POSITIVE_STRCAT_END:
 return result;
 }
 
-
 #ifdef __EMSCRIPTEN__
 EMSCRIPTEN_KEEPALIVE
 #endif
@@ -564,7 +564,6 @@ else if((a_zero || !a_negative) && (b_zero || !b_negative)) return __SUB_INTEGER
 
 abort();
 }
-
 
 #ifdef __EMSCRIPTEN__
 EMSCRIPTEN_KEEPALIVE
