@@ -1,5 +1,5 @@
 {
-  "name": "@testing/string-number",
+  "name": "@string-number/azaz09",
   "version": "0.0.0",
   "main": "./wasm/index.cjs",
   "module": "./wasm/index.mjs",

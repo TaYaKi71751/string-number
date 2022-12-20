@@ -8,11 +8,11 @@
 #include "./string_def.h"
 
 #ifndef __CUSTOM_INTEGER_DEF_NUMBER_H__
-#include "./integer_def_decimal.h"
+#include "./integer_def_atozAtoZ0to9.h"
 
 /** START DEFINE INT_NUM_CHARSET **/
 #ifndef __CUSTOM_INTEGER_DEF_NUMBER_CHARSET__
-#define __CUSTOM_INTEGER_DEF_NUMBER_CHARSET__() (__CUSTOM_INTEGER_DEF_DECIMAL_CHARSET__())
+#define __CUSTOM_INTEGER_DEF_NUMBER_CHARSET__() (__CUSTOM_INTEGER_DEF_ATOZ0TO9_CHARSET__())
 #endif
 /** END DEFINE INT_NUM_CHARSET **/
 
