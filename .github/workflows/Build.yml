@@ -1,0 +1,57 @@
+on:
+  workflow_dispatch:
+  push:
+
+env:
+  WASI_VERSION: 17
+
+jobs:
+  list-build:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@main
+      - id: set-matrix
+        run: echo "matrix=$(ls src/*.c | jq -R -s -c 'split("\n")' | jq -c '.[0:-1]' | jq -c -r '.[] |= "\(.[0:index(".c")])"')" >> $GITHUB_OUTPUT
+  build:
+    name: Build 🔧
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: ${{ fromJSON(needs.list-build.outputs.matrix) }}
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up GCC
+      uses: egor-tensin/setup-gcc@v1
+      with:
+        version: latest
+        platform: x64
+    - name: Install WASI
+      run: |
+        export WASI_VERSION_FULL=${WASI_VERSION}.0
+        wget https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_VERSION}/wasi-sdk-${WASI_VERSION_FULL}-linux.tar.gz
+        tar xvf wasi-sdk-${WASI_VERSION_FULL}-linux.tar.gz
+      env:
+        WASI_VERSION: ${{ env.WASI_VERSION }}
+
+    - name: Build 🔧 ${{ matrix.target }}.c => ${{ matrix.target }}.wasm
+      run: |
+        export WASI_SDK_PATH=`pwd`/wasi-sdk-${WASI_VERSION_FULL}
+        CC="${WASI_SDK_PATH}/bin/clang --sysroot=${WASI_SDK_PATH}/share/wasi-sysroot"
+        $CC \
+          -v \
+          -Wl,--no-entry -nostartfiles \
+          -Wl,--export-all \
+          -Os \
+          -s \
+          -include ${{ matrix.target }}.h \
+          -include ./include/**.h \
+          ./include/**.c \
+          ${{ matrix.target }}.c \
+          -o build/${{ matrix.target }}.wasm
+    - name: Upload built files
+      uses: actions/upload-artifact@v3
+      with:
+        name: WASI ${{ matrix.target }}.wasm
+        path: build/${{ matrix.target }}.wasm
