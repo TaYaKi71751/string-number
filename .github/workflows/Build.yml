@@ -30,11 +30,11 @@ jobs:
         platform: x64
     - name: Install WASI
       run: |
-        export WASI_VERSION_FULL=${WASI_VERSION}.0
         wget https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_VERSION}/wasi-sdk-${WASI_VERSION_FULL}-linux.tar.gz
         tar xvf wasi-sdk-${WASI_VERSION_FULL}-linux.tar.gz
       env:
         WASI_VERSION: ${{ env.WASI_VERSION }}
+        WASI_VERSION_FULL: ${{ env.WASI_VERSION }}.0
 
     - name: Build 🔧 ${{ matrix.target }}.c => ${{ matrix.target }}.wasm
       run: |
@@ -51,6 +51,9 @@ jobs:
           ./include/**.c \
           ${{ matrix.target }}.c \
           -o build/${{ matrix.target }}.wasm
+      env:
+        WASI_VERSION: ${{ env.WASI_VERSION }}
+        WASI_VERSION_FULL: ${{ env.WASI_VERSION }}.0
     - name: Upload built files
       uses: actions/upload-artifact@v3
       with:
