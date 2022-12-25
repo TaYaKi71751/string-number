@@ -56,5 +56,5 @@ jobs:
     - name: Upload built files
       uses: actions/upload-artifact@v3
       with:
-        name: WASI ${{ matrix.target }}.wasm
+        name: build
         path: build/${{ matrix.target }}.wasm
