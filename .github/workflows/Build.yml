@@ -47,8 +47,6 @@ jobs:
           -Os \
           -s \
           -include ${{ matrix.target }}.h \
-          -include ./include/**.h \
-          ./include/**.c \
           ${{ matrix.target }}.c \
           -o build/${{ matrix.target }}.wasm
       env:
