@@ -19,5 +19,8 @@
 #ifndef __CUSTOM_TEST_CALC_H__
 #define __CUSTOM_TEST_CALC_H__
 
+extern char* __ADD_INTEGER__(char *a, char *b);
+extern char* __SUB_INTEGER__(char *a, char *b);
+extern int __CMP_CHARSET__(char *a, char *b);
 
 #endif

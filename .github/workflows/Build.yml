@@ -43,6 +43,7 @@ jobs:
         CC="${WASI_SDK_PATH}/bin/clang --sysroot=${WASI_SDK_PATH}/share/wasi-sysroot"
         $CC \
           -v \
+          -nostartfiles \
           -Wl,--no-entry -mexec-model=reactor \
           -Wl,--export-all \
           -O0 \
