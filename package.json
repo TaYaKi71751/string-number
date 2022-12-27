@@ -8,8 +8,8 @@
     "require": "./wasm/index.cjs"
   },
   "scripts": {
-    "build:emcc-cjs": "mkdirp wasm && emcc include/*.c -sNO_EXIT_RUNTIME=1 -sMODULARIZE=1 -sDYNAMIC_EXECUTION=1 -sEXPORTED_RUNTIME_METHODS=cwrap,ccall,_malloc,malloc,allocateUTF8,allocateUTF8OnStack,UTF8ToString -fsanitize=address -o ./wasm/index.cjs",
-    "build:emcc-mjs": "mkdirp wasm && emcc include/*.c -sNO_EXIT_RUNTIME=1 -sMODULARIZE=1 -sDYNAMIC_EXECUTION=1 -sEXPORTED_RUNTIME_METHODS=cwrap,ccall,_malloc,malloc,allocateUTF8,allocateUTF8OnStack,UTF8ToString -fsanitize=address -o ./wasm/index.mjs",
+    "build:emcc-cjs": "mkdirp wasm && emcc include/*.c -O0 -sALLOW_MEMORY_GROWTH=1 -sNO_EXIT_RUNTIME=1 -sMODULARIZE=1 -sDYNAMIC_EXECUTION=1 -sEXPORTED_RUNTIME_METHODS=cwrap,ccall,_malloc,malloc,allocateUTF8,allocateUTF8OnStack,UTF8ToString -fsanitize=address -fsanitize=leak -o ./wasm/index.cjs",
+    "build:emcc-mjs": "mkdirp wasm && emcc include/*.c -O0 -sALLOW_MEMORY_GROWTH=1 -sNO_EXIT_RUNTIME=1 -sMODULARIZE=1 -sDYNAMIC_EXECUTION=1 -sEXPORTED_RUNTIME_METHODS=cwrap,ccall,_malloc,malloc,allocateUTF8,allocateUTF8OnStack,UTF8ToString -fsanitize=address -fsanitize=leak -o ./wasm/index.mjs",
     "build:tsc-cjs": "tsc --allowJs --declaration --emitDeclarationOnly ./wasm/index.cjs",
     "build:tsc-mjs": "tsc --allowJs --declaration --emitDeclarationOnly ./wasm/index.mjs"
   },
