@@ -43,10 +43,9 @@ jobs:
         CC="${WASI_SDK_PATH}/bin/clang --sysroot=${WASI_SDK_PATH}/share/wasi-sysroot"
         $CC \
           -v \
-          -Wl,--no-entry -nostartfiles \
+          -Wl,--no-entry -mexec-model=reactor \
           -Wl,--export-all \
-          -Os \
-          -s \
+          -O0 \
           -include ${{ matrix.target }}.h \
           ${{ matrix.target }}.c \
           -o build/${{ matrix.target }}.wasm
