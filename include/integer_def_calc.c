@@ -588,3 +588,173 @@ else if((a_zero || !a_negative) && (b_zero || !b_negative)) return __ADD_INTEGER
 
 abort();
 }
+
+char *__MUL_INTEGER__(char *a,char *b){
+char *charset = __CUSTOM_INTEGER_DEF_NUMBER_CHARSET__();
+size_t charset_length = strlen_runtime(charset);
+char *a_start = 0x00,*b_start = 0x00,*a_end = 0x00,*b_end = 0x00,*a_current = 0x00,*b_current = 0x00;
+size_t a_length = 0x00,b_length = 0x00,a_start_length = 0x00,b_start_length = 0x00;
+
+if(!a || !b) abort();
+
+a_length = strlen_runtime(a);
+b_length = strlen_runtime(b);
+if(!a_length || !b_length) abort();
+
+a_start = __START_NUMBER__(0,a_length,a);
+b_start = __START_NUMBER__(0,b_length,b);
+if(!a_start || !b_start) abort();
+
+a_end = __END_NUMBER__((size_t)(a_start - a),a_length,a);
+b_end = __END_NUMBER__((size_t)(b_start - b),b_length,b);
+if(!a_end || !b_end) abort();
+
+a_start_length = a_end + 1 - a_start;
+b_start_length = b_end + 1 - b_start;
+if(!a_start_length || !b_start_length) abort();
+
+char \
+ *mul_buf_a = 0x00,\
+ *mul_buf_b = 0x00,\
+ *mul_buf_c = 0x00;
+char \
+ *mul_buf_a_current = 0x00,\
+ *mul_buf_b_current = 0x00,\
+ *mul_buf_c_current = 0x00;
+char \
+ *mul_buf_a_start = 0x00,\
+ *mul_buf_b_start = 0x00,\
+ *mul_buf_c_start = 0x00;
+char \
+ *mul_buf_a_end = 0x00,\
+ *mul_buf_b_end = 0x00,\
+ *mul_buf_c_end = 0x00;
+size_t \
+ mul_buf_a_length = 0x00,\
+ mul_buf_b_length = 0x00,\
+ mul_buf_c_length = 0x00;
+
+char \
+ a_current_index = 0x00,\
+ b_current_index = 0x00;
+
+char \
+ *result_start = 0x00,\
+ *result_end = 0x00,\
+ *result_current= 0x00,\
+ *result = 0x00;
+
+MUL_BUF_LOOP_START:
+a_current = a_end;
+b_current = b_end;
+MUL_BUF_LOOP_ADD:
+mul_buf_a_length = 1 + (b_end - b_current) + a_start_length;
+mul_buf_a = calloc(mul_buf_a_length + __STRING_END_NULL_BYTE_SIZE__,sizeof(char));
+mul_buf_a_current = mul_buf_a + mul_buf_a_length - (b_end - b_current);
+// MUL_BUF_LOOP_ADD:
+a_current_index = a_current >= a_start ? __INDEX_OF_CURRENT_CHARSET__(0,*a_current) : 0x00;
+b_current_index = b_current >= b_start ? __INDEX_OF_CURRENT_CHARSET__(0,*b_current) : 0x00;
+(*((char*)mul_buf_a_current)) = (
+  ((char)a_current_index) *
+  ((char)b_current_index)
+);
+MUL_BUF_LOOP_JMP:
+if(a_start < a_current){
+ a_current--;
+ mul_buf_a_current--;
+ goto MUL_BUF_LOOP_ADD;
+} else if(a_start == a_current && b_start <= b_current){
+ if(mul_buf_a && !mul_buf_b){
+  mul_buf_b = mul_buf_a;
+  mul_buf_b_length = mul_buf_a_length;
+  mul_buf_a_length = 1 + (b_end - b_current + 1) + a_start_length;
+  mul_buf_a = calloc(mul_buf_a_length + __STRING_END_NULL_BYTE_SIZE__,sizeof(char));
+ } 
+ if(!mul_buf_c && mul_buf_a && mul_buf_b){
+  result_start = mul_buf_a;
+  result_end = mul_buf_a + mul_buf_a_length;
+  result_current = result_end;
+__MUL_INTEGER_AND_POSITIVE_RESOLVE_LOOP_RESOLVE__A:
+(*(result_current - 1)) += ((*result_current) / charset_length);
+(*result_current) = ((*result_current) % charset_length);
+__MUL_INTEGER_AND_POSITIVE_RESOLVE_LOOP_NEXT__A:
+if(result_current >= (result_start + 1)){
+ result_current--;
+ goto __MUL_INTEGER_AND_POSITIVE_RESOLVE_LOOP_RESOLVE__A;
+}
+goto __MUL_INTEGER_AND_POSITIVE_RESOLVE_LOOP_END__A;
+__MUL_INTEGER_AND_POSITIVE_RESOLVE_LOOP_END__A:
+result_start = result_current;
+
+
+
+__MUL_INTEGER_AND_POSITIVE_TO_STRING_LOOP_START__A:
+result_current = result_end;
+__MUL_INTEGER_AND_POSITIVE_TO_STRING_LOOP_TO_STRING__A:
+(*result_current) = __CHARSET_AT__((size_t)(*(char*)result_current));
+__MUL_INTEGER_AND_POSITIVE_TO_STRING_LOOP_NEXT__A:
+if(result_current >= result_start){
+ result_current--;
+ goto __MUL_INTEGER_AND_POSITIVE_TO_STRING_LOOP_TO_STRING__A;
+}
+goto __MUL_INTEGER_AND_POSITIVE_TO_STRING_LOOP_END__A;
+__MUL_INTEGER_AND_POSITIVE_TO_STRING_LOOP_END__A:
+
+mul_buf_a_current = result_current;
+
+  result_start = mul_buf_b;
+  result_end = mul_buf_b + mul_buf_b_length;
+  result_current = result_end;
+__MUL_INTEGER_AND_POSITIVE_RESOLVE_LOOP_RESOLVE__B:
+(*(result_current - 1)) += ((*result_current) / charset_length);
+(*result_current) = ((*result_current) % charset_length);
+__ADD_INTEGER_AND_POSITIVE_RESOLVE_LOOP_NEXT__B:
+if(result_current > (result_start - 1)){
+ result_current--;
+ goto __MUL_INTEGER_AND_POSITIVE_RESOLVE_LOOP_RESOLVE__B;
+}
+goto __MUL_INTEGER_AND_POSITIVE_RESOLVE_LOOP_END__B;
+__MUL_INTEGER_AND_POSITIVE_RESOLVE_LOOP_END__B:
+
+__MUL_INTEGER_AND_POSITIVE_TO_STRING_LOOP_START__B:
+result_current = result_end;
+__MUL_INTEGER_AND_POSITIVE_TO_STRING_LOOP_TO_STRING__B:
+(*result_current) = __CHARSET_AT__((size_t)(*(char*)result_current));
+__MUL_INTEGER_AND_POSITIVE_TO_STRING_LOOP_NEXT__B:
+if(result_current > result_start){
+ result_current--;
+ goto __MUL_INTEGER_AND_POSITIVE_TO_STRING_LOOP_TO_STRING__B;
+}
+goto __MUL_INTEGER_AND_POSITIVE_TO_STRING_LOOP_END__B;
+__MUL_INTEGER_AND_POSITIVE_TO_STRING_LOOP_END__B:
+mul_buf_b_current = result_current;
+
+  mul_buf_c = __ADD_INTEGER__(mul_buf_a_current,mul_buf_b_current);
+  // free(mul_buf_b);
+  mul_buf_b = 0x00;
+  mul_buf_b_current = 0x00;
+  mul_buf_b_length = 0x00;
+
+  // free(mul_buf_a);
+  mul_buf_a = 0x00;
+  mul_buf_a_current = 0x00;
+  mul_buf_a_length = 0x00;
+
+  mul_buf_b = mul_buf_c;
+  mul_buf_b_length = strlen_runtime(mul_buf_b);
+  mul_buf_c = 0x00;
+ }
+ if(b_start > b_current){
+  result = mul_buf_b;
+  goto MUL_BUF_LOOP_END;
+ }
+ if(b_start < b_current){
+  a_current = a_end;
+  b_current--;
+ }
+goto MUL_BUF_LOOP_ADD;
+}
+goto MUL_BUF_LOOP_END;
+MUL_BUF_LOOP_END:
+return result;
+}

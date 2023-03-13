@@ -20,5 +20,6 @@ char *__SUB_INTEGER__(char *a,char *b);
 char *__ADD_INTEGER_OR_NEGATIVE__(char *a_negativable,char *b_negativable);
 char *__ADD_INTEGER_AND_POSITIVE__(char *a_positive,char *b_positive);
 char *__ADD_INTEGER__(char *a,char *b);
+char *__MUL_INTEGER__(char *a,char *b);
 
 #endif
