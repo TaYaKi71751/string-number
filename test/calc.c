@@ -50,9 +50,9 @@ int __TEST_SUB_INTEGER_LOOP__(){
 int __TEST_MUL_INTEGER_LOOP__(){
  int _r = 0x00;
  char *a = 0x00,*b = 0x00,*r = 0x00,*_rtoa = 0x00;
- for(int i = (((int)__UINT8_MAX__) * 1);i > ((int)0);i--){
-  for(int j = (((int)__UINT8_MAX__) * 1);j > ((int)0);j--){
-   _r = i - j;
+ for(int i = (((int)__UINT8_MAX__) * 1);i >= ((int)0);i--){
+  for(int j = (((int)__UINT8_MAX__) * 1);j >= ((int)0);j--){
+   _r = i * j;
    _rtoa = itoa(_r);
    a = itoa(i);
    b = itoa(j);

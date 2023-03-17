@@ -589,47 +589,36 @@ else if((a_zero || !a_negative) && (b_zero || !b_negative)) return __ADD_INTEGER
 abort();
 }
 
-char *__MUL_INTEGER__(char *a, char *b){
-char \
-**result = 0x00;
-char \
-*tmp = calloc(2, sizeof(char)),
-*result_tmp = 0x00;
-size_t \
-al = strlen_runtime(a),
-bl = strlen_runtime(b);
-result = calloc(bl + 2, sizeof(char *));
-char *_z = "0\0", *_rt = calloc(2, sizeof(char));
-memcpy(_rt, _z, 1);
-*(_rt + 1) = 0x00;
-size_t \
-i = bl,
-j = 0x00;
-ADD_B_TIME_LOOP_START:
-i = bl;
-memcpy(tmp, b + i - 1, sizeof(char));
-*(tmp + 1) = 0x00;
-ADD_B_TIME_CALC:
-for (size_t k = __INDEX_OF_CURRENT_CHARSET__(0, *tmp); k != 0; k--){
-result_tmp = __ADD_INTEGER__(a, _rt);
-free(_rt);
-_rt = 0x00;
-_rt = result_tmp;
-result_tmp = 0x00;
+char *__ADD_REP_INTEGER__(char *a, size_t rep){
+char *_z = "0\0",*_t=0x00,*_r=calloc(2,sizeof(char));
+memcpy(_r,_z,1);
+for(size_t i = 0;i < rep;i++){
+_t=__ADD_INTEGER__(_r,a);
+free(_r);
+_r=0x00;
+_r=_t;
 }
-*((char **)result + i) = _rt;
-ADD_B_TIME_JMP:
-i--;
-if (i == 0)
-goto ADD_B_TIME_END;
-/* else */
-memcpy(tmp, b + i - 1, sizeof(char));
-*(tmp + 1) = 0x00;
-_rt = 0x00;
-_rt = calloc(2, sizeof(char));
-memcpy(_rt, _z, sizeof(char));
-*(_rt + 1) = 0x00;
-goto ADD_B_TIME_CALC;
-ADD_B_TIME_END:
-return 0x00;
+return _r;
+}
+
+char *__MUL_INTEGER__(char *a, char *b){
+char *_z="0\0",\
+*_r=calloc(2,sizeof(char)),\
+*_t=0x00,\
+*_tt=0x00;
+memcpy(_r,_z,1);
+for(size_t i=strlen_runtime(b);i>0;i--){
+size_t _ZC=strlen_runtime(b)-i,_C=__INDEX_OF_CURRENT_CHARSET__(0,b[i - 1]),_tl=0x00;
+_t=__ADD_REP_INTEGER__(a,_C);
+_tl=strlen_runtime(_t);
+_tt=calloc(_tl+_ZC+1,sizeof(char));
+memcpy(_tt,_t,_tl);
+free(_t);
+for(size_t j=0;j<_ZC;j++){memcpy(_tt+_tl+j,_z,1);}
+char *_rt=__ADD_INTEGER__(_r,_tt);
+free(_tt);
+free(_r);
+_r=_rt;
+}
+return _r;
 }
