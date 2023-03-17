@@ -602,14 +602,33 @@ return _r;
 }
 
 char *__MUL_INTEGER__(char *a, char *b){
+size_t \
+al=strlen_runtime(a),\
+bl=strlen_runtime(b),\
+anl=0x00,\
+bnl=0x00;
+char \
+*a_start=0x00,\
+*a_end=0x00,\
+*b_start=0x00,\
+*b_end=0x00;
+
+a_start=__START_NUMBER__(0,al,a);
+a_end=__END_NUMBER__(a_start - a,al,a);
+anl=((size_t)a_end - (size_t)a_start) + 1;
+
+b_start=__START_NUMBER__(0,bl,b);
+b_end=__END_NUMBER__(b_start - b,bl,b);
+bnl=((size_t)b_end - (size_t)b_start) + 1;
+	
 char *_z="0\0",\
 *_r=calloc(2,sizeof(char)),\
 *_t=0x00,\
 *_tt=0x00;
 memcpy(_r,_z,1);
-for(size_t i=strlen_runtime(b);i>0;i--){
-size_t _ZC=strlen_runtime(b)-i,_C=__INDEX_OF_CURRENT_CHARSET__(0,b[i - 1]),_tl=0x00;
-_t=__ADD_REP_INTEGER__(a,_C);
+for(size_t i=bnl;i>0;i--){
+size_t _ZC=bnl-i,_C=__INDEX_OF_CURRENT_CHARSET__(0,b_start[i - 1]),_tl=0x00;
+_t=__ADD_REP_INTEGER__(a_start,_C);
 _tl=strlen_runtime(_t);
 _tt=calloc(_tl+_ZC+1,sizeof(char));
 memcpy(_tt,_t,_tl);
