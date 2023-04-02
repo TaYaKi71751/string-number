@@ -50,25 +50,25 @@ if(a_negative && b_negative)  goto __A_NEGATIVE_B_NEGATIVE_START__;
 
 __A_POSITIVE_B_NEGATIVE_START__:
 result = __ADD_INTEGER_AND_POSITIVE__(a_start,b_start);
-result_sign = __SIGN_POSITIVE__();
+result_sign = __GET_SIGN_POSITIVE__();
 goto __VALCPY__;
 
 __A_NEGATIVE_B_POSITIVE_START__:
 result = __ADD_INTEGER_AND_POSITIVE__(a_start,b_start);
-result_sign = __SIGN_NEGATIVE__();
+result_sign = __GET_SIGN_NEGATIVE__();
 goto __VALCPY__;
 
 __A_NEGATIVE_B_NEGATIVE_START__:
 __A_B_CMP__ = __CMP_CHARSET__(a_start,b_start);
 if(__A_B_CMP__ > 0){ /* (|a| > |b|) */
  result = __SUB_INTEGER_AND_POSITIVE__(a_start,b_start);
- result_sign = __SIGN_NEGATIVE__();
+ result_sign = __GET_SIGN_NEGATIVE__();
 } else if (__A_B_CMP__ < 0){ /* (|a| < |b|) */
  result = __SUB_INTEGER_AND_POSITIVE__(b_start,a_start);
- result_sign = __SIGN_POSITIVE__();
+ result_sign = __GET_SIGN_POSITIVE__();
 } else if (!__A_B_CMP__) { /* (|a| == |b|) */
  result = __SUB_INTEGER_AND_POSITIVE__(a_start,b_start);
- result_sign = __SIGN_POSITIVE__();
+ result_sign = __GET_SIGN_POSITIVE__();
 }
 goto __VALCPY__;
 
@@ -96,7 +96,7 @@ return result;
 }
 
 char *__SUB_INTEGER_AND_POSITIVE__(char *a_positive,char *b_positive){
-char *charset = __CUSTOM_INTEGER_DEF_NUMBER_CHARSET__();
+char *charset = __GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__();
 size_t charset_length = strlen_runtime(charset);
 char *a_start = 0x00,*b_start = 0x00,*a_end = 0x00,*b_end = 0x00,*a_current = 0x00,*b_current = 0x00;
 size_t a_length = 0x00,b_length = 0x00,a_start_length = 0x00,b_start_length = 0x00;
@@ -168,7 +168,7 @@ if((*result_start) > 0x00) goto SUB_RESOLVE_POSITIVE_LOOP_START;
 if((*result_start) == 0x00) goto SUB_RESOLVE_END;
 
 SUB_RESOLVE_NEGATIVE_LOOP_START:
-result_sign = __SIGN_NEGATIVE__();
+result_sign = __GET_SIGN_NEGATIVE__();
 result_sign_length = strlen_runtime(result_sign);
 result_end = result + result_length;
 result_current = result_end;
@@ -198,7 +198,7 @@ SUB_RESOLVE_NEGATIVE_LOOP_END:
 goto SUB_RESOLVE_END;
 
 SUB_RESOLVE_POSITIVE_LOOP_START:
-result_sign = __SIGN_POSITIVE__();
+result_sign = __GET_SIGN_POSITIVE__();
 result_sign_length = strlen_runtime(result_sign);
 result_end = result + result_length;
 result_current = result_end;
@@ -326,13 +326,13 @@ __A_POSITIVE_B_NEGATIVE_START__:
 __A_B_CMP__ = __CMP_CHARSET__(a_start,b_start);
 if(__A_B_CMP__ > 0){ /* |a| > |b| */
  result = __SUB_INTEGER_AND_POSITIVE__(a_start,b_start);
- result_sign = __SIGN_POSITIVE__();
+ result_sign = __GET_SIGN_POSITIVE__();
 } else if(__A_B_CMP__ < 0){
  result = __SUB_INTEGER_AND_POSITIVE__(b_start,a_start);
- result_sign = __SIGN_NEGATIVE__();
+ result_sign = __GET_SIGN_NEGATIVE__();
 } else if(__A_B_CMP__ == 0){
  result = __SUB_INTEGER_AND_POSITIVE__(a_start,b_start);
- result_sign = __SIGN_POSITIVE__();
+ result_sign = __GET_SIGN_POSITIVE__();
 }
 goto __VALCPY__;
 
@@ -340,20 +340,20 @@ __A_NEGATIVE_B_POSITIVE_START__:
 __A_B_CMP__ = __CMP_CHARSET__(a_start,b_start);
 if(__A_B_CMP__ > 0){
  result = __SUB_INTEGER_AND_POSITIVE__(a_start,b_start);
- result_sign = __SIGN_NEGATIVE__();
+ result_sign = __GET_SIGN_NEGATIVE__();
 } else if(__A_B_CMP__ < 0){
  result = __SUB_INTEGER_AND_POSITIVE__(b_start,a_start);
- result_sign = __SIGN_POSITIVE__();
+ result_sign = __GET_SIGN_POSITIVE__();
 } else if(__A_B_CMP__ == 0){
  result = __SUB_INTEGER_AND_POSITIVE__(b_start,a_start);
- result_sign = __SIGN_POSITIVE__();
+ result_sign = __GET_SIGN_POSITIVE__();
 }
 goto __VALCPY__;
 
 __A_NEGATIVE_B_NEGATIVE_START__:
 __A_B_CMP__ = __CMP_CHARSET__(a_start,b_start);
 result = __ADD_INTEGER_AND_POSITIVE__(a_start,b_start);
-result_sign = __SIGN_NEGATIVE__();
+result_sign = __GET_SIGN_NEGATIVE__();
 goto __VALCPY__;
 
 __VALCPY__:
@@ -416,7 +416,7 @@ result = calloc(result_length + __STRING_END_NULL_BYTE_SIZE__,sizeof(char));
 
 char a_current_index = 0x00,b_current_index = 0x00;
 
-charset = __CUSTOM_INTEGER_DEF_NUMBER_CHARSET__();
+charset = __GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__();
 charset_length = strlen_runtime(charset);
 
 __ADD_INTEGER_AND_POSITIVE_CALC_LOOP_START__:
@@ -442,7 +442,7 @@ __ADD_INTEGER_AND_POSITIVE_CALC_LOOP_END__:
 
 
 __ADD_INTEGER_AND_POSITIVE_RESOLVE_LOOP_START__:
-result_sign = __SIGN_POSITIVE__();
+result_sign = __GET_SIGN_POSITIVE__();
 result_current = result_end;
 __ADD_INTEGER_AND_POSITIVE_RESOLVE_LOOP_RESOLVE__:
 (*(result_current - 1)) += ((*result_current) / charset_length);

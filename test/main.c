@@ -1,0 +1,11 @@
+#include "../test/main.h"
+int main(){
+	__SET_SIGN_NEGATIVE__("-");
+	__SET_SIGN_POSITIVE__("");
+	__SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__("0123456789");
+	__TEST_ADD_INTEGER_LOOP__();
+	__TEST_SUB_INTEGER_LOOP__();
+	__TEST_MUL_INTEGER_LOOP__();
+	__TEST_ATOZ0TO9__();
+	__TEST_PARSE__();
+}

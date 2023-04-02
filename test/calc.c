@@ -1,6 +1,5 @@
 #include "./calc.h"
 
-#define __STRING_END_NULL_BYTE_SIZE__ 1
 
 int __TEST_ADD_INTEGER_LOOP__(){
  int _r = 0x00;
@@ -105,10 +104,4 @@ int __TEST_SUB_INTEGER__(long _a,long _b){
  (free(a),free(b),a = 0x00,b = 0x00);
  (free(r),free(_rtoa),r = 0x00,_rtoa = NULL);
  puts("OK with __TEST_SUB_INTEGER__");
-}
-
-int main(){
- // __TEST_SUB_INTEGER_LOOP__();
- // __TEST_ADD_INTEGER_LOOP__();
- __TEST_MUL_INTEGER_LOOP__();
 }

@@ -19,5 +19,6 @@
 #ifndef __CUSTOM_TEST_CALC_H__
 #define __CUSTOM_TEST_CALC_H__
 
+void __TEST_ATOZ0TO9__();
 
 #endif

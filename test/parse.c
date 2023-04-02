@@ -26,7 +26,10 @@ char* parseCustomSign(char *str) {
 	return sign;
 }
 
-int main(int argc, char **argv){
+void __TEST_PARSE__(){
+	__SET_SIGN_NEGATIVE__("_");
+	__SET_SIGN_NEGATIVE__("+");
+	__SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__(")!@#$\%^&*(");
 	char *orig = "+_+__-_2312))@!#)@!#$&^\%!@*))_!@#!@$!@\0@$#!",*parsed = 0x00,*sign = 0x00;
 	parsed = parseCustomString(orig);
 	sign = parseCustomSign(orig);

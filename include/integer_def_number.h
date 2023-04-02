@@ -8,12 +8,17 @@
 #include "./string_def.h"
 
 #ifndef __CUSTOM_INTEGER_DEF_NUMBER_H__
+#define __CUSTOM_INTEGER_DEF_NUMBER_H__
 #include "./integer_def_decimal.h"
 
+
+// char *__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__;
+char *__GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__();
+void __SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__(char *charset);
 /** START DEFINE INT_NUM_CHARSET **/
-#ifndef __CUSTOM_INTEGER_DEF_NUMBER_CHARSET__
-#define __CUSTOM_INTEGER_DEF_NUMBER_CHARSET__() (__CUSTOM_INTEGER_DEF_DECIMAL_CHARSET__())
-#endif
+//#ifndef __CUSTOM_INTEGER_DEF_NUMBER_CHARSET__
+//#define __CUSTOM_INTEGER_DEF_NUMBER_CHARSET__() (__CUSTOM_INTEGER_DEF_DECIMAL_CHARSET__())
+//#endif
 /** END DEFINE INT_NUM_CHARSET **/
 
 #ifndef __CHARSET_LEN_ZERO_ABORT__
@@ -31,7 +36,7 @@
 
 #ifndef __CHARSET_LEN_CHECK__
 #define __CHARSET_LEN_CHECK__() (\
-	strlen_runtime(__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__()) ? \
+	strlen_runtime(__GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__()) ? \
 		true : \
 		(__CHARSET_LEN_ZERO_ABORT__(),false)\
 )

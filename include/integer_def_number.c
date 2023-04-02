@@ -1,14 +1,21 @@
 #include "./integer_def_number.h"
 
+char *__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__;
+char *__GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__(){
+	return __CUSTOM_INTEGER_DEF_NUMBER_CHARSET__;
+}
+void __SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__(char *charset){
+	__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__ = charset;
+}
 char __CHARSET_AT__(size_t index){
-	if(index > strlen_runtime(__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__())) __OUT_OF_INDEX_ABORT__();
-	return __CUSTOM_INTEGER_DEF_NUMBER_CHARSET__()[index];
+	if(index > strlen_runtime(__GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__())) __OUT_OF_INDEX_ABORT__();
+	return __GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__()[index];
 }
 
 bool __IS_CURRENT_NUMBER_CHARSET__(size_t charset_index,char current){
  __CHARSET_LEN_CHECK__();
- return (charset_index) < strlen_runtime(__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__()) ? (
-  __CUSTOM_INTEGER_DEF_NUMBER_CHARSET__()[charset_index] != current ?
+ return (charset_index) < strlen_runtime(__GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__()) ? (
+  __GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__()[charset_index] != current ?
    __IS_CURRENT_NUMBER_CHARSET__(charset_index + 1,current) :
    true
  ) : false;
