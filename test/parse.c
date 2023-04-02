@@ -35,5 +35,7 @@ void __TEST_PARSE__(){
 	sign = parseCustomSign(orig);
 	printf("orig = \"%s\"\r\n",orig);
 	printf("parsed = \"%s\"\r\n",parsed);
+	free(parsed);
 	printf("sign = \"%s\"\r\n",sign);
+	free(sign);
 }
