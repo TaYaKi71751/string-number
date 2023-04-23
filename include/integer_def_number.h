@@ -1,3 +1,6 @@
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
@@ -14,6 +17,7 @@
 
 // char *__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__;
 char *__GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__();
+void __SAFE_SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__(char *charset);
 void __SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__(char *charset);
 /** START DEFINE INT_NUM_CHARSET **/
 //#ifndef __CUSTOM_INTEGER_DEF_NUMBER_CHARSET__

@@ -1,3 +1,6 @@
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -13,6 +16,7 @@
 
 // char *__SIGN_NEGATIVE__;
 char *__GET_SIGN_NEGATIVE__();
+void __SAFE_SET_SIGN_NEGATIVE__(char *negative);
 void __SET_SIGN_NEGATIVE__(char *negative);
 //#ifndef __CUSTOM_INTEGER_DEF_SIGN_MINUS__
 //#define __CUSTOM_INTEGER_DEF_SIGN_MINUS__() ("-")
@@ -26,6 +30,7 @@ void __SET_SIGN_NEGATIVE__(char *negative);
 
 // char *__SIGN_POSITIVE__;
 char *__GET_SIGN_POSITIVE__();
+void __SAFE_SET_SIGN_POSITIVE__(char *positive);
 void __SET_SIGN_POSITIVE__(char *positive);
 //#ifndef __CUSTOM_INTEGER_DEF_SIGN_PLUS__
 //#define __CUSTOM_INTEGER_DEF_SIGN_PLUS__() ("")

@@ -1,3 +1,6 @@
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -15,6 +18,7 @@
 
 #include "./integer_def_number.h"
 #include "./integer_def_sign.h"
+#include "./integer_def_init.h"
 
 
 #ifndef __CUSTOM_INTEGER_DEF_CALC_H__

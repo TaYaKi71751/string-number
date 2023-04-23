@@ -1,9 +1,30 @@
 #include "./integer_def_number.h"
 
-char *__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__;
+char *__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__ = 0x00;
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char *__GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__(){
 	return __CUSTOM_INTEGER_DEF_NUMBER_CHARSET__;
 }
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+void __SAFE_SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__(char *charset){
+	if(__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__) (
+		(free(__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__)),
+		(__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__ = 0x00)
+	);
+	if(charset) (
+		__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__ = calloc(strlen_runtime(charset) + 1,sizeof(char))
+	);
+	if(charset && strlen_runtime(charset)) (
+		memcpy(__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__,charset,strlen_runtime(charset))
+	);
+}
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 void __SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__(char *charset){
 	__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__ = charset;
 }

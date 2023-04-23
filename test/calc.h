@@ -4,9 +4,7 @@
 #include<stdbool.h>
 #include<string.h>
 
-#include "../include/integer_def_sign.h"
-#include "../include/integer_def_number.h"
-#include "../include/integer_def_calc.h"
+#include "../include/calculate.h"
 
 
 int __TEST_ADD_INTEGER_LOOP__();

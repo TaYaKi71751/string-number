@@ -1,5 +1,5 @@
 
-#include "../include/integer_def_calc.h"
+#include "../include/calculate.h"
 #include "../test/calc.h"
 #include "../test/calc_atozAtoZ0to9.h"
 #include "../test/parse.h"

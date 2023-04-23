@@ -12,9 +12,7 @@
 #include<stdbool.h>
 #include<string.h>
 
-#include "../include/integer_def_sign.h"
-#include "../include/integer_def_number.h"
-#include "../include/integer_def_calc.h"
+#include "../include/calculate.h"
 
 #ifndef __CUSTOM_TEST_CALC_H__
 #define __CUSTOM_TEST_CALC_H__

@@ -37,6 +37,7 @@
   "main.h": "c",
   "calc.h": "c",
   "calc_atozatoz0to9.h": "c",
-  "integer_def_atozatoz0to9.h": "c"
+  "integer_def_atozatoz0to9.h": "c",
+  "integer_def_init.h": "c"
  }
 }

@@ -10,7 +10,7 @@ int __TEST_ADD_INTEGER_LOOP__(){
    _rtoa = itoa(_r);
    a = itoa(i);
    b = itoa(j);
-   r = __ADD_INTEGER__(a,b);
+   r = (char*)__ADD_INTEGER__(a,b);
    if(strcmp(r,_rtoa) != 0)(
     printf("\"%s\",\"%s\"",r,_rtoa),
     abort()
@@ -96,7 +96,7 @@ int __TEST_SUB_INTEGER__(long _a,long _b){
  _rtoa = ltoa(_r);
  a = ltoa(_a);
  b = ltoa(_b);
- r = __SUB_INTEGER__(a,b);
+ r = (char*)__SUB_INTEGER__(a,b);
  if(strcmp(r,_rtoa) != 0)(
   printf("\"%s\",\"%s\"",r,_rtoa),
   abort()
