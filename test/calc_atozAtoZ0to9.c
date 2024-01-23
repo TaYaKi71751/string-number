@@ -1,6 +1,7 @@
 #include "./calc_atozAtoZ0to9.h"
 
-int main(int argc, char **argv){
+void __TEST_ATOZ0TO9__(){
+	__SAFE_SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__(((char*)(__CUSTOM_INTEGER_DEF_ATOZ0TO9_CHARSET__())));
 	char *result = calloc(2,sizeof(char)),*result_tmp = NULL;
 	result[0] = 'a';
 	while(__CMP_CHARSET__(result, "99") != 0){

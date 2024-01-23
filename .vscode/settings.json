@@ -32,6 +32,12 @@
   "string_function.h": "c",
   "integer_function_cmp.h": "c",
   "integer_def_sign.h": "c",
-  "parse.h": "c"
+  "parse.h": "c",
+  "integer_def_calc.h": "c",
+  "main.h": "c",
+  "calc.h": "c",
+  "calc_atozatoz0to9.h": "c",
+  "integer_def_atozatoz0to9.h": "c",
+  "integer_def_init.h": "c"
  }
 }

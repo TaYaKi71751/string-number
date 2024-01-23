@@ -1,5 +1,8 @@
 #include "./integer_def_calc.h"
 
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char *__SUB_INTEGER_OR_NEGATIVE__(char *a_negativable,char *b_negativable){
 char *a_start = 0x00,*a_end = 0x00,*b_start = 0x00,*b_end = 0x00,*a_sign_start = 0x00,*a_sign_end = 0x00,*b_sign_start = 0x00,*b_sign_end = 0x00;
 size_t a_length = 0x00,b_length = 0x00,a_start_length = 0x00,b_start_length = 0x00,a_sign_length = 0x00,b_sign_length = 0x00;
@@ -50,25 +53,25 @@ if(a_negative && b_negative)  goto __A_NEGATIVE_B_NEGATIVE_START__;
 
 __A_POSITIVE_B_NEGATIVE_START__:
 result = __ADD_INTEGER_AND_POSITIVE__(a_start,b_start);
-result_sign = __SIGN_POSITIVE__();
+result_sign = __GET_SIGN_POSITIVE__();
 goto __VALCPY__;
 
 __A_NEGATIVE_B_POSITIVE_START__:
 result = __ADD_INTEGER_AND_POSITIVE__(a_start,b_start);
-result_sign = __SIGN_NEGATIVE__();
+result_sign = __GET_SIGN_NEGATIVE__();
 goto __VALCPY__;
 
 __A_NEGATIVE_B_NEGATIVE_START__:
 __A_B_CMP__ = __CMP_CHARSET__(a_start,b_start);
 if(__A_B_CMP__ > 0){ /* (|a| > |b|) */
  result = __SUB_INTEGER_AND_POSITIVE__(a_start,b_start);
- result_sign = __SIGN_NEGATIVE__();
+ result_sign = __GET_SIGN_NEGATIVE__();
 } else if (__A_B_CMP__ < 0){ /* (|a| < |b|) */
  result = __SUB_INTEGER_AND_POSITIVE__(b_start,a_start);
- result_sign = __SIGN_POSITIVE__();
+ result_sign = __GET_SIGN_POSITIVE__();
 } else if (!__A_B_CMP__) { /* (|a| == |b|) */
  result = __SUB_INTEGER_AND_POSITIVE__(a_start,b_start);
- result_sign = __SIGN_POSITIVE__();
+ result_sign = __GET_SIGN_POSITIVE__();
 }
 goto __VALCPY__;
 
@@ -95,8 +98,12 @@ result = result_tmp;
 return result;
 }
 
+
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char *__SUB_INTEGER_AND_POSITIVE__(char *a_positive,char *b_positive){
-char *charset = __CUSTOM_INTEGER_DEF_NUMBER_CHARSET__();
+char *charset = __GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__();
 size_t charset_length = strlen_runtime(charset);
 char *a_start = 0x00,*b_start = 0x00,*a_end = 0x00,*b_end = 0x00,*a_current = 0x00,*b_current = 0x00;
 size_t a_length = 0x00,b_length = 0x00,a_start_length = 0x00,b_start_length = 0x00;
@@ -168,7 +175,7 @@ if((*result_start) > 0x00) goto SUB_RESOLVE_POSITIVE_LOOP_START;
 if((*result_start) == 0x00) goto SUB_RESOLVE_END;
 
 SUB_RESOLVE_NEGATIVE_LOOP_START:
-result_sign = __SIGN_NEGATIVE__();
+result_sign = __GET_SIGN_NEGATIVE__();
 result_sign_length = strlen_runtime(result_sign);
 result_end = result + result_length;
 result_current = result_end;
@@ -198,7 +205,7 @@ SUB_RESOLVE_NEGATIVE_LOOP_END:
 goto SUB_RESOLVE_END;
 
 SUB_RESOLVE_POSITIVE_LOOP_START:
-result_sign = __SIGN_POSITIVE__();
+result_sign = __GET_SIGN_POSITIVE__();
 result_sign_length = strlen_runtime(result_sign);
 result_end = result + result_length;
 result_current = result_end;
@@ -274,6 +281,10 @@ result = result_tmp;
 return result;
 }
 
+
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char *__ADD_INTEGER_OR_NEGATIVE__(char *a_negativable,char *b_negativable){
 char *a_start = 0x00,*a_end = 0x00,*b_start = 0x00,*b_end = 0x00,*a_sign_start = 0x00,*a_sign_end = 0x00,*b_sign_start = 0x00,*b_sign_end = 0x00;
 size_t a_length = 0x00,b_length = 0x00,a_start_length = 0x00,b_start_length = 0x00,a_sign_length = 0x00,b_sign_length = 0x00;
@@ -326,13 +337,13 @@ __A_POSITIVE_B_NEGATIVE_START__:
 __A_B_CMP__ = __CMP_CHARSET__(a_start,b_start);
 if(__A_B_CMP__ > 0){ /* |a| > |b| */
  result = __SUB_INTEGER_AND_POSITIVE__(a_start,b_start);
- result_sign = __SIGN_POSITIVE__();
+ result_sign = __GET_SIGN_POSITIVE__();
 } else if(__A_B_CMP__ < 0){
  result = __SUB_INTEGER_AND_POSITIVE__(b_start,a_start);
- result_sign = __SIGN_NEGATIVE__();
+ result_sign = __GET_SIGN_NEGATIVE__();
 } else if(__A_B_CMP__ == 0){
  result = __SUB_INTEGER_AND_POSITIVE__(a_start,b_start);
- result_sign = __SIGN_POSITIVE__();
+ result_sign = __GET_SIGN_POSITIVE__();
 }
 goto __VALCPY__;
 
@@ -340,20 +351,20 @@ __A_NEGATIVE_B_POSITIVE_START__:
 __A_B_CMP__ = __CMP_CHARSET__(a_start,b_start);
 if(__A_B_CMP__ > 0){
  result = __SUB_INTEGER_AND_POSITIVE__(a_start,b_start);
- result_sign = __SIGN_NEGATIVE__();
+ result_sign = __GET_SIGN_NEGATIVE__();
 } else if(__A_B_CMP__ < 0){
  result = __SUB_INTEGER_AND_POSITIVE__(b_start,a_start);
- result_sign = __SIGN_POSITIVE__();
+ result_sign = __GET_SIGN_POSITIVE__();
 } else if(__A_B_CMP__ == 0){
  result = __SUB_INTEGER_AND_POSITIVE__(b_start,a_start);
- result_sign = __SIGN_POSITIVE__();
+ result_sign = __GET_SIGN_POSITIVE__();
 }
 goto __VALCPY__;
 
 __A_NEGATIVE_B_NEGATIVE_START__:
 __A_B_CMP__ = __CMP_CHARSET__(a_start,b_start);
 result = __ADD_INTEGER_AND_POSITIVE__(a_start,b_start);
-result_sign = __SIGN_NEGATIVE__();
+result_sign = __GET_SIGN_NEGATIVE__();
 goto __VALCPY__;
 
 __VALCPY__:
@@ -379,6 +390,10 @@ result = result_tmp;
 return result;
 }
 
+
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char *__ADD_INTEGER_AND_POSITIVE__(char *a_positive,char *b_positive){
 // .__ADD_INTEGER_AND_POSITIVE__ __CHAR_PTR__
 // char *a = "1234567890",*b = "0987654321";
@@ -416,7 +431,7 @@ result = calloc(result_length + __STRING_END_NULL_BYTE_SIZE__,sizeof(char));
 
 char a_current_index = 0x00,b_current_index = 0x00;
 
-charset = __CUSTOM_INTEGER_DEF_NUMBER_CHARSET__();
+charset = __GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__();
 charset_length = strlen_runtime(charset);
 
 __ADD_INTEGER_AND_POSITIVE_CALC_LOOP_START__:
@@ -442,7 +457,7 @@ __ADD_INTEGER_AND_POSITIVE_CALC_LOOP_END__:
 
 
 __ADD_INTEGER_AND_POSITIVE_RESOLVE_LOOP_START__:
-result_sign = __SIGN_POSITIVE__();
+result_sign = __GET_SIGN_POSITIVE__();
 result_current = result_end;
 __ADD_INTEGER_AND_POSITIVE_RESOLVE_LOOP_RESOLVE__:
 (*(result_current - 1)) += ((*result_current) / charset_length);
@@ -503,6 +518,10 @@ __ADD_INTEGER_AND_POSITIVE_STRCAT_END:
 return result;
 }
 
+
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char *__SUB_INTEGER__(char *a,char *b){
 char *a_start = 0x00,*b_start = 0x00,*a_end = 0x00,*b_end = 0x00,*a_sign_start = 0x00,*b_sign_start = 0x00,*a_sign_end = 0x00,*b_sign_end = 0x00;
 size_t a_length = 0x00,b_length = 0x00,a_start_length = 0x00,b_start_length = 0x00,a_sign_length = 0x00,b_sign_length = 0x00;
@@ -546,6 +565,10 @@ else if((a_zero || !a_negative) && (b_zero || !b_negative)) return __SUB_INTEGER
 abort();
 }
 
+
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 char *__ADD_INTEGER__(char *a,char *b){
 char *a_start = 0x00,*b_start = 0x00,*a_end = 0x00,*b_end = 0x00,*a_sign_start = 0x00,*b_sign_start = 0x00,*a_sign_end = 0x00,*b_sign_end = 0x00;
 size_t a_length = 0x00,b_length = 0x00,a_start_length = 0x00,b_start_length = 0x00,a_sign_length = 0x00,b_sign_length = 0x00;
@@ -587,4 +610,65 @@ if(a_negative || b_negative) return __ADD_INTEGER_OR_NEGATIVE__(a,b);
 else if((a_zero || !a_negative) && (b_zero || !b_negative)) return __ADD_INTEGER_AND_POSITIVE__(a,b);
 
 abort();
+}
+
+
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+char *__ADD_REP_INTEGER__(char *a, size_t rep){
+char *_z = "0\0",*_t=0x00,*_r=calloc(2,sizeof(char));
+memcpy(_r,_z,1);
+for(size_t i = 0;i < rep;i++){
+_t=__ADD_INTEGER__(_r,a);
+free(_r);
+_r=0x00;
+_r=_t;
+}
+return _r;
+}
+
+
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+char *__MUL_INTEGER__(char *a, char *b){
+size_t \
+al=strlen_runtime(a),\
+bl=strlen_runtime(b),\
+anl=0x00,\
+bnl=0x00;
+char \
+*a_start=0x00,\
+*a_end=0x00,\
+*b_start=0x00,\
+*b_end=0x00;
+
+a_start=__START_NUMBER__(0,al,a);
+a_end=__END_NUMBER__(a_start - a,al,a);
+anl=((size_t)a_end - (size_t)a_start) + 1;
+
+b_start=__START_NUMBER__(0,bl,b);
+b_end=__END_NUMBER__(b_start - b,bl,b);
+bnl=((size_t)b_end - (size_t)b_start) + 1;
+	
+char *_z="0\0",\
+*_r=calloc(2,sizeof(char)),\
+*_t=0x00,\
+*_tt=0x00;
+memcpy(_r,_z,1);
+for(size_t i=bnl;i>0;i--){
+size_t _ZC=bnl-i,_C=__INDEX_OF_CURRENT_CHARSET__(0,b_start[i - 1]),_tl=0x00;
+_t=__ADD_REP_INTEGER__(a_start,_C);
+_tl=strlen_runtime(_t);
+_tt=calloc(_tl+_ZC+1,sizeof(char));
+memcpy(_tt,_t,_tl);
+free(_t);
+for(size_t j=0;j<_ZC;j++){memcpy(_tt+_tl+j,_z,1);}
+char *_rt=__ADD_INTEGER__(_r,_tt);
+free(_tt);
+free(_r);
+_r=_rt;
+}
+return _r;
 }

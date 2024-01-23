@@ -1,14 +1,42 @@
 #include "./integer_def_number.h"
 
+char *__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__ = 0x00;
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+char *__GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__(){
+	return __CUSTOM_INTEGER_DEF_NUMBER_CHARSET__;
+}
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+void __SAFE_SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__(char *charset){
+	if(__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__) (
+		(free(__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__)),
+		(__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__ = 0x00)
+	);
+	if(charset) (
+		__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__ = calloc(strlen_runtime(charset) + 1,sizeof(char))
+	);
+	if(charset && strlen_runtime(charset)) (
+		memcpy(__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__,charset,strlen_runtime(charset))
+	);
+}
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+void __SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__(char *charset){
+	__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__ = charset;
+}
 char __CHARSET_AT__(size_t index){
-	if(index > strlen_runtime(__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__())) __OUT_OF_INDEX_ABORT__();
-	return __CUSTOM_INTEGER_DEF_NUMBER_CHARSET__()[index];
+	if(index > strlen_runtime(__GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__())) __OUT_OF_INDEX_ABORT__();
+	return __GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__()[index];
 }
 
 bool __IS_CURRENT_NUMBER_CHARSET__(size_t charset_index,char current){
  __CHARSET_LEN_CHECK__();
- return (charset_index) < strlen_runtime(__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__()) ? (
-  __CUSTOM_INTEGER_DEF_NUMBER_CHARSET__()[charset_index] != current ?
+ return (charset_index) < strlen_runtime(__GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__()) ? (
+  __GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__()[charset_index] != current ?
    __IS_CURRENT_NUMBER_CHARSET__(charset_index + 1,current) :
    true
  ) : false;
