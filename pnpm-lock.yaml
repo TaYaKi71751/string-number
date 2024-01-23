@@ -1,22 +1,35 @@
-lockfileVersion: 5.4
+lockfileVersion: '6.0'
 
-specifiers:
-  mkdirp: ^1.0.4
-  typescript: ^4.8.4
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
 
 dependencies:
-  mkdirp: 1.0.4
-  typescript: 4.8.4
+  emscripten:
+    specifier: 0.0.2-beta
+    version: 0.0.2-beta
+  mkdirp:
+    specifier: ^1.0.4
+    version: 1.0.4
+  typescript:
+    specifier: ^4.8.4
+    version: 4.8.4
 
 packages:
 
-  /mkdirp/1.0.4:
+  /emscripten@0.0.2-beta:
+    resolution: {integrity: sha512-bckLzZ9n/GhNB4NwE23frASTc0hB7EyrY9ykys+Ou5wKupOROtEzkeWqxoGmWYQVNbidSW5UYsHwo8hhCuqbKg==}
+    hasBin: true
+    requiresBuild: true
+    dev: false
+
+  /mkdirp@1.0.4:
     resolution: {integrity: sha512-vVqVZQyf3WLx2Shd0qJ9xuvqgAyKPLAiqITEtqW0oIUjzo3PePDd6fW9iFz30ef7Ysp/oiWqbhszeGWW2T6Gzw==}
     engines: {node: '>=10'}
     hasBin: true
     dev: false
 
-  /typescript/4.8.4:
+  /typescript@4.8.4:
     resolution: {integrity: sha512-QCh+85mCy+h0IGff8r5XWzOVSbBO+KfeYrMQh7NJ58QujwcE22u+NUSmUxqF+un70P9GXKxa2HCNiTTMJknyjQ==}
     engines: {node: '>=4.2.0'}
     hasBin: true
