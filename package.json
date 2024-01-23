@@ -8,13 +8,14 @@
     "require": "./wasm/index.cjs"
   },
   "scripts": {
-    "build:emcc-cjs": "mkdirp wasm && emcc include/*.c -sNO_EXIT_RUNTIME=1 -sMODULARIZE=1 -sDYNAMIC_EXECUTION=1 -sEXPORTED_RUNTIME_METHODS=cwrap,ccall,_malloc,malloc,allocateUTF8,allocateUTF8OnStack,UTF8ToString -fsanitize=address -o ./wasm/index.cjs",
-    "build:emcc-mjs": "mkdirp wasm && emcc include/*.c -sNO_EXIT_RUNTIME=1 -sMODULARIZE=1 -sDYNAMIC_EXECUTION=1 -sEXPORTED_RUNTIME_METHODS=cwrap,ccall,_malloc,malloc,allocateUTF8,allocateUTF8OnStack,UTF8ToString -fsanitize=address -o ./wasm/index.mjs",
+    "build:emcc-cjs": "mkdirp wasm && find / -name 'emcc' -type f -exec bash -c \"{} include/*.c -sNO_EXIT_RUNTIME=1 -sMODULARIZE=1 -sDYNAMIC_EXECUTION=1 -sEXPORTED_RUNTIME_METHODS=cwrap,ccall,_malloc,malloc,allocateUTF8,allocateUTF8OnStack,UTF8ToString -fsanitize=address -o ./wasm/index.cjs && pkill -9 find \" \\;",
+    "build:emcc-mjs": "mkdirp wasm && find / -name 'emcc' -type f -exec bash -c \"{} include/*.c -sNO_EXIT_RUNTIME=1 -sMODULARIZE=1 -sDYNAMIC_EXECUTION=1 -sEXPORTED_RUNTIME_METHODS=cwrap,ccall,_malloc,malloc,allocateUTF8,allocateUTF8OnStack,UTF8ToString -fsanitize=address -o ./wasm/index.mjs && pkill -9 find \" \\;",
     "build:tsc-cjs": "tsc --allowJs --declaration --emitDeclarationOnly ./wasm/index.cjs",
     "build:tsc-mjs": "tsc --allowJs --declaration --emitDeclarationOnly ./wasm/index.mjs"
   },
   "license": "WTFPL",
   "dependencies": {
+    "emscripten": "0.0.2-beta",
     "mkdirp": "^1.0.4",
     "typescript": "^4.8.4"
   }
