@@ -72,17 +72,17 @@ async function mul(a,b){
 // 	})
 (async() => {
 	
-		let r = "0";
+		let r = "2";
 		let l = r.length;
 		try {
 			while(r.length != 50){
-				let _ = await add('1',r);
+				let _ = await mul('2',r);
 				r = _;
 				if(l != r.length){
 					console.log(`length: ${l}`);
 				}
 				l = r.length;
-//				console.log(r);
+				console.log(r);
 			}
 		} catch(e){
 			console.log({e,r});
