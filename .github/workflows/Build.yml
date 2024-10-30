@@ -6,7 +6,7 @@ jobs:
     name: Build 🔧 with emscripten ⚡
     strategy:
       matrix:
-        js-target: [ 'cjs','mjs' ]
+        js-target: [ 'js' ]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@master
@@ -29,7 +29,6 @@ jobs:
       run: |
         mkdir -p wasm | true
         pnpm build:emcc-${{ matrix.js-target }}
-        pnpm build:tsc-${{ matrix.js-target }}
     - uses: corcc/publish@node
       with:
         TZ: 'Asia/Seoul'

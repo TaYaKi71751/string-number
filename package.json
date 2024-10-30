@@ -1,17 +1,14 @@
 {
   "name": "@testing/string-number",
   "version": "0.0.0",
-  "main": "./wasm/index.cjs",
-  "module": "./wasm/index.mjs",
+  "main": "./wasm/index.js",
+  "module": "./wasm/index.js",
   "exports": {
-    "import": "./wasm/index.mjs",
-    "require": "./wasm/index.cjs"
+    "import": "./wasm/index.js",
+    "require": "./wasm/index.js"
   },
   "scripts": {
-    "build:emcc-cjs": "mkdirp wasm && find / -name 'emcc' -type f -exec bash -c \"{} include/*.c -sNO_EXIT_RUNTIME=1 -sMODULARIZE=1 -sDYNAMIC_EXECUTION=1 -sEXPORTED_RUNTIME_METHODS=cwrap,ccall,_malloc,malloc,allocateUTF8,allocateUTF8OnStack,UTF8ToString -fsanitize=address -o ./wasm/index.cjs && pkill -9 find \" \\; || true",
-    "build:emcc-mjs": "mkdirp wasm && find / -name 'emcc' -type f -exec bash -c \"{} include/*.c -sNO_EXIT_RUNTIME=1 -sMODULARIZE=1 -sDYNAMIC_EXECUTION=1 -sEXPORTED_RUNTIME_METHODS=cwrap,ccall,_malloc,malloc,allocateUTF8,allocateUTF8OnStack,UTF8ToString -fsanitize=address -o ./wasm/index.mjs && pkill -9 find \" \\; || true",
-    "build:tsc-cjs": "tsc --allowJs --declaration --emitDeclarationOnly ./wasm/index.cjs",
-    "build:tsc-mjs": "tsc --allowJs --declaration --emitDeclarationOnly ./wasm/index.mjs"
+    "build:emcc-js": "mkdirp wasm && find / -name 'emcc' -type f -exec bash -c \"{} include/*.c -sWASM=0 -sNO_EXIT_RUNTIME=1 -sMODULARIZE=1 -sDYNAMIC_EXECUTION=1 -sEXPORTED_RUNTIME_METHODS=cwrap,ccall,_malloc,malloc,allocateUTF8,allocateUTF8OnStack,UTF8ToString -o ./wasm/index.js && pkill -9 find \" \\; || true"
   },
   "license": "WTFPL",
   "dependencies": {
