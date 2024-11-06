@@ -1,7 +1,6 @@
 
 #include "../include/calculate.h"
 #include "../test/calc.h"
-#include "../test/calc_atozAtoZ0to9.h"
 #include "../test/parse.h"
 #ifndef __MAIN_H__
 #define __MAIN_H__

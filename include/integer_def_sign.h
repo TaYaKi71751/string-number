@@ -12,7 +12,6 @@
 #define __CUSTOM_INTEGER_DEF_SIGN_H__
 #include "./string_function.h"
 #include "./string_def.h"
-#include "./integer_def_decimal.h"
 
 // char *__SIGN_NEGATIVE__;
 char *__GET_SIGN_NEGATIVE__();

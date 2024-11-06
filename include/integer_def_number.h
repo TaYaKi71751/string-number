@@ -12,8 +12,6 @@
 
 #ifndef __CUSTOM_INTEGER_DEF_NUMBER_H__
 #define __CUSTOM_INTEGER_DEF_NUMBER_H__
-#include "./integer_def_decimal.h"
-
 
 // char *__CUSTOM_INTEGER_DEF_NUMBER_CHARSET__;
 char *__GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__();
