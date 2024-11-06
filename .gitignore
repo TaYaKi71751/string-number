@@ -2,6 +2,7 @@
 *.gch
 *.out
 *.o
+*.dSYM
 .DS_Store
 
 node_modules/**
