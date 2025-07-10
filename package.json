@@ -8,7 +8,7 @@
     "require": "./wasm/index.js"
   },
   "scripts": {
-    "build:emcc-js": "mkdirp wasm && find / -name 'emcc' -type f -exec bash -c \"{} include/*.c -sWASM=0 -sNO_EXIT_RUNTIME=1 -sMODULARIZE=1 -sDYNAMIC_EXECUTION=1 -sEXPORTED_RUNTIME_METHODS=cwrap,ccall,_malloc,malloc,allocateUTF8,allocateUTF8OnStack,UTF8ToString -o ./wasm/index.js && pkill -9 find \" \\; || true"
+    "build:emcc-js": "mkdirp wasm && emcc include/*.c -sWASM=0 -sNO_EXIT_RUNTIME=1 -sMODULARIZE=1 -sDYNAMIC_EXECUTION=1 -sEXPORTED_RUNTIME_METHODS='[\"cwrap\",\"ccall\"]' -o ./wasm/index.js"
   },
   "license": "WTFPL",
   "dependencies": {
