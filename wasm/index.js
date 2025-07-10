@@ -1,9 +1,7 @@
-
 var Module = (() => {
   var _scriptName = typeof document != 'undefined' ? document.currentScript?.src : undefined;
-  if (typeof __filename != 'undefined') _scriptName = _scriptName || __filename;
   return (
-function(moduleArg = {}) {
+async function(moduleArg = {}) {
   var moduleRtn;
 
 // include: shell.js
@@ -22,21 +20,6 @@ function(moduleArg = {}) {
 // can continue to use Module afterwards as well.
 var Module = moduleArg;
 
-// Set up the promise that indicates the Module is initialized
-var readyPromiseResolve, readyPromiseReject;
-var readyPromise = new Promise((resolve, reject) => {
-  readyPromiseResolve = resolve;
-  readyPromiseReject = reject;
-});
-["_memory","___SUB_INTEGER_OR_NEGATIVE__","_strlen_runtime","___START_NUMBER__","___END_NUMBER__","___IS_CURRENT_CHARSET_ZERO__","___IS_SIGN_NEGATIVE__","___ADD_INTEGER_AND_POSITIVE__","___GET_SIGN_NEGATIVE__","___CMP_CHARSET__","___SUB_INTEGER_AND_POSITIVE__","___GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__","___INDEX_OF_CURRENT_CHARSET__","___CHARSET_AT__","___ADD_INTEGER_OR_NEGATIVE__","___SUB_INTEGER__","___ADD_INTEGER__","___ADD_REP_INTEGER__","___MUL_INTEGER__","___indirect_function_table","___SAFE_CALC_INIT__","___SAFE_SET_SIGN_NEGATIVE__","___SAFE_SET_SIGN_POSITIVE__","___SAFE_SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__","___SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__","___IS_CURRENT_NUMBER_CHARSET__","___CMP_CURRENT_CHARSET__","_ctoa","_uctoa","_stoa","_ustoa","_itoa","_uitoa","_ltoa","_ultoa","_lltoa","_ulltoa","___SET_SIGN_POSITIVE__","___IS_SIGN_POSITIVE__","___IS_SIGN_NULL__","onRuntimeInitialized"].forEach((prop) => {
-  if (!Object.getOwnPropertyDescriptor(readyPromise, prop)) {
-    Object.defineProperty(readyPromise, prop, {
-      get: () => abort('You are getting ' + prop + ' on the Promise object, instead of the instance. Use .then() to get called back with the instance, see the MODULARIZE docs in src/settings.js'),
-      set: () => abort('You are setting ' + prop + ' on the Promise object, instead of the instance. Use .then() to get called back with the instance, see the MODULARIZE docs in src/settings.js'),
-    });
-  }
-});
-
 // Determine the runtime environment we are in. You can customize this by
 // setting the ENVIRONMENT setting at compile time (see settings.js).
 
@@ -45,33 +28,25 @@ var ENVIRONMENT_IS_WEB = typeof window == 'object';
 var ENVIRONMENT_IS_WORKER = typeof WorkerGlobalScope != 'undefined';
 // N.b. Electron.js environment is simultaneously a NODE-environment, but
 // also a web environment.
-var ENVIRONMENT_IS_NODE = typeof process == 'object' && typeof process.versions == 'object' && typeof process.versions.node == 'string' && process.type != 'renderer';
+var ENVIRONMENT_IS_NODE = typeof process == 'object' && process.versions?.node && process.type != 'renderer';
 var ENVIRONMENT_IS_SHELL = !ENVIRONMENT_IS_WEB && !ENVIRONMENT_IS_NODE && !ENVIRONMENT_IS_WORKER;
-
-if (ENVIRONMENT_IS_NODE) {
-  // `require()` is no-op in an ESM module, use `createRequire()` to construct
-  // the require()` function.  This is only necessary for multi-environment
-  // builds, `-sENVIRONMENT=node` emits a static import declaration instead.
-  // TODO: Swap all `require()`'s with `import()`'s?
-
-}
 
 // --pre-jses are emitted after the Module integration code, so that they can
 // refer to Module (if they choose; they can also define Module)
 
-
-// Sometimes an existing Module object exists with properties
-// meant to overwrite the default module functionality. Here
-// we collect those properties and reapply _after_ we configure
-// the current environment's defaults to avoid having to be so
-// defensive during initialization.
-var moduleOverrides = Object.assign({}, Module);
 
 var arguments_ = [];
 var thisProgram = './this.program';
 var quit_ = (status, toThrow) => {
   throw toThrow;
 };
+
+if (typeof __filename != 'undefined') { // Node
+  _scriptName = __filename;
+} else
+if (ENVIRONMENT_IS_WORKER) {
+  _scriptName = self.location.href;
+}
 
 // `/` should be present at the end if `scriptDirectory` is not empty
 var scriptDirectory = '';
@@ -86,12 +61,12 @@ function locateFile(path) {
 var readAsync, readBinary;
 
 if (ENVIRONMENT_IS_NODE) {
-  if (typeof process == 'undefined' || !process.release || process.release.name !== 'node') throw new Error('not compiled for this environment (did you build to HTML and try to run it not on the web, or set ENVIRONMENT to something - like node - and run it someplace else - like on the web?)');
+  const isNode = typeof process == 'object' && process.versions?.node && process.type != 'renderer';
+  if (!isNode) throw new Error('not compiled for this environment (did you build to HTML and try to run it not on the web, or set ENVIRONMENT to something - like node - and run it someplace else - like on the web?)');
 
   var nodeVersion = process.versions.node;
   var numericVersion = nodeVersion.split('.').slice(0, 3);
   numericVersion = (numericVersion[0] * 10000) + (numericVersion[1] * 100) + (numericVersion[2].split('-')[0] * 1);
-  var minVersion = 160000;
   if (numericVersion < 160000) {
     throw new Error('This emscripten-generated code requires node v16.0.0 (detected v' + nodeVersion + ')');
   }
@@ -99,38 +74,31 @@ if (ENVIRONMENT_IS_NODE) {
   // These modules will usually be used on Node.js. Load them eagerly to avoid
   // the complexity of lazy-loading.
   var fs = require('fs');
-  var nodePath = require('path');
 
   scriptDirectory = __dirname + '/';
 
 // include: node_shell_read.js
 readBinary = (filename) => {
-  // We need to re-wrap `file://` strings to URLs. Normalizing isn't
-  // necessary in that case, the path should already be absolute.
-  filename = isFileURI(filename) ? new URL(filename) : nodePath.normalize(filename);
+  // We need to re-wrap `file://` strings to URLs.
+  filename = isFileURI(filename) ? new URL(filename) : filename;
   var ret = fs.readFileSync(filename);
-  assert(ret.buffer);
+  assert(Buffer.isBuffer(ret));
   return ret;
 };
 
-readAsync = (filename, binary = true) => {
+readAsync = async (filename, binary = true) => {
   // See the comment in the `readBinary` function.
-  filename = isFileURI(filename) ? new URL(filename) : nodePath.normalize(filename);
-  return new Promise((resolve, reject) => {
-    fs.readFile(filename, binary ? undefined : 'utf8', (err, data) => {
-      if (err) reject(err);
-      else resolve(binary ? data.buffer : data);
-    });
-  });
+  filename = isFileURI(filename) ? new URL(filename) : filename;
+  var ret = fs.readFileSync(filename, binary ? undefined : 'utf8');
+  assert(binary ? Buffer.isBuffer(ret) : typeof ret == 'string');
+  return ret;
 };
 // end include: node_shell_read.js
-  if (!Module['thisProgram'] && process.argv.length > 1) {
+  if (process.argv.length > 1) {
     thisProgram = process.argv[1].replace(/\\/g, '/');
   }
 
   arguments_ = process.argv.slice(2);
-
-  // MODULARIZE will export the module in the proper place outside, we don't need to export here
 
   quit_ = (status, toThrow) => {
     process.exitCode = status;
@@ -140,7 +108,8 @@ readAsync = (filename, binary = true) => {
 } else
 if (ENVIRONMENT_IS_SHELL) {
 
-  if ((typeof process == 'object' && typeof require === 'function') || typeof window == 'object' || typeof WorkerGlobalScope != 'undefined') throw new Error('not compiled for this environment (did you build to HTML and try to run it not on the web, or set ENVIRONMENT to something - like node - and run it someplace else - like on the web?)');
+  const isNode = typeof process == 'object' && process.versions?.node && process.type != 'renderer';
+  if (isNode || typeof window == 'object' || typeof WorkerGlobalScope != 'undefined') throw new Error('not compiled for this environment (did you build to HTML and try to run it not on the web, or set ENVIRONMENT to something - like node - and run it someplace else - like on the web?)');
 
 } else
 
@@ -148,26 +117,11 @@ if (ENVIRONMENT_IS_SHELL) {
 // Node.js workers are detected as a combination of ENVIRONMENT_IS_WORKER and
 // ENVIRONMENT_IS_NODE.
 if (ENVIRONMENT_IS_WEB || ENVIRONMENT_IS_WORKER) {
-  if (ENVIRONMENT_IS_WORKER) { // Check worker, not web, since window could be polyfilled
-    scriptDirectory = self.location.href;
-  } else if (typeof document != 'undefined' && document.currentScript) { // web
-    scriptDirectory = document.currentScript.src;
-  }
-  // When MODULARIZE, this JS may be executed later, after document.currentScript
-  // is gone, so we saved it, and we use it here instead of any other info.
-  if (_scriptName) {
-    scriptDirectory = _scriptName;
-  }
-  // blob urls look like blob:http://site.com/etc/etc and we cannot infer anything from them.
-  // otherwise, slice off the final part of the url to find the script directory.
-  // if scriptDirectory does not contain a slash, lastIndexOf will return -1,
-  // and scriptDirectory will correctly be replaced with an empty string.
-  // If scriptDirectory contains a query (starting with ?) or a fragment (starting with #),
-  // they are removed because they could contain a slash.
-  if (scriptDirectory.startsWith('blob:')) {
-    scriptDirectory = '';
-  } else {
-    scriptDirectory = scriptDirectory.substr(0, scriptDirectory.replace(/[?#].*/, '').lastIndexOf('/')+1);
+  try {
+    scriptDirectory = new URL('.', _scriptName).href; // includes trailing slash
+  } catch {
+    // Must be a `blob:` or `data:` URL (e.g. `blob:http://site.com/etc/etc`), we cannot
+    // infer anything from them.
   }
 
   if (!(typeof window == 'object' || typeof WorkerGlobalScope != 'undefined')) throw new Error('not compiled for this environment (did you build to HTML and try to run it not on the web, or set ENVIRONMENT to something - like node - and run it someplace else - like on the web?)');
@@ -184,7 +138,7 @@ if (ENVIRONMENT_IS_WORKER) {
     };
   }
 
-  readAsync = (url) => {
+  readAsync = async (url) => {
     // Fetch has some additional restrictions over XHR, like it can't be used on a file:// url.
     // See https://github.com/github/fetch/pull/92#issuecomment-140665932
     // Cordova or Electron apps are typically loaded from a file:// url.
@@ -205,13 +159,11 @@ if (ENVIRONMENT_IS_WORKER) {
         xhr.send(null);
       });
     }
-    return fetch(url, { credentials: 'same-origin' })
-      .then((response) => {
-        if (response.ok) {
-          return response.arrayBuffer();
-        }
-        return Promise.reject(new Error(response.status + ' : ' + response.url));
-      })
+    var response = await fetch(url, { credentials: 'same-origin' });
+    if (response.ok) {
+      return response.arrayBuffer();
+    }
+    throw new Error(response.status + ' : ' + response.url);
   };
 // end include: web_or_worker_shell_read.js
   }
@@ -220,40 +172,9 @@ if (ENVIRONMENT_IS_WORKER) {
   throw new Error('environment detection error');
 }
 
-var out = Module['print'] || console.log.bind(console);
-var err = Module['printErr'] || console.error.bind(console);
+var out = console.log.bind(console);
+var err = console.error.bind(console);
 
-// Merge back in the overrides
-Object.assign(Module, moduleOverrides);
-// Free the object hierarchy contained in the overrides, this lets the GC
-// reclaim data used.
-moduleOverrides = null;
-checkIncomingModuleAPI();
-
-// Emit code to handle expected values on the Module object. This applies Module.x
-// to the proper local x. This has two benefits: first, we only emit it if it is
-// expected to arrive, and second, by using a local everywhere else that can be
-// minified.
-
-if (Module['arguments']) arguments_ = Module['arguments'];legacyModuleProp('arguments', 'arguments_');
-
-if (Module['thisProgram']) thisProgram = Module['thisProgram'];legacyModuleProp('thisProgram', 'thisProgram');
-
-// perform assertions in shell.js after we set up out() and err(), as otherwise if an assertion fails it cannot print the message
-// Assertions on removed incoming Module JS APIs.
-assert(typeof Module['memoryInitializerPrefixURL'] == 'undefined', 'Module.memoryInitializerPrefixURL option was removed, use Module.locateFile instead');
-assert(typeof Module['pthreadMainPrefixURL'] == 'undefined', 'Module.pthreadMainPrefixURL option was removed, use Module.locateFile instead');
-assert(typeof Module['cdInitializerPrefixURL'] == 'undefined', 'Module.cdInitializerPrefixURL option was removed, use Module.locateFile instead');
-assert(typeof Module['filePackagePrefixURL'] == 'undefined', 'Module.filePackagePrefixURL option was removed, use Module.locateFile instead');
-assert(typeof Module['read'] == 'undefined', 'Module.read option was removed');
-assert(typeof Module['readAsync'] == 'undefined', 'Module.readAsync option was removed (modify readAsync in JS)');
-assert(typeof Module['readBinary'] == 'undefined', 'Module.readBinary option was removed (modify readBinary in JS)');
-assert(typeof Module['setWindowTitle'] == 'undefined', 'Module.setWindowTitle option was removed (modify emscripten_set_window_title in JS)');
-assert(typeof Module['TOTAL_MEMORY'] == 'undefined', 'Module.TOTAL_MEMORY has been renamed Module.INITIAL_MEMORY');
-legacyModuleProp('asm', 'wasmExports');
-legacyModuleProp('readAsync', 'readAsync');
-legacyModuleProp('readBinary', 'readBinary');
-legacyModuleProp('setWindowTitle', 'setWindowTitle');
 var IDBFS = 'IDBFS is no longer included by default; build with -lidbfs.js';
 var PROXYFS = 'PROXYFS is no longer included by default; build with -lproxyfs.js';
 var WORKERFS = 'WORKERFS is no longer included by default; build with -lworkerfs.js';
@@ -263,6 +184,9 @@ var JSFILEFS = 'JSFILEFS is no longer included by default; build with -ljsfilefs
 var OPFS = 'OPFS is no longer included by default; build with -lopfs.js';
 
 var NODEFS = 'NODEFS is no longer included by default; build with -lnodefs.js';
+
+// perform assertions in shell.js after we set up out() and err(), as otherwise
+// if an assertion fails it cannot print the message
 
 assert(!ENVIRONMENT_IS_SHELL, 'shell environment detected but not enabled at build time.  Add `shell` to `-sENVIRONMENT` to enable.');
 
@@ -279,17 +203,15 @@ assert(!ENVIRONMENT_IS_SHELL, 'shell environment detected but not enabled at bui
 // An online HTML version (which may be of a different version of Emscripten)
 //    is up at http://kripken.github.io/emscripten-site/docs/api_reference/preamble.js.html
 
-var wasmBinary = Module['wasmBinary'];legacyModuleProp('wasmBinary', 'wasmBinary');
+var wasmBinary;
 
+// WASM == 2 includes wasm2js.js separately.
 // include: wasm2js.js
 // wasm2js.js - enough of a polyfill for the WebAssembly object so that we can load
 // wasm2js code that way.
 
-// Emit "var WebAssembly" if definitely using wasm2js. Otherwise, in MAYBE_WASM2JS
-// mode, we can't use a "var" since it would prevent normal wasm from working.
 /** @suppress{duplicate, const} */
-var
-WebAssembly = {
+var WebAssembly = {
   // Note that we do not use closure quoting (this['buffer'], etc.) on these
   // functions, as they are just meant for internal use. In other words, this is
   // not a fully general polyfill.
@@ -340,10 +262,11 @@ function Table(ret) {
       if (j < end) uint8Array[j++] = b1 << 4 | b2 >> 2;
       if (j < end) uint8Array[j++] = b2 << 6 | base64ReverseLookup[b64.charCodeAt(i+3)];
     }
+    return uint8Array;
   }
 function initActiveSegments(imports) {
   base64DecodeToExistingUint8Array(bufferView, 65536, "MAAALSsgICAwWDB4AC0wWCswWCAwWC0weCsweCAweABuYW4AaW5mAE5BTgBJTkYAMDEyMzQ1Njc4OQAuAChudWxsKQAlZAAAJXUAACVsZAAAJWx1AAAlbGxkAAAlbGx1AABObyBlcnJvciBpbmZvcm1hdGlvbgBJbGxlZ2FsIGJ5dGUgc2VxdWVuY2UARG9tYWluIGVycm9yAFJlc3VsdCBub3QgcmVwcmVzZW50YWJsZQBOb3QgYSB0dHkAUGVybWlzc2lvbiBkZW5pZWQAT3BlcmF0aW9uIG5vdCBwZXJtaXR0ZWQATm8gc3VjaCBmaWxlIG9yIGRpcmVjdG9yeQBObyBzdWNoIHByb2Nlc3MARmlsZSBleGlzdHMAVmFsdWUgdG9vIGxhcmdlIGZvciBkYXRhIHR5cGUATm8gc3BhY2UgbGVmdCBvbiBkZXZpY2UAT3V0IG9mIG1lbW9yeQBSZXNvdXJjZSBidXN5AEludGVycnVwdGVkIHN5c3RlbSBjYWxsAFJlc291cmNlIHRlbXBvcmFyaWx5IHVuYXZhaWxhYmxlAEludmFsaWQgc2VlawBDcm9zcy1kZXZpY2UgbGluawBSZWFkLW9ubHkgZmlsZSBzeXN0ZW0ARGlyZWN0b3J5IG5vdCBlbXB0eQBDb25uZWN0aW9uIHJlc2V0IGJ5IHBlZXIAT3BlcmF0aW9uIHRpbWVkIG91dABDb25uZWN0aW9uIHJlZnVzZWQASG9zdCBpcyBkb3duAEhvc3QgaXMgdW5yZWFjaGFibGUAQWRkcmVzcyBpbiB1c2UAQnJva2VuIHBpcGUASS9PIGVycm9yAE5vIHN1Y2ggZGV2aWNlIG9yIGFkZHJlc3MAQmxvY2sgZGV2aWNlIHJlcXVpcmVkAE5vIHN1Y2ggZGV2aWNlAE5vdCBhIGRpcmVjdG9yeQBJcyBhIGRpcmVjdG9yeQBUZXh0IGZpbGUgYnVzeQBFeGVjIGZvcm1hdCBlcnJvcgBJbnZhbGlkIGFyZ3VtZW50AEFyZ3VtZW50IGxpc3QgdG9vIGxvbmcAU3ltYm9saWMgbGluayBsb29wAEZpbGVuYW1lIHRvbyBsb25nAFRvbyBtYW55IG9wZW4gZmlsZXMgaW4gc3lzdGVtAE5vIGZpbGUgZGVzY3JpcHRvcnMgYXZhaWxhYmxlAEJhZCBmaWxlIGRlc2NyaXB0b3IATm8gY2hpbGQgcHJvY2VzcwBCYWQgYWRkcmVzcwBGaWxlIHRvbyBsYXJnZQBUb28gbWFueSBsaW5rcwBObyBsb2NrcyBhdmFpbGFibGUAUmVzb3VyY2UgZGVhZGxvY2sgd291bGQgb2NjdXIAU3RhdGUgbm90IHJlY292ZXJhYmxlAFByZXZpb3VzIG93bmVyIGRpZWQAT3BlcmF0aW9uIGNhbmNlbGVkAEZ1bmN0aW9uIG5vdCBpbXBsZW1lbnRlZABObyBtZXNzYWdlIG9mIGRlc2lyZWQgdHlwZQBJZGVudGlmaWVyIHJlbW92ZWQARGV2aWNlIG5vdCBhIHN0cmVhbQBObyBkYXRhIGF2YWlsYWJsZQBEZXZpY2UgdGltZW91dABPdXQgb2Ygc3RyZWFtcyByZXNvdXJjZXMATGluayBoYXMgYmVlbiBzZXZlcmVkAFByb3RvY29sIGVycm9yAEJhZCBtZXNzYWdlAEZpbGUgZGVzY3JpcHRvciBpbiBiYWQgc3RhdGUATm90IGEgc29ja2V0AERlc3RpbmF0aW9uIGFkZHJlc3MgcmVxdWlyZWQATWVzc2FnZSB0b28gbGFyZ2UAUHJvdG9jb2wgd3JvbmcgdHlwZSBmb3Igc29ja2V0AFByb3RvY29sIG5vdCBhdmFpbGFibGUAUHJvdG9jb2wgbm90IHN1cHBvcnRlZABTb2NrZXQgdHlwZSBub3Qgc3VwcG9ydGVkAE5vdCBzdXBwb3J0ZWQAUHJvdG9jb2wgZmFtaWx5IG5vdCBzdXBwb3J0ZWQAQWRkcmVzcyBmYW1pbHkgbm90IHN1cHBvcnRlZCBieSBwcm90b2NvbABBZGRyZXNzIG5vdCBhdmFpbGFibGUATmV0d29yayBpcyBkb3duAE5ldHdvcmsgdW5yZWFjaGFibGUAQ29ubmVjdGlvbiByZXNldCBieSBuZXR3b3JrAENvbm5lY3Rpb24gYWJvcnRlZABObyBidWZmZXIgc3BhY2UgYXZhaWxhYmxlAFNvY2tldCBpcyBjb25uZWN0ZWQAU29ja2V0IG5vdCBjb25uZWN0ZWQAQ2Fubm90IHNlbmQgYWZ0ZXIgc29ja2V0IHNodXRkb3duAE9wZXJhdGlvbiBhbHJlYWR5IGluIHByb2dyZXNzAE9wZXJhdGlvbiBpbiBwcm9ncmVzcwBTdGFsZSBmaWxlIGhhbmRsZQBSZW1vdGUgSS9PIGVycm9yAFF1b3RhIGV4Y2VlZGVkAE5vIG1lZGl1bSBmb3VuZABXcm9uZyBtZWRpdW0gdHlwZQBNdWx0aWhvcCBhdHRlbXB0ZWQAUmVxdWlyZWQga2V5IG5vdCBhdmFpbGFibGUAS2V5IGhhcyBleHBpcmVkAEtleSBoYXMgYmVlbiByZXZva2VkAEtleSB3YXMgcmVqZWN0ZWQgYnkgc2VydmljZQAAAAAAAAClAlsA8AG1BYwFJQGDBh0DlAT/AMcDMQMLBrwBjwF/A8oEKwDaBq8AQgNOA9wBDgQVAKEGDQGUAgsCOAZkArwC/wJdA+cECwfPAssF7wXbBeECHgZFAoUAggJsA28E8QDzAxgF2QDaA0wGVAJ7AZ0DvQQAAFEAFQK7ALMDbQD/AYUELwX5BDgAZQFGAZ8AtwaoAXMCUwEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAhBAAAAAAAAAAALwIAAAAAAAAAAAAAAAAAAAAAAAAAADUERwRWBAAAAAAAAAAAAAAAAAAAAACgBAAAAAAAAAAAAAAAAAAAAAAAAEYFYAVuBWEGAADPAQAAAAAAAAAAyQbpBvkGHgc5B0kHXgcAAAAAAAAAAAAAAAAZAAsAGRkZAAAAAAUAAAAAAAAJAAAAAAsAAAAAAAAAABkACgoZGRkDCgcAAQAJCxgAAAkGCwAACwAGGQAAABkZGQAAAAAAAAAAAAAAAAAAAAAOAAAAAAAAAAAZAAsNGRkZAA0AAAIACQ4AAAAJAA4AAA4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAAAAAAAAAAAAAEwAAAAATAAAAAAkMAAAAAAAMAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAA8AAAAEDwAAAAAJEAAAAAAAEAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASAAAAAAAAAAAAAAARAAAAABEAAAAACRIAAAAAABIAABIAABoAAAAaGhoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGgAAABoaGgAAAAAAAAkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABQAAAAAAAAAAAAAABcAAAAAFwAAAAAJFAAAAAAAFAAAFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWAAAAAAAAAAAAAAAVAAAAABUAAAAACRYAAAAAABYAABYAADAxMjM0NTY3ODlBQkNERUY=");
-  base64DecodeToExistingUint8Array(bufferView, 68352, "BQAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAMAAAB4DAEAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAP//////////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAsBAHAOAQA=");
+  base64DecodeToExistingUint8Array(bufferView, 68352, "ACAAAAAAAAAFAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAwAAAIAMAQAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAA//////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAICwEAcA4BAA==");
 }
 
   var scratchBuffer = new ArrayBuffer(16);
@@ -368,6 +291,18 @@ function initActiveSegments(imports) {
   }
       function wasm2js_trap() { throw new Error('abort'); }
 
+  function wasm2js_memory_copy(dest, source, size) {
+    // TODO: traps on invalid things
+    bufferView.copyWithin(dest, source, source + size);
+  }
+      
+  function wasm2js_memory_fill(dest, value, size) {
+    dest = dest >>> 0;
+    size = size >>> 0;
+    if (dest + size > bufferView.length) throw "trap: invalid memory.fill";
+    bufferView.fill(value, dest, dest + size);
+  }
+      
 function asmFunc(imports) {
  var buffer = new ArrayBuffer(16908288);
  var HEAP8 = new Int8Array(buffer);
@@ -390,12 +325,11 @@ function asmFunc(imports) {
  var Math_sqrt = Math.sqrt;
  var env = imports.env;
  var fimport$0 = env._abort_js;
- var fimport$1 = env._emscripten_memcpy_js;
  var wasi_snapshot_preview1 = imports.wasi_snapshot_preview1;
- var fimport$2 = wasi_snapshot_preview1.fd_close;
- var fimport$3 = wasi_snapshot_preview1.fd_write;
- var fimport$4 = env.emscripten_resize_heap;
- var fimport$5 = wasi_snapshot_preview1.fd_seek;
+ var fimport$1 = wasi_snapshot_preview1.fd_close;
+ var fimport$2 = wasi_snapshot_preview1.fd_write;
+ var fimport$3 = env.emscripten_resize_heap;
+ var fimport$4 = wasi_snapshot_preview1.fd_seek;
  var global$0 = 65536;
  var global$1 = 0;
  var global$2 = 0;
@@ -406,14 +340,14 @@ function asmFunc(imports) {
  // EMSCRIPTEN_START_FUNCS
 ;
  function $0() {
-  $110();
-  $65();
+  $108();
+  $67();
  }
  
  function $1($0_1, $1_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
-  var $4_1 = 0, $111_1 = 0, $119_1 = 0, $129 = 0, $141 = 0, $251 = 0, $288 = 0;
+  var $4_1 = 0, $111_1 = 0, $119_1 = 0, $129 = 0, $141 = 0, $251 = 0, $273 = 0, $279 = 0, $271 = 0, $272 = 0, $277 = 0, $278 = 0, $290 = 0, $968 = 0;
   $4_1 = global$0 - 112 | 0;
   global$0 = $4_1;
   HEAP32[($4_1 + 108 | 0) >> 2] = $0_1;
@@ -432,72 +366,72 @@ function asmFunc(imports) {
   HEAP32[($4_1 + 56 | 0) >> 2] = 0;
   HEAP32[($4_1 + 52 | 0) >> 2] = 0;
   HEAP32[($4_1 + 48 | 0) >> 2] = 0;
-  label$1 : {
-   label$2 : {
+  block1 : {
+   block : {
     if (!((HEAP32[($4_1 + 108 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-     break label$2
+     break block
     }
     if ((HEAP32[($4_1 + 104 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-     break label$1
+     break block1
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
-  HEAP32[($4_1 + 68 | 0) >> 2] = $39(HEAP32[($4_1 + 108 | 0) >> 2] | 0 | 0) | 0;
-  HEAP32[($4_1 + 64 | 0) >> 2] = $39(HEAP32[($4_1 + 104 | 0) >> 2] | 0 | 0) | 0;
-  label$3 : {
-   label$4 : {
+  HEAP32[($4_1 + 68 | 0) >> 2] = $41(HEAP32[($4_1 + 108 | 0) >> 2] | 0 | 0) | 0;
+  HEAP32[($4_1 + 64 | 0) >> 2] = $41(HEAP32[($4_1 + 104 | 0) >> 2] | 0 | 0) | 0;
+  block3 : {
+   block2 : {
     if (!(HEAP32[($4_1 + 68 | 0) >> 2] | 0)) {
-     break label$4
+     break block2
     }
     if (HEAP32[($4_1 + 64 | 0) >> 2] | 0) {
-     break label$3
+     break block3
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 100 | 0) >> 2] = $16(0 | 0, HEAP32[($4_1 + 68 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 108 | 0) >> 2] | 0 | 0) | 0;
   HEAP32[($4_1 + 92 | 0) >> 2] = $16(0 | 0, HEAP32[($4_1 + 64 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 104 | 0) >> 2] | 0 | 0) | 0;
-  label$5 : {
-   label$6 : {
+  block5 : {
+   block4 : {
     if (!((HEAP32[($4_1 + 100 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-     break label$6
+     break block4
     }
     if ((HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-     break label$5
+     break block5
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 96 | 0) >> 2] = $17((HEAP32[($4_1 + 100 | 0) >> 2] | 0) - (HEAP32[($4_1 + 108 | 0) >> 2] | 0) | 0 | 0, HEAP32[($4_1 + 68 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 108 | 0) >> 2] | 0 | 0) | 0;
   HEAP32[($4_1 + 88 | 0) >> 2] = $17((HEAP32[($4_1 + 92 | 0) >> 2] | 0) - (HEAP32[($4_1 + 104 | 0) >> 2] | 0) | 0 | 0, HEAP32[($4_1 + 64 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 104 | 0) >> 2] | 0 | 0) | 0;
-  label$7 : {
-   label$8 : {
+  block7 : {
+   block6 : {
     if (!((HEAP32[($4_1 + 96 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-     break label$8
+     break block6
     }
     if ((HEAP32[($4_1 + 88 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-     break label$7
+     break block7
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 60 | 0) >> 2] = ((HEAP32[($4_1 + 96 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 100 | 0) >> 2] | 0) | 0;
   HEAP32[($4_1 + 56 | 0) >> 2] = ((HEAP32[($4_1 + 88 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 92 | 0) >> 2] | 0) | 0;
-  label$9 : {
-   label$10 : {
+  block9 : {
+   block8 : {
     if (!(HEAP32[($4_1 + 60 | 0) >> 2] | 0)) {
-     break label$10
+     break block8
     }
     if (HEAP32[($4_1 + 56 | 0) >> 2] | 0) {
-     break label$9
+     break block9
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 84 | 0) >> 2] = HEAP32[($4_1 + 108 | 0) >> 2] | 0;
@@ -515,29 +449,29 @@ function asmFunc(imports) {
   $119_1 = 24;
   HEAP8[($4_1 + 44 | 0) >> 0] = ($15(((HEAPU8[(HEAP32[($4_1 + 92 | 0) >> 2] | 0) >> 0] | 0) << $119_1 | 0) >> $119_1 | 0 | 0) | 0) & 1 | 0;
   $129 = 0;
-  label$11 : {
+  block10 : {
    if ((HEAPU8[($4_1 + 45 | 0) >> 0] | 0) & 1 | 0) {
-    break label$11
+    break block10
    }
    $129 = $36(0 | 0, HEAP32[($4_1 + 52 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 84 | 0) >> 2] | 0 | 0) | 0;
   }
   HEAP8[($4_1 + 47 | 0) >> 0] = $129 & 1 | 0;
   $141 = 0;
-  label$12 : {
+  block11 : {
    if ((HEAPU8[($4_1 + 44 | 0) >> 0] | 0) & 1 | 0) {
-    break label$12
+    break block11
    }
    $141 = $36(0 | 0, HEAP32[($4_1 + 48 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 76 | 0) >> 2] | 0 | 0) | 0;
   }
   HEAP8[($4_1 + 46 | 0) >> 0] = $141 & 1 | 0;
-  label$13 : {
+  block12 : {
    if ((HEAPU8[($4_1 + 47 | 0) >> 0] | 0) & 1 | 0) {
-    break label$13
+    break block12
    }
    if ((HEAPU8[($4_1 + 46 | 0) >> 0] | 0) & 1 | 0) {
-    break label$13
+    break block12
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 40 | 0) >> 2] = 0;
@@ -550,68 +484,68 @@ function asmFunc(imports) {
   HEAP32[($4_1 + 12 | 0) >> 2] = 0;
   HEAP8[($4_1 + 11 | 0) >> 0] = 0;
   HEAP32[($4_1 + 4 | 0) >> 2] = -2;
-  label$14 : {
-   label$15 : {
-    label$16 : {
-     label$17 : {
-      label$18 : {
+  block19 : {
+   block18 : {
+    block16 : {
+     block14 : {
+      block13 : {
        if ((HEAPU8[($4_1 + 47 | 0) >> 0] | 0) & 1 | 0) {
-        break label$18
+        break block13
        }
        if (!((HEAPU8[($4_1 + 46 | 0) >> 0] | 0) & 1 | 0)) {
-        break label$18
+        break block13
        }
-       break label$17;
+       break block14;
       }
-      label$19 : {
+      block15 : {
        if (!((HEAPU8[($4_1 + 47 | 0) >> 0] | 0) & 1 | 0)) {
-        break label$19
+        break block15
        }
        if ((HEAPU8[($4_1 + 46 | 0) >> 0] | 0) & 1 | 0) {
-        break label$19
+        break block15
        }
-       break label$16;
+       break block16;
       }
-      label$20 : {
+      block17 : {
        if (!((HEAPU8[($4_1 + 47 | 0) >> 0] | 0) & 1 | 0)) {
-        break label$20
+        break block17
        }
        if (!((HEAPU8[($4_1 + 46 | 0) >> 0] | 0) & 1 | 0)) {
-        break label$20
+        break block17
        }
-       break label$15;
+       break block18;
       }
      }
      HEAP32[($4_1 + 40 | 0) >> 2] = $2(HEAP32[($4_1 + 100 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) | 0;
      HEAP32[($4_1 + 28 | 0) >> 2] = $33() | 0;
-     break label$14;
+     break block19;
     }
     HEAP32[($4_1 + 40 | 0) >> 2] = $2(HEAP32[($4_1 + 100 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) | 0;
     HEAP32[($4_1 + 28 | 0) >> 2] = $31() | 0;
-    break label$14;
+    break block19;
    }
    HEAP32[($4_1 + 4 | 0) >> 2] = $20(HEAP32[($4_1 + 100 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) | 0;
-   label$21 : {
-    label$22 : {
+   block21 : {
+    block20 : {
      if (!((HEAP32[($4_1 + 4 | 0) >> 2] | 0 | 0) > (0 | 0) & 1 | 0)) {
-      break label$22
+      break block20
      }
      HEAP32[($4_1 + 40 | 0) >> 2] = $3(HEAP32[($4_1 + 100 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) | 0;
      HEAP32[($4_1 + 28 | 0) >> 2] = $31() | 0;
-     break label$21;
+     break block21;
     }
-    label$23 : {
-     label$24 : {
+    block23 : {
+     block22 : {
       if (!((HEAP32[($4_1 + 4 | 0) >> 2] | 0 | 0) < (0 | 0) & 1 | 0)) {
-       break label$24
+       break block22
       }
       HEAP32[($4_1 + 40 | 0) >> 2] = $3(HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 100 | 0) >> 2] | 0 | 0) | 0;
       HEAP32[($4_1 + 28 | 0) >> 2] = $33() | 0;
-      break label$23;
+      break block23;
      }
-     label$25 : {
+     block24 : {
       if (HEAP32[($4_1 + 4 | 0) >> 2] | 0) {
-       break label$25
+       break block24
       }
       HEAP32[($4_1 + 40 | 0) >> 2] = $3(HEAP32[($4_1 + 100 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) | 0;
       HEAP32[($4_1 + 28 | 0) >> 2] = $33() | 0;
@@ -619,64 +553,80 @@ function asmFunc(imports) {
     }
    }
   }
-  label$26 : {
+  block25 : {
    if ((HEAP32[($4_1 + 40 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-    break label$26
+    break block25
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
-  HEAP32[($4_1 + 20 | 0) >> 2] = $39(HEAP32[($4_1 + 40 | 0) >> 2] | 0 | 0) | 0;
+  HEAP32[($4_1 + 20 | 0) >> 2] = $41(HEAP32[($4_1 + 40 | 0) >> 2] | 0 | 0) | 0;
   HEAP32[($4_1 + 36 | 0) >> 2] = $16(0 | 0, HEAP32[($4_1 + 20 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 40 | 0) >> 2] | 0 | 0) | 0;
-  label$27 : {
+  block26 : {
    if ((HEAP32[($4_1 + 36 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-    break label$27
+    break block26
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 32 | 0) >> 2] = $17((HEAP32[($4_1 + 36 | 0) >> 2] | 0) - (HEAP32[($4_1 + 40 | 0) >> 2] | 0) | 0 | 0, HEAP32[($4_1 + 20 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 40 | 0) >> 2] | 0 | 0) | 0;
-  label$28 : {
+  block27 : {
    if ((HEAP32[($4_1 + 32 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-    break label$28
+    break block27
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 16 | 0) >> 2] = ((HEAP32[($4_1 + 32 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 36 | 0) >> 2] | 0) | 0;
   $251 = 24;
   HEAP8[($4_1 + 11 | 0) >> 0] = ($15(((HEAPU8[(HEAP32[($4_1 + 36 | 0) >> 2] | 0) >> 0] | 0) << $251 | 0) >> $251 | 0 | 0) | 0) & 1 | 0;
-  label$29 : {
-   label$30 : {
+  block29 : {
+   block28 : {
     if ((HEAPU8[($4_1 + 11 | 0) >> 0] | 0) & 1 | 0) {
-     break label$30
+     break block28
     }
-    HEAP32[($4_1 + 12 | 0) >> 2] = $39(HEAP32[($4_1 + 28 | 0) >> 2] | 0 | 0) | 0;
-    break label$29;
+    HEAP32[($4_1 + 12 | 0) >> 2] = $41(HEAP32[($4_1 + 28 | 0) >> 2] | 0 | 0) | 0;
+    break block29;
    }
    HEAP32[($4_1 + 12 | 0) >> 2] = 0;
   }
-  HEAP32[($4_1 + 24 | 0) >> 2] = $102(((HEAP32[($4_1 + 12 | 0) >> 2] | 0) + (HEAP32[($4_1 + 16 | 0) >> 2] | 0) | 0) + 1 | 0 | 0, 1 | 0) | 0;
-  label$31 : {
+  HEAP32[($4_1 + 24 | 0) >> 2] = $105(((HEAP32[($4_1 + 12 | 0) >> 2] | 0) + (HEAP32[($4_1 + 16 | 0) >> 2] | 0) | 0) + 1 | 0 | 0, 1 | 0) | 0;
+  block30 : {
    if (!(HEAP32[($4_1 + 12 | 0) >> 2] | 0)) {
-    break label$31
+    break block30
    }
-   $41(HEAP32[($4_1 + 24 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 28 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 12 | 0) >> 2] | 0 | 0) | 0;
+   $271 = HEAP32[($4_1 + 24 | 0) >> 2] | 0;
+   $272 = HEAP32[($4_1 + 28 | 0) >> 2] | 0;
+   $273 = HEAP32[($4_1 + 12 | 0) >> 2] | 0;
+   block31 : {
+    if (!$273) {
+     break block31
+    }
+    wasm2js_memory_copy($271, $272, $273);
+   }
   }
-  $41((HEAP32[($4_1 + 24 | 0) >> 2] | 0) + (HEAP32[($4_1 + 12 | 0) >> 2] | 0) | 0 | 0, HEAP32[($4_1 + 36 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 16 | 0) >> 2] | 0 | 0) | 0;
+  $277 = (HEAP32[($4_1 + 24 | 0) >> 2] | 0) + (HEAP32[($4_1 + 12 | 0) >> 2] | 0) | 0;
+  $278 = HEAP32[($4_1 + 36 | 0) >> 2] | 0;
+  $279 = HEAP32[($4_1 + 16 | 0) >> 2] | 0;
+  block32 : {
+   if (!$279) {
+    break block32
+   }
+   wasm2js_memory_copy($277, $278, $279);
+  }
   HEAP8[((HEAP32[($4_1 + 24 | 0) >> 2] | 0) + ((HEAP32[($4_1 + 12 | 0) >> 2] | 0) + (HEAP32[($4_1 + 16 | 0) >> 2] | 0) | 0) | 0) >> 0] = 0;
-  $101(HEAP32[($4_1 + 40 | 0) >> 2] | 0 | 0);
+  $104(HEAP32[($4_1 + 40 | 0) >> 2] | 0 | 0);
   HEAP32[($4_1 + 40 | 0) >> 2] = 0;
   HEAP32[($4_1 + 40 | 0) >> 2] = HEAP32[($4_1 + 24 | 0) >> 2] | 0;
-  $288 = HEAP32[($4_1 + 40 | 0) >> 2] | 0;
+  $290 = HEAP32[($4_1 + 40 | 0) >> 2] | 0;
   global$0 = $4_1 + 112 | 0;
-  return $288 | 0;
+  return $290 | 0;
  }
  
  function $2($0_1, $1_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
-  var $4_1 = 0, $99_1 = 0, $131 = 0, $135 = 0, $146 = 0, $150 = 0, $154 = 0, $158 = 0, $181 = 0, $188 = 0, $190 = 0, $196 = 0, $220 = 0, $235 = 0, $238 = 0, $294 = 0;
+  var $4_1 = 0, $99_1 = 0, $131 = 0, $135 = 0, $146 = 0, $150 = 0, $154 = 0, $158 = 0, $181 = 0, $188 = 0, $190 = 0, $196 = 0, $220 = 0, $235 = 0, $271 = 0, $281 = 0, $238 = 0, $269 = 0, $270 = 0, $275 = 0, $276 = 0, $296 = 0, $994 = 0;
   $4_1 = global$0 - 96 | 0;
   global$0 = $4_1;
   HEAP32[($4_1 + 92 | 0) >> 2] = $0_1;
@@ -693,72 +643,72 @@ function asmFunc(imports) {
   HEAP32[($4_1 + 48 | 0) >> 2] = 0;
   HEAP32[($4_1 + 44 | 0) >> 2] = 0;
   HEAP32[($4_1 + 40 | 0) >> 2] = 0;
-  label$1 : {
-   label$2 : {
+  block1 : {
+   block : {
     if (!((HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-     break label$2
+     break block
     }
     if ((HEAP32[($4_1 + 88 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-     break label$1
+     break block1
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
-  HEAP32[($4_1 + 52 | 0) >> 2] = $39(HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) | 0;
-  HEAP32[($4_1 + 48 | 0) >> 2] = $39(HEAP32[($4_1 + 88 | 0) >> 2] | 0 | 0) | 0;
-  label$3 : {
-   label$4 : {
+  HEAP32[($4_1 + 52 | 0) >> 2] = $41(HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) | 0;
+  HEAP32[($4_1 + 48 | 0) >> 2] = $41(HEAP32[($4_1 + 88 | 0) >> 2] | 0 | 0) | 0;
+  block3 : {
+   block2 : {
     if (!(HEAP32[($4_1 + 52 | 0) >> 2] | 0)) {
-     break label$4
+     break block2
     }
     if (HEAP32[($4_1 + 48 | 0) >> 2] | 0) {
-     break label$3
+     break block3
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 76 | 0) >> 2] = $16(0 | 0, HEAP32[($4_1 + 52 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) | 0;
   HEAP32[($4_1 + 72 | 0) >> 2] = $16(0 | 0, HEAP32[($4_1 + 48 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 88 | 0) >> 2] | 0 | 0) | 0;
-  label$5 : {
-   label$6 : {
+  block5 : {
+   block4 : {
     if (!((HEAP32[($4_1 + 76 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-     break label$6
+     break block4
     }
     if ((HEAP32[($4_1 + 72 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-     break label$5
+     break block5
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 68 | 0) >> 2] = $17((HEAP32[($4_1 + 76 | 0) >> 2] | 0) - (HEAP32[($4_1 + 92 | 0) >> 2] | 0) | 0 | 0, HEAP32[($4_1 + 52 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) | 0;
   HEAP32[($4_1 + 64 | 0) >> 2] = $17((HEAP32[($4_1 + 72 | 0) >> 2] | 0) - (HEAP32[($4_1 + 88 | 0) >> 2] | 0) | 0 | 0, HEAP32[($4_1 + 48 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 88 | 0) >> 2] | 0 | 0) | 0;
-  label$7 : {
-   label$8 : {
+  block7 : {
+   block6 : {
     if (!((HEAP32[($4_1 + 68 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-     break label$8
+     break block6
     }
     if ((HEAP32[($4_1 + 64 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-     break label$7
+     break block7
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 44 | 0) >> 2] = ((HEAP32[($4_1 + 68 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 76 | 0) >> 2] | 0) | 0;
   HEAP32[($4_1 + 40 | 0) >> 2] = ((HEAP32[($4_1 + 64 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 72 | 0) >> 2] | 0) | 0;
-  label$9 : {
-   label$10 : {
+  block9 : {
+   block8 : {
     if (!(HEAP32[($4_1 + 44 | 0) >> 2] | 0)) {
-     break label$10
+     break block8
     }
     if (HEAP32[($4_1 + 40 | 0) >> 2] | 0) {
-     break label$9
+     break block9
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 36 | 0) >> 2] = 0;
@@ -769,48 +719,48 @@ function asmFunc(imports) {
   HEAP32[($4_1 + 16 | 0) >> 2] = 0;
   HEAP32[($4_1 + 12 | 0) >> 2] = 0;
   HEAP32[($4_1 + 8 | 0) >> 2] = 0;
-  label$11 : {
-   label$12 : {
+  block11 : {
+   block10 : {
     if (!((HEAP32[($4_1 + 44 | 0) >> 2] | 0) >>> 0 > (HEAP32[($4_1 + 40 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-     break label$12
+     break block10
     }
     $99_1 = HEAP32[($4_1 + 44 | 0) >> 2] | 0;
-    break label$11;
+    break block11;
    }
    $99_1 = HEAP32[($4_1 + 40 | 0) >> 2] | 0;
   }
   HEAP32[($4_1 + 12 | 0) >> 2] = $99_1 + 1 | 0;
-  HEAP32[($4_1 + 36 | 0) >> 2] = $102((HEAP32[($4_1 + 12 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
+  HEAP32[($4_1 + 36 | 0) >> 2] = $105((HEAP32[($4_1 + 12 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
   HEAP8[($4_1 + 7 | 0) >> 0] = 0;
   HEAP8[($4_1 + 6 | 0) >> 0] = 0;
   HEAP32[($4_1 + 84 | 0) >> 2] = $10() | 0;
-  HEAP32[($4_1 + 80 | 0) >> 2] = $39(HEAP32[($4_1 + 84 | 0) >> 2] | 0 | 0) | 0;
+  HEAP32[($4_1 + 80 | 0) >> 2] = $41(HEAP32[($4_1 + 84 | 0) >> 2] | 0 | 0) | 0;
   HEAP32[($4_1 + 32 | 0) >> 2] = HEAP32[($4_1 + 36 | 0) >> 2] | 0;
   HEAP32[($4_1 + 28 | 0) >> 2] = ((HEAP32[($4_1 + 36 | 0) >> 2] | 0) + (HEAP32[($4_1 + 12 | 0) >> 2] | 0) | 0) + -1 | 0;
   HEAP32[($4_1 + 24 | 0) >> 2] = HEAP32[($4_1 + 28 | 0) >> 2] | 0;
   HEAP32[($4_1 + 60 | 0) >> 2] = HEAP32[($4_1 + 68 | 0) >> 2] | 0;
   HEAP32[($4_1 + 56 | 0) >> 2] = HEAP32[($4_1 + 64 | 0) >> 2] | 0;
-  label$13 : while (1) {
-   label$14 : {
-    label$15 : {
+  label : while (1) {
+   block13 : {
+    block12 : {
      if (!((HEAP32[($4_1 + 60 | 0) >> 2] | 0) >>> 0 >= (HEAP32[($4_1 + 76 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-      break label$15
+      break block12
      }
      $131 = 24;
      $135 = $18(0 | 0, ((HEAPU8[(HEAP32[($4_1 + 60 | 0) >> 2] | 0) >> 0] | 0) << $131 | 0) >> $131 | 0 | 0) | 0;
-     break label$14;
+     break block13;
     }
     $135 = 0;
    }
    HEAP8[($4_1 + 7 | 0) >> 0] = $135;
-   label$16 : {
-    label$17 : {
+   block15 : {
+    block14 : {
      if (!((HEAP32[($4_1 + 56 | 0) >> 2] | 0) >>> 0 >= (HEAP32[($4_1 + 72 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-      break label$17
+      break block14
      }
      $146 = 24;
      $150 = $18(0 | 0, ((HEAPU8[(HEAP32[($4_1 + 56 | 0) >> 2] | 0) >> 0] | 0) << $146 | 0) >> $146 | 0 | 0) | 0;
-     break label$16;
+     break block15;
     }
     $150 = 0;
    }
@@ -818,114 +768,130 @@ function asmFunc(imports) {
    $154 = 24;
    $158 = 24;
    HEAP8[(HEAP32[($4_1 + 24 | 0) >> 2] | 0) >> 0] = (((HEAPU8[($4_1 + 7 | 0) >> 0] | 0) << $154 | 0) >> $154 | 0) + (((HEAPU8[($4_1 + 6 | 0) >> 0] | 0) << $158 | 0) >> $158 | 0) | 0;
-   label$18 : {
+   block16 : {
     if (!((HEAP32[($4_1 + 24 | 0) >> 2] | 0) >>> 0 > (HEAP32[($4_1 + 32 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-     break label$18
+     break block16
     }
     HEAP32[($4_1 + 60 | 0) >> 2] = (HEAP32[($4_1 + 60 | 0) >> 2] | 0) + -1 | 0;
     HEAP32[($4_1 + 56 | 0) >> 2] = (HEAP32[($4_1 + 56 | 0) >> 2] | 0) + -1 | 0;
     HEAP32[($4_1 + 24 | 0) >> 2] = (HEAP32[($4_1 + 24 | 0) >> 2] | 0) + -1 | 0;
-    continue label$13;
+    continue label;
    }
-   break label$13;
+   break label;
   };
   HEAP32[($4_1 + 20 | 0) >> 2] = $33() | 0;
   HEAP32[($4_1 + 24 | 0) >> 2] = HEAP32[($4_1 + 28 | 0) >> 2] | 0;
-  label$19 : while (1) {
+  label1 : while (1) {
    $181 = 24;
    $188 = (HEAP32[($4_1 + 24 | 0) >> 2] | 0) + -1 | 0;
    $190 = 24;
    HEAP8[$188 >> 0] = (((HEAPU8[$188 >> 0] | 0) << $190 | 0) >> $190 | 0) + (((((HEAPU8[(HEAP32[($4_1 + 24 | 0) >> 2] | 0) >> 0] | 0) << $181 | 0) >> $181 | 0) >>> 0) / ((HEAP32[($4_1 + 80 | 0) >> 2] | 0) >>> 0) | 0) | 0;
    $196 = 24;
    HEAP8[(HEAP32[($4_1 + 24 | 0) >> 2] | 0) >> 0] = ((((HEAPU8[(HEAP32[($4_1 + 24 | 0) >> 2] | 0) >> 0] | 0) << $196 | 0) >> $196 | 0) >>> 0) % ((HEAP32[($4_1 + 80 | 0) >> 2] | 0) >>> 0) | 0;
-   label$20 : {
+   block17 : {
     if (!((HEAP32[($4_1 + 24 | 0) >> 2] | 0) >>> 0 > ((HEAP32[($4_1 + 32 | 0) >> 2] | 0) + 1 | 0) >>> 0 & 1 | 0)) {
-     break label$20
+     break block17
     }
     HEAP32[($4_1 + 24 | 0) >> 2] = (HEAP32[($4_1 + 24 | 0) >> 2] | 0) + -1 | 0;
-    continue label$19;
+    continue label1;
    }
-   break label$19;
+   break label1;
   };
   HEAP32[($4_1 + 24 | 0) >> 2] = HEAP32[($4_1 + 32 | 0) >> 2] | 0;
-  label$21 : {
-   label$22 : while (1) {
-    label$23 : {
-     label$24 : {
+  block20 : {
+   label2 : while (1) {
+    block19 : {
+     block18 : {
       if (!((HEAP32[($4_1 + 24 | 0) >> 2] | 0 | 0) != (HEAP32[($4_1 + 28 | 0) >> 2] | 0 | 0) & 1 | 0)) {
-       break label$24
+       break block18
       }
       $220 = 24;
       if (((HEAPU8[(HEAP32[($4_1 + 24 | 0) >> 2] | 0) >> 0] | 0) << $220 | 0) >> $220 | 0) {
-       break label$24
+       break block18
       }
-      break label$23;
+      break block19;
      }
-     break label$21;
+     break block20;
     }
-    label$25 : {
+    block21 : {
      if (!((HEAP32[($4_1 + 24 | 0) >> 2] | 0) >>> 0 < (HEAP32[($4_1 + 28 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-      break label$25
+      break block21
      }
      HEAP32[($4_1 + 24 | 0) >> 2] = (HEAP32[($4_1 + 24 | 0) >> 2] | 0) + 1 | 0;
-     continue label$22;
+     continue label2;
     }
-    break label$22;
+    break label2;
    };
   }
   HEAP32[($4_1 + 32 | 0) >> 2] = HEAP32[($4_1 + 24 | 0) >> 2] | 0;
   HEAP32[($4_1 + 24 | 0) >> 2] = HEAP32[($4_1 + 28 | 0) >> 2] | 0;
-  label$26 : while (1) {
+  label3 : while (1) {
    $235 = 24;
    $238 = $13(((HEAPU8[(HEAP32[($4_1 + 24 | 0) >> 2] | 0) >> 0] | 0) << $235 | 0) >> $235 | 0 | 0) | 0;
    HEAP8[(HEAP32[($4_1 + 24 | 0) >> 2] | 0) >> 0] = $238;
-   label$27 : {
+   block22 : {
     if (!((HEAP32[($4_1 + 24 | 0) >> 2] | 0) >>> 0 > (HEAP32[($4_1 + 32 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-     break label$27
+     break block22
     }
     HEAP32[($4_1 + 24 | 0) >> 2] = (HEAP32[($4_1 + 24 | 0) >> 2] | 0) + -1 | 0;
-    continue label$26;
+    continue label3;
    }
-   break label$26;
+   break label3;
   };
-  label$28 : {
-   label$29 : {
+  block24 : {
+   block23 : {
     if (!((HEAP32[($4_1 + 20 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-     break label$29
+     break block23
     }
-    HEAP32[($4_1 + 8 | 0) >> 2] = $39(HEAP32[($4_1 + 20 | 0) >> 2] | 0 | 0) | 0;
-    break label$28;
+    HEAP32[($4_1 + 8 | 0) >> 2] = $41(HEAP32[($4_1 + 20 | 0) >> 2] | 0 | 0) | 0;
+    break block24;
    }
    HEAP32[($4_1 + 8 | 0) >> 2] = 0;
   }
   HEAP32[($4_1 + 12 | 0) >> 2] = ((HEAP32[($4_1 + 8 | 0) >> 2] | 0) + (((HEAP32[($4_1 + 28 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 32 | 0) >> 2] | 0) | 0) | 0) + 1 | 0;
-  HEAP32[($4_1 + 16 | 0) >> 2] = $102(HEAP32[($4_1 + 12 | 0) >> 2] | 0 | 0, 1 | 0) | 0;
-  label$30 : {
+  HEAP32[($4_1 + 16 | 0) >> 2] = $105(HEAP32[($4_1 + 12 | 0) >> 2] | 0 | 0, 1 | 0) | 0;
+  block25 : {
    if (!(HEAP32[($4_1 + 12 | 0) >> 2] | 0)) {
-    break label$30
+    break block25
    }
-   $41(HEAP32[($4_1 + 16 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 20 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 8 | 0) >> 2] | 0 | 0) | 0;
+   $269 = HEAP32[($4_1 + 16 | 0) >> 2] | 0;
+   $270 = HEAP32[($4_1 + 20 | 0) >> 2] | 0;
+   $271 = HEAP32[($4_1 + 8 | 0) >> 2] | 0;
+   block26 : {
+    if (!$271) {
+     break block26
+    }
+    wasm2js_memory_copy($269, $270, $271);
+   }
   }
-  $41((HEAP32[($4_1 + 16 | 0) >> 2] | 0) + (HEAP32[($4_1 + 8 | 0) >> 2] | 0) | 0 | 0, HEAP32[($4_1 + 32 | 0) >> 2] | 0 | 0, ((HEAP32[($4_1 + 28 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 32 | 0) >> 2] | 0) | 0 | 0) | 0;
+  $275 = (HEAP32[($4_1 + 16 | 0) >> 2] | 0) + (HEAP32[($4_1 + 8 | 0) >> 2] | 0) | 0;
+  $276 = HEAP32[($4_1 + 32 | 0) >> 2] | 0;
+  $281 = ((HEAP32[($4_1 + 28 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 32 | 0) >> 2] | 0) | 0;
+  block27 : {
+   if (!$281) {
+    break block27
+   }
+   wasm2js_memory_copy($275, $276, $281);
+  }
   HEAP8[((HEAP32[($4_1 + 16 | 0) >> 2] | 0) + ((HEAP32[($4_1 + 8 | 0) >> 2] | 0) + (((HEAP32[($4_1 + 28 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 32 | 0) >> 2] | 0) | 0) | 0) | 0) >> 0] = 0;
-  $101(HEAP32[($4_1 + 36 | 0) >> 2] | 0 | 0);
+  $104(HEAP32[($4_1 + 36 | 0) >> 2] | 0 | 0);
   HEAP32[($4_1 + 36 | 0) >> 2] = 0;
   HEAP32[($4_1 + 36 | 0) >> 2] = HEAP32[($4_1 + 16 | 0) >> 2] | 0;
-  $294 = HEAP32[($4_1 + 36 | 0) >> 2] | 0;
+  $296 = HEAP32[($4_1 + 36 | 0) >> 2] | 0;
   global$0 = $4_1 + 96 | 0;
-  return $294 | 0;
+  return $296 | 0;
  }
  
  function $3($0_1, $1_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
-  var $4_1 = 0, $100_1 = 0, $125 = 0, $129 = 0, $140 = 0, $144 = 0, $148 = 0, $152 = 0, $177 = 0, $191 = 0, $200 = 0, $209 = 0, $226 = 0, $236 = 0, $245 = 0, $255 = 0, $264 = 0, $277 = 0, $305 = 0, $314 = 0, $324 = 0, $359 = 0, $382 = 0, $385 = 0, $439 = 0;
+  var $4_1 = 0, $100_1 = 0, $125_1 = 0, $129 = 0, $140 = 0, $144 = 0, $148 = 0, $152 = 0, $177 = 0, $191 = 0, $200 = 0, $209 = 0, $226 = 0, $236 = 0, $245 = 0, $255 = 0, $264 = 0, $277 = 0, $305 = 0, $314 = 0, $324 = 0, $359 = 0, $382 = 0, $409 = 0, $419 = 0, $385 = 0, $407 = 0, $408 = 0, $413 = 0, $414 = 0, $441 = 0, $1472 = 0;
   $4_1 = global$0 - 96 | 0;
   global$0 = $4_1;
   HEAP32[($4_1 + 92 | 0) >> 2] = $0_1;
   HEAP32[($4_1 + 88 | 0) >> 2] = $1_1;
   HEAP32[($4_1 + 84 | 0) >> 2] = $10() | 0;
-  HEAP32[($4_1 + 80 | 0) >> 2] = $39(HEAP32[($4_1 + 84 | 0) >> 2] | 0 | 0) | 0;
+  HEAP32[($4_1 + 80 | 0) >> 2] = $41(HEAP32[($4_1 + 84 | 0) >> 2] | 0 | 0) | 0;
   HEAP32[($4_1 + 76 | 0) >> 2] = 0;
   HEAP32[($4_1 + 72 | 0) >> 2] = 0;
   HEAP32[($4_1 + 68 | 0) >> 2] = 0;
@@ -936,72 +902,72 @@ function asmFunc(imports) {
   HEAP32[($4_1 + 48 | 0) >> 2] = 0;
   HEAP32[($4_1 + 44 | 0) >> 2] = 0;
   HEAP32[($4_1 + 40 | 0) >> 2] = 0;
-  label$1 : {
-   label$2 : {
+  block1 : {
+   block : {
     if (!((HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-     break label$2
+     break block
     }
     if ((HEAP32[($4_1 + 88 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-     break label$1
+     break block1
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
-  HEAP32[($4_1 + 52 | 0) >> 2] = $39(HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) | 0;
-  HEAP32[($4_1 + 48 | 0) >> 2] = $39(HEAP32[($4_1 + 88 | 0) >> 2] | 0 | 0) | 0;
-  label$3 : {
-   label$4 : {
+  HEAP32[($4_1 + 52 | 0) >> 2] = $41(HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) | 0;
+  HEAP32[($4_1 + 48 | 0) >> 2] = $41(HEAP32[($4_1 + 88 | 0) >> 2] | 0 | 0) | 0;
+  block3 : {
+   block2 : {
     if (!(HEAP32[($4_1 + 52 | 0) >> 2] | 0)) {
-     break label$4
+     break block2
     }
     if (HEAP32[($4_1 + 48 | 0) >> 2] | 0) {
-     break label$3
+     break block3
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 76 | 0) >> 2] = $16(0 | 0, HEAP32[($4_1 + 52 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) | 0;
   HEAP32[($4_1 + 72 | 0) >> 2] = $16(0 | 0, HEAP32[($4_1 + 48 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 88 | 0) >> 2] | 0 | 0) | 0;
-  label$5 : {
-   label$6 : {
+  block5 : {
+   block4 : {
     if (!((HEAP32[($4_1 + 76 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-     break label$6
+     break block4
     }
     if ((HEAP32[($4_1 + 72 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-     break label$5
+     break block5
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 68 | 0) >> 2] = $17((HEAP32[($4_1 + 76 | 0) >> 2] | 0) - (HEAP32[($4_1 + 92 | 0) >> 2] | 0) | 0 | 0, HEAP32[($4_1 + 52 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) | 0;
   HEAP32[($4_1 + 64 | 0) >> 2] = $17((HEAP32[($4_1 + 72 | 0) >> 2] | 0) - (HEAP32[($4_1 + 88 | 0) >> 2] | 0) | 0 | 0, HEAP32[($4_1 + 48 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 88 | 0) >> 2] | 0 | 0) | 0;
-  label$7 : {
-   label$8 : {
+  block7 : {
+   block6 : {
     if (!((HEAP32[($4_1 + 68 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-     break label$8
+     break block6
     }
     if ((HEAP32[($4_1 + 64 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-     break label$7
+     break block7
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 44 | 0) >> 2] = ((HEAP32[($4_1 + 68 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 76 | 0) >> 2] | 0) | 0;
   HEAP32[($4_1 + 40 | 0) >> 2] = ((HEAP32[($4_1 + 64 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 72 | 0) >> 2] | 0) | 0;
-  label$9 : {
-   label$10 : {
+  block9 : {
+   block8 : {
     if (!(HEAP32[($4_1 + 44 | 0) >> 2] | 0)) {
-     break label$10
+     break block8
     }
     if (HEAP32[($4_1 + 40 | 0) >> 2] | 0) {
-     break label$9
+     break block9
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 36 | 0) >> 2] = 0;
@@ -1012,18 +978,18 @@ function asmFunc(imports) {
   HEAP32[($4_1 + 16 | 0) >> 2] = 0;
   HEAP32[($4_1 + 12 | 0) >> 2] = 0;
   HEAP32[($4_1 + 8 | 0) >> 2] = 0;
-  label$11 : {
-   label$12 : {
+  block11 : {
+   block10 : {
     if (!((HEAP32[($4_1 + 44 | 0) >> 2] | 0) >>> 0 > (HEAP32[($4_1 + 40 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-     break label$12
+     break block10
     }
     $100_1 = HEAP32[($4_1 + 44 | 0) >> 2] | 0;
-    break label$11;
+    break block11;
    }
    $100_1 = HEAP32[($4_1 + 40 | 0) >> 2] | 0;
   }
   HEAP32[($4_1 + 36 | 0) >> 2] = $100_1;
-  HEAP32[($4_1 + 28 | 0) >> 2] = $102((HEAP32[($4_1 + 36 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
+  HEAP32[($4_1 + 28 | 0) >> 2] = $105((HEAP32[($4_1 + 36 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
   HEAP8[($4_1 + 7 | 0) >> 0] = 0;
   HEAP8[($4_1 + 6 | 0) >> 0] = 0;
   HEAP32[($4_1 + 24 | 0) >> 2] = HEAP32[($4_1 + 28 | 0) >> 2] | 0;
@@ -1031,27 +997,27 @@ function asmFunc(imports) {
   HEAP32[($4_1 + 16 | 0) >> 2] = HEAP32[($4_1 + 20 | 0) >> 2] | 0;
   HEAP32[($4_1 + 60 | 0) >> 2] = HEAP32[($4_1 + 68 | 0) >> 2] | 0;
   HEAP32[($4_1 + 56 | 0) >> 2] = HEAP32[($4_1 + 64 | 0) >> 2] | 0;
-  label$13 : while (1) {
-   label$14 : {
-    label$15 : {
+  label : while (1) {
+   block13 : {
+    block12 : {
      if (!((HEAP32[($4_1 + 60 | 0) >> 2] | 0) >>> 0 >= (HEAP32[($4_1 + 76 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-      break label$15
+      break block12
      }
-     $125 = 24;
-     $129 = $18(0 | 0, ((HEAPU8[(HEAP32[($4_1 + 60 | 0) >> 2] | 0) >> 0] | 0) << $125 | 0) >> $125 | 0 | 0) | 0;
-     break label$14;
+     $125_1 = 24;
+     $129 = $18(0 | 0, ((HEAPU8[(HEAP32[($4_1 + 60 | 0) >> 2] | 0) >> 0] | 0) << $125_1 | 0) >> $125_1 | 0 | 0) | 0;
+     break block13;
     }
     $129 = 0;
    }
    HEAP8[($4_1 + 7 | 0) >> 0] = $129;
-   label$16 : {
-    label$17 : {
+   block15 : {
+    block14 : {
      if (!((HEAP32[($4_1 + 56 | 0) >> 2] | 0) >>> 0 >= (HEAP32[($4_1 + 72 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-      break label$17
+      break block14
      }
      $140 = 24;
      $144 = $18(0 | 0, ((HEAPU8[(HEAP32[($4_1 + 56 | 0) >> 2] | 0) >> 0] | 0) << $140 | 0) >> $140 | 0 | 0) | 0;
-     break label$16;
+     break block15;
     }
     $144 = 0;
    }
@@ -1059,241 +1025,257 @@ function asmFunc(imports) {
    $148 = 24;
    $152 = 24;
    HEAP8[(HEAP32[($4_1 + 16 | 0) >> 2] | 0) >> 0] = (((HEAPU8[($4_1 + 7 | 0) >> 0] | 0) << $148 | 0) >> $148 | 0) - (((HEAPU8[($4_1 + 6 | 0) >> 0] | 0) << $152 | 0) >> $152 | 0) | 0;
-   label$18 : {
+   block16 : {
     if (!((HEAP32[($4_1 + 24 | 0) >> 2] | 0) >>> 0 < (HEAP32[($4_1 + 16 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-     break label$18
+     break block16
     }
     HEAP32[($4_1 + 16 | 0) >> 2] = (HEAP32[($4_1 + 16 | 0) >> 2] | 0) + -1 | 0;
     HEAP32[($4_1 + 60 | 0) >> 2] = (HEAP32[($4_1 + 60 | 0) >> 2] | 0) + -1 | 0;
     HEAP32[($4_1 + 56 | 0) >> 2] = (HEAP32[($4_1 + 56 | 0) >> 2] | 0) + -1 | 0;
-    continue label$13;
+    continue label;
    }
-   break label$13;
+   break label;
   };
   HEAP32[($4_1 + 20 | 0) >> 2] = (HEAP32[($4_1 + 28 | 0) >> 2] | 0) + (HEAP32[($4_1 + 36 | 0) >> 2] | 0) | 0;
   HEAP32[($4_1 + 16 | 0) >> 2] = HEAP32[($4_1 + 28 | 0) >> 2] | 0;
-  label$19 : {
-   label$20 : while (1) {
+  block19 : {
+   label1 : while (1) {
     $177 = 24;
-    label$21 : {
-     label$22 : {
+    block18 : {
+     block17 : {
       if (((HEAPU8[(HEAP32[($4_1 + 16 | 0) >> 2] | 0) >> 0] | 0) << $177 | 0) >> $177 | 0) {
-       break label$22
+       break block17
       }
-      break label$21;
+      break block18;
      }
-     break label$19;
+     break block19;
     }
-    label$23 : {
+    block20 : {
      if (!((HEAP32[($4_1 + 16 | 0) >> 2] | 0) >>> 0 < (HEAP32[($4_1 + 20 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-      break label$23
+      break block20
      }
      HEAP32[($4_1 + 16 | 0) >> 2] = (HEAP32[($4_1 + 16 | 0) >> 2] | 0) + 1 | 0;
-     continue label$20;
+     continue label1;
     }
-    break label$20;
+    break label1;
    };
   }
   HEAP32[($4_1 + 24 | 0) >> 2] = HEAP32[($4_1 + 16 | 0) >> 2] | 0;
   $191 = 24;
-  label$24 : {
-   label$25 : {
-    label$26 : {
-     label$27 : {
+  block26 : {
+   block24 : {
+    block22 : {
+     block21 : {
       if (!((((HEAPU8[(HEAP32[($4_1 + 24 | 0) >> 2] | 0) >> 0] | 0) << $191 | 0) >> $191 | 0 | 0) < (0 | 0) & 1 | 0)) {
-       break label$27
+       break block21
       }
-      break label$26;
+      break block22;
      }
      $200 = 24;
-     label$28 : {
+     block23 : {
       if (!((((HEAPU8[(HEAP32[($4_1 + 24 | 0) >> 2] | 0) >> 0] | 0) << $200 | 0) >> $200 | 0 | 0) > (0 | 0) & 1 | 0)) {
-       break label$28
+       break block23
       }
-      break label$25;
+      break block24;
      }
      $209 = 24;
-     label$29 : {
+     block25 : {
       if (((HEAPU8[(HEAP32[($4_1 + 24 | 0) >> 2] | 0) >> 0] | 0) << $209 | 0) >> $209 | 0) {
-       break label$29
+       break block25
       }
-      break label$24;
+      break block26;
      }
     }
     HEAP32[($4_1 + 12 | 0) >> 2] = $31() | 0;
-    HEAP32[($4_1 + 32 | 0) >> 2] = $39(HEAP32[($4_1 + 12 | 0) >> 2] | 0 | 0) | 0;
+    HEAP32[($4_1 + 32 | 0) >> 2] = $41(HEAP32[($4_1 + 12 | 0) >> 2] | 0 | 0) | 0;
     HEAP32[($4_1 + 20 | 0) >> 2] = (HEAP32[($4_1 + 28 | 0) >> 2] | 0) + (HEAP32[($4_1 + 36 | 0) >> 2] | 0) | 0;
     HEAP32[($4_1 + 16 | 0) >> 2] = HEAP32[($4_1 + 20 | 0) >> 2] | 0;
-    label$30 : {
-     label$31 : while (1) {
-      label$32 : {
-       label$33 : {
+    block32 : {
+     label2 : while (1) {
+      block29 : {
+       block27 : {
         if (!((HEAP32[($4_1 + 16 | 0) >> 2] | 0) >>> 0 > (HEAP32[($4_1 + 24 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-         break label$33
+         break block27
         }
         $226 = 24;
-        label$34 : {
+        block28 : {
          if (!((((HEAPU8[(HEAP32[($4_1 + 16 | 0) >> 2] | 0) >> 0] | 0) << $226 | 0) >> $226 | 0 | 0) > (0 | 0) & 1 | 0)) {
-          break label$34
+          break block28
          }
          $236 = 24;
          HEAP8[(HEAP32[($4_1 + 16 | 0) >> 2] | 0) >> 0] = (HEAP32[($4_1 + 80 | 0) >> 2] | 0) - (((HEAPU8[(HEAP32[($4_1 + 16 | 0) >> 2] | 0) >> 0] | 0) << $236 | 0) >> $236 | 0) | 0;
          $245 = 24;
          HEAP8[((HEAP32[($4_1 + 16 | 0) >> 2] | 0) + -1 | 0) >> 0] = (((HEAPU8[((HEAP32[($4_1 + 16 | 0) >> 2] | 0) + -1 | 0) >> 0] | 0) << $245 | 0) >> $245 | 0) + 1 | 0;
-         break label$32;
+         break block29;
         }
         $255 = 24;
-        label$35 : {
+        block30 : {
          if (!((((HEAPU8[(HEAP32[($4_1 + 16 | 0) >> 2] | 0) >> 0] | 0) << $255 | 0) >> $255 | 0 | 0) < (0 | 0) & 1 | 0)) {
-          break label$35
+          break block30
          }
          $264 = 24;
          HEAP8[(HEAP32[($4_1 + 16 | 0) >> 2] | 0) >> 0] = Math_imul(((HEAPU8[(HEAP32[($4_1 + 16 | 0) >> 2] | 0) >> 0] | 0) << $264 | 0) >> $264 | 0, 255);
-         break label$32;
+         break block29;
         }
        }
-       label$36 : {
+       block31 : {
         if (!((HEAP32[($4_1 + 16 | 0) >> 2] | 0 | 0) == (HEAP32[($4_1 + 24 | 0) >> 2] | 0 | 0) & 1 | 0)) {
-         break label$36
+         break block31
         }
         $277 = 24;
         HEAP8[(HEAP32[($4_1 + 16 | 0) >> 2] | 0) >> 0] = Math_imul(((HEAPU8[(HEAP32[($4_1 + 16 | 0) >> 2] | 0) >> 0] | 0) << $277 | 0) >> $277 | 0, 255);
-        break label$30;
+        break block32;
        }
       }
-      label$37 : {
+      block33 : {
        if (!((HEAP32[($4_1 + 16 | 0) >> 2] | 0) >>> 0 > (HEAP32[($4_1 + 24 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-        break label$37
+        break block33
        }
        HEAP32[($4_1 + 16 | 0) >> 2] = (HEAP32[($4_1 + 16 | 0) >> 2] | 0) + -1 | 0;
-       continue label$31;
+       continue label2;
       }
-      break label$31;
+      break label2;
      };
     }
-    break label$24;
+    break block26;
    }
    HEAP32[($4_1 + 12 | 0) >> 2] = $33() | 0;
-   HEAP32[($4_1 + 32 | 0) >> 2] = $39(HEAP32[($4_1 + 12 | 0) >> 2] | 0 | 0) | 0;
+   HEAP32[($4_1 + 32 | 0) >> 2] = $41(HEAP32[($4_1 + 12 | 0) >> 2] | 0 | 0) | 0;
    HEAP32[($4_1 + 20 | 0) >> 2] = (HEAP32[($4_1 + 28 | 0) >> 2] | 0) + (HEAP32[($4_1 + 36 | 0) >> 2] | 0) | 0;
    HEAP32[($4_1 + 16 | 0) >> 2] = HEAP32[($4_1 + 20 | 0) >> 2] | 0;
-   label$38 : {
-    label$39 : while (1) {
-     label$40 : {
-      label$41 : {
+   block37 : {
+    label3 : while (1) {
+     block36 : {
+      block34 : {
        if (!((HEAP32[($4_1 + 16 | 0) >> 2] | 0) >>> 0 > (HEAP32[($4_1 + 24 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-        break label$41
+        break block34
        }
        $305 = 24;
-       label$42 : {
+       block35 : {
         if (!((((HEAPU8[(HEAP32[($4_1 + 16 | 0) >> 2] | 0) >> 0] | 0) << $305 | 0) >> $305 | 0 | 0) < (0 | 0) & 1 | 0)) {
-         break label$42
+         break block35
         }
         $314 = 24;
         HEAP8[(HEAP32[($4_1 + 16 | 0) >> 2] | 0) >> 0] = (((HEAPU8[(HEAP32[($4_1 + 16 | 0) >> 2] | 0) >> 0] | 0) << $314 | 0) >> $314 | 0) + (HEAP32[($4_1 + 80 | 0) >> 2] | 0) | 0;
         $324 = 24;
         HEAP8[((HEAP32[($4_1 + 16 | 0) >> 2] | 0) + -1 | 0) >> 0] = (((HEAPU8[((HEAP32[($4_1 + 16 | 0) >> 2] | 0) + -1 | 0) >> 0] | 0) << $324 | 0) >> $324 | 0) - 1 | 0;
        }
-       break label$40;
+       break block36;
       }
-      break label$38;
+      break block37;
      }
-     label$43 : {
+     block38 : {
       if (!((HEAP32[($4_1 + 16 | 0) >> 2] | 0) >>> 0 > (HEAP32[($4_1 + 24 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-       break label$43
+       break block38
       }
       HEAP32[($4_1 + 16 | 0) >> 2] = (HEAP32[($4_1 + 16 | 0) >> 2] | 0) + -1 | 0;
-      continue label$39;
+      continue label3;
      }
-     break label$39;
+     break label3;
     };
    }
   }
-  label$44 : {
+  block39 : {
    if ((HEAP32[($4_1 + 12 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-    break label$44
+    break block39
    }
    HEAP32[($4_1 + 32 | 0) >> 2] = 0;
   }
-  label$45 : {
+  block40 : {
    if (!((HEAP32[($4_1 + 12 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-    break label$45
+    break block40
    }
-   HEAP32[($4_1 + 32 | 0) >> 2] = $39(HEAP32[($4_1 + 12 | 0) >> 2] | 0 | 0) | 0;
+   HEAP32[($4_1 + 32 | 0) >> 2] = $41(HEAP32[($4_1 + 12 | 0) >> 2] | 0 | 0) | 0;
   }
   HEAP32[($4_1 + 20 | 0) >> 2] = (HEAP32[($4_1 + 28 | 0) >> 2] | 0) + (HEAP32[($4_1 + 36 | 0) >> 2] | 0) | 0;
   HEAP32[($4_1 + 16 | 0) >> 2] = HEAP32[($4_1 + 28 | 0) >> 2] | 0;
-  label$46 : {
-   label$47 : while (1) {
+  block43 : {
+   label4 : while (1) {
     $359 = 24;
-    label$48 : {
-     label$49 : {
+    block42 : {
+     block41 : {
       if (((HEAPU8[(HEAP32[($4_1 + 16 | 0) >> 2] | 0) >> 0] | 0) << $359 | 0) >> $359 | 0) {
-       break label$49
+       break block41
       }
-      break label$48;
+      break block42;
      }
-     break label$46;
+     break block43;
     }
-    label$50 : {
+    block44 : {
      if (!((HEAP32[($4_1 + 16 | 0) >> 2] | 0) >>> 0 < (HEAP32[($4_1 + 20 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-      break label$50
+      break block44
      }
      HEAP32[($4_1 + 16 | 0) >> 2] = (HEAP32[($4_1 + 16 | 0) >> 2] | 0) + 1 | 0;
-     continue label$47;
+     continue label4;
     }
-    break label$47;
+    break label4;
    };
   }
   HEAP32[($4_1 + 24 | 0) >> 2] = HEAP32[($4_1 + 16 | 0) >> 2] | 0;
   HEAP32[($4_1 + 16 | 0) >> 2] = HEAP32[($4_1 + 24 | 0) >> 2] | 0;
   HEAP32[($4_1 + 20 | 0) >> 2] = (HEAP32[($4_1 + 28 | 0) >> 2] | 0) + (HEAP32[($4_1 + 36 | 0) >> 2] | 0) | 0;
-  label$51 : {
-   label$52 : while (1) {
-    label$53 : {
-     label$54 : {
+  block47 : {
+   label5 : while (1) {
+    block46 : {
+     block45 : {
       if (!((HEAP32[($4_1 + 16 | 0) >> 2] | 0) >>> 0 <= (HEAP32[($4_1 + 20 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-       break label$54
+       break block45
       }
       $382 = 24;
       $385 = $13(((HEAPU8[(HEAP32[($4_1 + 16 | 0) >> 2] | 0) >> 0] | 0) << $382 | 0) >> $382 | 0 | 0) | 0;
       HEAP8[(HEAP32[($4_1 + 16 | 0) >> 2] | 0) >> 0] = $385;
-      break label$53;
+      break block46;
      }
-     break label$51;
+     break block47;
     }
-    label$55 : {
+    block48 : {
      if (!((HEAP32[($4_1 + 16 | 0) >> 2] | 0) >>> 0 < (HEAP32[($4_1 + 20 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-      break label$55
+      break block48
      }
      HEAP32[($4_1 + 16 | 0) >> 2] = (HEAP32[($4_1 + 16 | 0) >> 2] | 0) + 1 | 0;
-     continue label$52;
+     continue label5;
     }
-    break label$52;
+    break label5;
    };
   }
-  HEAP32[($4_1 + 8 | 0) >> 2] = $102(((HEAP32[($4_1 + 32 | 0) >> 2] | 0) + (((HEAP32[($4_1 + 20 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 24 | 0) >> 2] | 0) | 0) | 0) + 1 | 0 | 0, 1 | 0) | 0;
-  label$56 : {
+  HEAP32[($4_1 + 8 | 0) >> 2] = $105(((HEAP32[($4_1 + 32 | 0) >> 2] | 0) + (((HEAP32[($4_1 + 20 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 24 | 0) >> 2] | 0) | 0) | 0) + 1 | 0 | 0, 1 | 0) | 0;
+  block49 : {
    if (!(HEAP32[($4_1 + 32 | 0) >> 2] | 0)) {
-    break label$56
+    break block49
    }
-   $41(HEAP32[($4_1 + 8 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 12 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 32 | 0) >> 2] | 0 | 0) | 0;
+   $407 = HEAP32[($4_1 + 8 | 0) >> 2] | 0;
+   $408 = HEAP32[($4_1 + 12 | 0) >> 2] | 0;
+   $409 = HEAP32[($4_1 + 32 | 0) >> 2] | 0;
+   block50 : {
+    if (!$409) {
+     break block50
+    }
+    wasm2js_memory_copy($407, $408, $409);
+   }
   }
-  $41((HEAP32[($4_1 + 8 | 0) >> 2] | 0) + (HEAP32[($4_1 + 32 | 0) >> 2] | 0) | 0 | 0, HEAP32[($4_1 + 24 | 0) >> 2] | 0 | 0, ((HEAP32[($4_1 + 20 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 24 | 0) >> 2] | 0) | 0 | 0) | 0;
+  $413 = (HEAP32[($4_1 + 8 | 0) >> 2] | 0) + (HEAP32[($4_1 + 32 | 0) >> 2] | 0) | 0;
+  $414 = HEAP32[($4_1 + 24 | 0) >> 2] | 0;
+  $419 = ((HEAP32[($4_1 + 20 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 24 | 0) >> 2] | 0) | 0;
+  block51 : {
+   if (!$419) {
+    break block51
+   }
+   wasm2js_memory_copy($413, $414, $419);
+  }
   HEAP8[((HEAP32[($4_1 + 8 | 0) >> 2] | 0) + ((HEAP32[($4_1 + 32 | 0) >> 2] | 0) + (((HEAP32[($4_1 + 20 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 24 | 0) >> 2] | 0) | 0) | 0) | 0) >> 0] = 0;
   HEAP32[($4_1 + 36 | 0) >> 2] = (((HEAP32[($4_1 + 20 | 0) >> 2] | 0) + (HEAP32[($4_1 + 32 | 0) >> 2] | 0) | 0) + 1 | 0) - (HEAP32[($4_1 + 24 | 0) >> 2] | 0) | 0;
-  $101(HEAP32[($4_1 + 28 | 0) >> 2] | 0 | 0);
+  $104(HEAP32[($4_1 + 28 | 0) >> 2] | 0 | 0);
   HEAP32[($4_1 + 28 | 0) >> 2] = 0;
   HEAP32[($4_1 + 28 | 0) >> 2] = HEAP32[($4_1 + 8 | 0) >> 2] | 0;
-  $439 = HEAP32[($4_1 + 28 | 0) >> 2] | 0;
+  $441 = HEAP32[($4_1 + 28 | 0) >> 2] | 0;
   global$0 = $4_1 + 96 | 0;
-  return $439 | 0;
+  return $441 | 0;
  }
  
  function $4($0_1, $1_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
-  var $4_1 = 0, $111_1 = 0, $119_1 = 0, $129 = 0, $141 = 0, $276 = 0, $313 = 0;
+  var $4_1 = 0, $111_1 = 0, $119_1 = 0, $129 = 0, $141 = 0, $276 = 0, $298 = 0, $304 = 0, $296 = 0, $297 = 0, $302 = 0, $303 = 0, $315 = 0, $1058 = 0;
   $4_1 = global$0 - 112 | 0;
   global$0 = $4_1;
   HEAP32[($4_1 + 108 | 0) >> 2] = $0_1;
@@ -1312,72 +1294,72 @@ function asmFunc(imports) {
   HEAP32[($4_1 + 56 | 0) >> 2] = 0;
   HEAP32[($4_1 + 52 | 0) >> 2] = 0;
   HEAP32[($4_1 + 48 | 0) >> 2] = 0;
-  label$1 : {
-   label$2 : {
+  block1 : {
+   block : {
     if (!((HEAP32[($4_1 + 108 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-     break label$2
+     break block
     }
     if ((HEAP32[($4_1 + 104 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-     break label$1
+     break block1
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
-  HEAP32[($4_1 + 68 | 0) >> 2] = $39(HEAP32[($4_1 + 108 | 0) >> 2] | 0 | 0) | 0;
-  HEAP32[($4_1 + 64 | 0) >> 2] = $39(HEAP32[($4_1 + 104 | 0) >> 2] | 0 | 0) | 0;
-  label$3 : {
-   label$4 : {
+  HEAP32[($4_1 + 68 | 0) >> 2] = $41(HEAP32[($4_1 + 108 | 0) >> 2] | 0 | 0) | 0;
+  HEAP32[($4_1 + 64 | 0) >> 2] = $41(HEAP32[($4_1 + 104 | 0) >> 2] | 0 | 0) | 0;
+  block3 : {
+   block2 : {
     if (!(HEAP32[($4_1 + 68 | 0) >> 2] | 0)) {
-     break label$4
+     break block2
     }
     if (HEAP32[($4_1 + 64 | 0) >> 2] | 0) {
-     break label$3
+     break block3
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 100 | 0) >> 2] = $16(0 | 0, HEAP32[($4_1 + 68 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 108 | 0) >> 2] | 0 | 0) | 0;
   HEAP32[($4_1 + 92 | 0) >> 2] = $16(0 | 0, HEAP32[($4_1 + 64 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 104 | 0) >> 2] | 0 | 0) | 0;
-  label$5 : {
-   label$6 : {
+  block5 : {
+   block4 : {
     if (!((HEAP32[($4_1 + 100 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-     break label$6
+     break block4
     }
     if ((HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-     break label$5
+     break block5
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 96 | 0) >> 2] = $17((HEAP32[($4_1 + 100 | 0) >> 2] | 0) - (HEAP32[($4_1 + 108 | 0) >> 2] | 0) | 0 | 0, HEAP32[($4_1 + 68 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 108 | 0) >> 2] | 0 | 0) | 0;
   HEAP32[($4_1 + 88 | 0) >> 2] = $17((HEAP32[($4_1 + 92 | 0) >> 2] | 0) - (HEAP32[($4_1 + 104 | 0) >> 2] | 0) | 0 | 0, HEAP32[($4_1 + 64 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 104 | 0) >> 2] | 0 | 0) | 0;
-  label$7 : {
-   label$8 : {
+  block7 : {
+   block6 : {
     if (!((HEAP32[($4_1 + 96 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-     break label$8
+     break block6
     }
     if ((HEAP32[($4_1 + 88 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-     break label$7
+     break block7
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 60 | 0) >> 2] = ((HEAP32[($4_1 + 96 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 100 | 0) >> 2] | 0) | 0;
   HEAP32[($4_1 + 56 | 0) >> 2] = ((HEAP32[($4_1 + 88 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 92 | 0) >> 2] | 0) | 0;
-  label$9 : {
-   label$10 : {
+  block9 : {
+   block8 : {
     if (!(HEAP32[($4_1 + 60 | 0) >> 2] | 0)) {
-     break label$10
+     break block8
     }
     if (HEAP32[($4_1 + 56 | 0) >> 2] | 0) {
-     break label$9
+     break block9
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 84 | 0) >> 2] = HEAP32[($4_1 + 108 | 0) >> 2] | 0;
@@ -1395,29 +1377,29 @@ function asmFunc(imports) {
   $119_1 = 24;
   HEAP8[($4_1 + 44 | 0) >> 0] = ($15(((HEAPU8[(HEAP32[($4_1 + 92 | 0) >> 2] | 0) >> 0] | 0) << $119_1 | 0) >> $119_1 | 0 | 0) | 0) & 1 | 0;
   $129 = 0;
-  label$11 : {
+  block10 : {
    if ((HEAPU8[($4_1 + 45 | 0) >> 0] | 0) & 1 | 0) {
-    break label$11
+    break block10
    }
    $129 = $36(0 | 0, HEAP32[($4_1 + 52 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 84 | 0) >> 2] | 0 | 0) | 0;
   }
   HEAP8[($4_1 + 47 | 0) >> 0] = $129 & 1 | 0;
   $141 = 0;
-  label$12 : {
+  block11 : {
    if ((HEAPU8[($4_1 + 44 | 0) >> 0] | 0) & 1 | 0) {
-    break label$12
+    break block11
    }
    $141 = $36(0 | 0, HEAP32[($4_1 + 48 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 76 | 0) >> 2] | 0 | 0) | 0;
   }
   HEAP8[($4_1 + 46 | 0) >> 0] = $141 & 1 | 0;
-  label$13 : {
+  block12 : {
    if ((HEAPU8[($4_1 + 47 | 0) >> 0] | 0) & 1 | 0) {
-    break label$13
+    break block12
    }
    if ((HEAPU8[($4_1 + 46 | 0) >> 0] | 0) & 1 | 0) {
-    break label$13
+    break block12
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 40 | 0) >> 2] = 0;
@@ -1430,160 +1412,176 @@ function asmFunc(imports) {
   HEAP32[($4_1 + 12 | 0) >> 2] = 0;
   HEAP8[($4_1 + 11 | 0) >> 0] = 0;
   HEAP32[($4_1 + 4 | 0) >> 2] = -2;
-  label$14 : {
-   label$15 : {
-    label$16 : {
-     label$17 : {
-      label$18 : {
+  block24 : {
+   block18 : {
+    block16 : {
+     block14 : {
+      block13 : {
        if ((HEAPU8[($4_1 + 47 | 0) >> 0] | 0) & 1 | 0) {
-        break label$18
+        break block13
        }
        if (!((HEAPU8[($4_1 + 46 | 0) >> 0] | 0) & 1 | 0)) {
-        break label$18
+        break block13
        }
-       break label$17;
+       break block14;
       }
-      label$19 : {
+      block15 : {
        if (!((HEAPU8[($4_1 + 47 | 0) >> 0] | 0) & 1 | 0)) {
-        break label$19
+        break block15
        }
        if ((HEAPU8[($4_1 + 46 | 0) >> 0] | 0) & 1 | 0) {
-        break label$19
+        break block15
        }
-       break label$16;
+       break block16;
       }
-      label$20 : {
+      block17 : {
        if (!((HEAPU8[($4_1 + 47 | 0) >> 0] | 0) & 1 | 0)) {
-        break label$20
+        break block17
        }
        if (!((HEAPU8[($4_1 + 46 | 0) >> 0] | 0) & 1 | 0)) {
-        break label$20
+        break block17
        }
-       break label$15;
+       break block18;
       }
      }
      HEAP32[($4_1 + 4 | 0) >> 2] = $20(HEAP32[($4_1 + 100 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) | 0;
-     label$21 : {
-      label$22 : {
+     block20 : {
+      block19 : {
        if (!((HEAP32[($4_1 + 4 | 0) >> 2] | 0 | 0) > (0 | 0) & 1 | 0)) {
-        break label$22
+        break block19
        }
        HEAP32[($4_1 + 40 | 0) >> 2] = $3(HEAP32[($4_1 + 100 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) | 0;
        HEAP32[($4_1 + 28 | 0) >> 2] = $33() | 0;
-       break label$21;
+       break block20;
       }
-      label$23 : {
-       label$24 : {
+      block22 : {
+       block21 : {
         if (!((HEAP32[($4_1 + 4 | 0) >> 2] | 0 | 0) < (0 | 0) & 1 | 0)) {
-         break label$24
+         break block21
         }
         HEAP32[($4_1 + 40 | 0) >> 2] = $3(HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 100 | 0) >> 2] | 0 | 0) | 0;
         HEAP32[($4_1 + 28 | 0) >> 2] = $31() | 0;
-        break label$23;
+        break block22;
        }
-       label$25 : {
+       block23 : {
         if (HEAP32[($4_1 + 4 | 0) >> 2] | 0) {
-         break label$25
+         break block23
         }
         HEAP32[($4_1 + 40 | 0) >> 2] = $3(HEAP32[($4_1 + 100 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) | 0;
         HEAP32[($4_1 + 28 | 0) >> 2] = $33() | 0;
        }
       }
      }
-     break label$14;
+     break block24;
     }
     HEAP32[($4_1 + 4 | 0) >> 2] = $20(HEAP32[($4_1 + 100 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) | 0;
-    label$26 : {
-     label$27 : {
+    block26 : {
+     block25 : {
       if (!((HEAP32[($4_1 + 4 | 0) >> 2] | 0 | 0) > (0 | 0) & 1 | 0)) {
-       break label$27
+       break block25
       }
       HEAP32[($4_1 + 40 | 0) >> 2] = $3(HEAP32[($4_1 + 100 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) | 0;
       HEAP32[($4_1 + 28 | 0) >> 2] = $31() | 0;
-      break label$26;
+      break block26;
      }
-     label$28 : {
-      label$29 : {
+     block28 : {
+      block27 : {
        if (!((HEAP32[($4_1 + 4 | 0) >> 2] | 0 | 0) < (0 | 0) & 1 | 0)) {
-        break label$29
+        break block27
        }
        HEAP32[($4_1 + 40 | 0) >> 2] = $3(HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 100 | 0) >> 2] | 0 | 0) | 0;
        HEAP32[($4_1 + 28 | 0) >> 2] = $33() | 0;
-       break label$28;
+       break block28;
       }
-      label$30 : {
+      block29 : {
        if (HEAP32[($4_1 + 4 | 0) >> 2] | 0) {
-        break label$30
+        break block29
        }
        HEAP32[($4_1 + 40 | 0) >> 2] = $3(HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 100 | 0) >> 2] | 0 | 0) | 0;
        HEAP32[($4_1 + 28 | 0) >> 2] = $33() | 0;
       }
      }
     }
-    break label$14;
+    break block24;
    }
    HEAP32[($4_1 + 4 | 0) >> 2] = $20(HEAP32[($4_1 + 100 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) | 0;
    HEAP32[($4_1 + 40 | 0) >> 2] = $2(HEAP32[($4_1 + 100 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 92 | 0) >> 2] | 0 | 0) | 0;
    HEAP32[($4_1 + 28 | 0) >> 2] = $31() | 0;
   }
-  label$31 : {
+  block30 : {
    if ((HEAP32[($4_1 + 40 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-    break label$31
+    break block30
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
-  HEAP32[($4_1 + 20 | 0) >> 2] = $39(HEAP32[($4_1 + 40 | 0) >> 2] | 0 | 0) | 0;
+  HEAP32[($4_1 + 20 | 0) >> 2] = $41(HEAP32[($4_1 + 40 | 0) >> 2] | 0 | 0) | 0;
   HEAP32[($4_1 + 36 | 0) >> 2] = $16(0 | 0, HEAP32[($4_1 + 20 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 40 | 0) >> 2] | 0 | 0) | 0;
-  label$32 : {
+  block31 : {
    if ((HEAP32[($4_1 + 36 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-    break label$32
+    break block31
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 32 | 0) >> 2] = $17((HEAP32[($4_1 + 36 | 0) >> 2] | 0) - (HEAP32[($4_1 + 40 | 0) >> 2] | 0) | 0 | 0, HEAP32[($4_1 + 20 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 40 | 0) >> 2] | 0 | 0) | 0;
-  label$33 : {
+  block32 : {
    if ((HEAP32[($4_1 + 32 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-    break label$33
+    break block32
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 16 | 0) >> 2] = ((HEAP32[($4_1 + 32 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 36 | 0) >> 2] | 0) | 0;
   $276 = 24;
   HEAP8[($4_1 + 11 | 0) >> 0] = ($15(((HEAPU8[(HEAP32[($4_1 + 36 | 0) >> 2] | 0) >> 0] | 0) << $276 | 0) >> $276 | 0 | 0) | 0) & 1 | 0;
-  label$34 : {
-   label$35 : {
+  block34 : {
+   block33 : {
     if ((HEAPU8[($4_1 + 11 | 0) >> 0] | 0) & 1 | 0) {
-     break label$35
+     break block33
     }
-    HEAP32[($4_1 + 12 | 0) >> 2] = $39(HEAP32[($4_1 + 28 | 0) >> 2] | 0 | 0) | 0;
-    break label$34;
+    HEAP32[($4_1 + 12 | 0) >> 2] = $41(HEAP32[($4_1 + 28 | 0) >> 2] | 0 | 0) | 0;
+    break block34;
    }
    HEAP32[($4_1 + 12 | 0) >> 2] = 0;
   }
-  HEAP32[($4_1 + 24 | 0) >> 2] = $102(((HEAP32[($4_1 + 12 | 0) >> 2] | 0) + (HEAP32[($4_1 + 16 | 0) >> 2] | 0) | 0) + 1 | 0 | 0, 1 | 0) | 0;
-  label$36 : {
+  HEAP32[($4_1 + 24 | 0) >> 2] = $105(((HEAP32[($4_1 + 12 | 0) >> 2] | 0) + (HEAP32[($4_1 + 16 | 0) >> 2] | 0) | 0) + 1 | 0 | 0, 1 | 0) | 0;
+  block35 : {
    if (!(HEAP32[($4_1 + 12 | 0) >> 2] | 0)) {
-    break label$36
+    break block35
    }
-   $41(HEAP32[($4_1 + 24 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 28 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 12 | 0) >> 2] | 0 | 0) | 0;
+   $296 = HEAP32[($4_1 + 24 | 0) >> 2] | 0;
+   $297 = HEAP32[($4_1 + 28 | 0) >> 2] | 0;
+   $298 = HEAP32[($4_1 + 12 | 0) >> 2] | 0;
+   block36 : {
+    if (!$298) {
+     break block36
+    }
+    wasm2js_memory_copy($296, $297, $298);
+   }
   }
-  $41((HEAP32[($4_1 + 24 | 0) >> 2] | 0) + (HEAP32[($4_1 + 12 | 0) >> 2] | 0) | 0 | 0, HEAP32[($4_1 + 36 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 16 | 0) >> 2] | 0 | 0) | 0;
+  $302 = (HEAP32[($4_1 + 24 | 0) >> 2] | 0) + (HEAP32[($4_1 + 12 | 0) >> 2] | 0) | 0;
+  $303 = HEAP32[($4_1 + 36 | 0) >> 2] | 0;
+  $304 = HEAP32[($4_1 + 16 | 0) >> 2] | 0;
+  block37 : {
+   if (!$304) {
+    break block37
+   }
+   wasm2js_memory_copy($302, $303, $304);
+  }
   HEAP8[((HEAP32[($4_1 + 24 | 0) >> 2] | 0) + ((HEAP32[($4_1 + 12 | 0) >> 2] | 0) + (HEAP32[($4_1 + 16 | 0) >> 2] | 0) | 0) | 0) >> 0] = 0;
-  $101(HEAP32[($4_1 + 40 | 0) >> 2] | 0 | 0);
+  $104(HEAP32[($4_1 + 40 | 0) >> 2] | 0 | 0);
   HEAP32[($4_1 + 40 | 0) >> 2] = 0;
   HEAP32[($4_1 + 40 | 0) >> 2] = HEAP32[($4_1 + 24 | 0) >> 2] | 0;
-  $313 = HEAP32[($4_1 + 40 | 0) >> 2] | 0;
+  $315 = HEAP32[($4_1 + 40 | 0) >> 2] | 0;
   global$0 = $4_1 + 112 | 0;
-  return $313 | 0;
+  return $315 | 0;
  }
  
  function $5($0_1, $1_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
-  var $4_1 = 0, $109 = 0, $117_1 = 0, $127 = 0, $139 = 0, $171 = 0;
+  var $4_1 = 0, $109_1 = 0, $117_1 = 0, $127 = 0, $139 = 0, $171 = 0, $559 = 0;
   $4_1 = global$0 - 80 | 0;
   global$0 = $4_1;
   HEAP32[($4_1 + 72 | 0) >> 2] = $0_1;
@@ -1606,58 +1604,58 @@ function asmFunc(imports) {
   HEAP8[($4_1 + 10 | 0) >> 0] = 0;
   HEAP8[($4_1 + 9 | 0) >> 0] = 0;
   HEAP8[($4_1 + 8 | 0) >> 0] = 0;
-  label$1 : {
-   label$2 : {
+  block1 : {
+   block : {
     if (!((HEAP32[($4_1 + 72 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-     break label$2
+     break block
     }
     if ((HEAP32[($4_1 + 68 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-     break label$1
+     break block1
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
-  HEAP32[($4_1 + 32 | 0) >> 2] = $39(HEAP32[($4_1 + 72 | 0) >> 2] | 0 | 0) | 0;
-  HEAP32[($4_1 + 28 | 0) >> 2] = $39(HEAP32[($4_1 + 68 | 0) >> 2] | 0 | 0) | 0;
-  label$3 : {
-   label$4 : {
+  HEAP32[($4_1 + 32 | 0) >> 2] = $41(HEAP32[($4_1 + 72 | 0) >> 2] | 0 | 0) | 0;
+  HEAP32[($4_1 + 28 | 0) >> 2] = $41(HEAP32[($4_1 + 68 | 0) >> 2] | 0 | 0) | 0;
+  block3 : {
+   block2 : {
     if (!(HEAP32[($4_1 + 32 | 0) >> 2] | 0)) {
-     break label$4
+     break block2
     }
     if (HEAP32[($4_1 + 28 | 0) >> 2] | 0) {
-     break label$3
+     break block3
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 64 | 0) >> 2] = $16(0 | 0, HEAP32[($4_1 + 32 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 72 | 0) >> 2] | 0 | 0) | 0;
   HEAP32[($4_1 + 60 | 0) >> 2] = $16(0 | 0, HEAP32[($4_1 + 28 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 68 | 0) >> 2] | 0 | 0) | 0;
-  label$5 : {
-   label$6 : {
+  block5 : {
+   block4 : {
     if (!((HEAP32[($4_1 + 64 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-     break label$6
+     break block4
     }
     if ((HEAP32[($4_1 + 60 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-     break label$5
+     break block5
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 56 | 0) >> 2] = $17((HEAP32[($4_1 + 64 | 0) >> 2] | 0) - (HEAP32[($4_1 + 72 | 0) >> 2] | 0) | 0 | 0, HEAP32[($4_1 + 32 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 72 | 0) >> 2] | 0 | 0) | 0;
   HEAP32[($4_1 + 52 | 0) >> 2] = $17((HEAP32[($4_1 + 60 | 0) >> 2] | 0) - (HEAP32[($4_1 + 68 | 0) >> 2] | 0) | 0 | 0, HEAP32[($4_1 + 28 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 68 | 0) >> 2] | 0 | 0) | 0;
-  label$7 : {
-   label$8 : {
+  block7 : {
+   block6 : {
     if (!((HEAP32[($4_1 + 56 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-     break label$8
+     break block6
     }
     if ((HEAP32[($4_1 + 52 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-     break label$7
+     break block7
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 24 | 0) >> 2] = ((HEAP32[($4_1 + 56 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 64 | 0) >> 2] | 0) | 0;
@@ -1668,60 +1666,60 @@ function asmFunc(imports) {
   HEAP32[($4_1 + 36 | 0) >> 2] = (HEAP32[($4_1 + 60 | 0) >> 2] | 0) + -1 | 0;
   HEAP32[($4_1 + 16 | 0) >> 2] = ((HEAP32[($4_1 + 40 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 48 | 0) >> 2] | 0) | 0;
   HEAP32[($4_1 + 12 | 0) >> 2] = ((HEAP32[($4_1 + 36 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 44 | 0) >> 2] | 0) | 0;
-  $109 = 24;
-  HEAP8[($4_1 + 9 | 0) >> 0] = ($15(((HEAPU8[(HEAP32[($4_1 + 64 | 0) >> 2] | 0) >> 0] | 0) << $109 | 0) >> $109 | 0 | 0) | 0) & 1 | 0;
+  $109_1 = 24;
+  HEAP8[($4_1 + 9 | 0) >> 0] = ($15(((HEAPU8[(HEAP32[($4_1 + 64 | 0) >> 2] | 0) >> 0] | 0) << $109_1 | 0) >> $109_1 | 0 | 0) | 0) & 1 | 0;
   $117_1 = 24;
   HEAP8[($4_1 + 8 | 0) >> 0] = ($15(((HEAPU8[(HEAP32[($4_1 + 60 | 0) >> 2] | 0) >> 0] | 0) << $117_1 | 0) >> $117_1 | 0 | 0) | 0) & 1 | 0;
   $127 = 0;
-  label$9 : {
+  block8 : {
    if ((HEAPU8[($4_1 + 9 | 0) >> 0] | 0) & 1 | 0) {
-    break label$9
+    break block8
    }
    $127 = $36(0 | 0, HEAP32[($4_1 + 16 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 48 | 0) >> 2] | 0 | 0) | 0;
   }
   HEAP8[($4_1 + 11 | 0) >> 0] = $127 & 1 | 0;
   $139 = 0;
-  label$10 : {
+  block9 : {
    if ((HEAPU8[($4_1 + 8 | 0) >> 0] | 0) & 1 | 0) {
-    break label$10
+    break block9
    }
    $139 = $36(0 | 0, HEAP32[($4_1 + 12 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 44 | 0) >> 2] | 0 | 0) | 0;
   }
   HEAP8[($4_1 + 10 | 0) >> 0] = $139 & 1 | 0;
-  label$11 : {
-   label$12 : {
-    label$13 : {
+  block12 : {
+   block11 : {
+    block10 : {
      if ((HEAPU8[($4_1 + 11 | 0) >> 0] | 0) & 1 | 0) {
-      break label$13
+      break block10
      }
      if (!((HEAPU8[($4_1 + 10 | 0) >> 0] | 0) & 1 | 0)) {
-      break label$12
+      break block11
      }
     }
     HEAP32[($4_1 + 76 | 0) >> 2] = $1(HEAP32[($4_1 + 72 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 68 | 0) >> 2] | 0 | 0) | 0;
-    break label$11;
+    break block12;
    }
-   label$14 : {
-    label$15 : {
+   block14 : {
+    block13 : {
      if ((HEAPU8[($4_1 + 9 | 0) >> 0] | 0) & 1 | 0) {
-      break label$15
+      break block13
      }
      if ((HEAPU8[($4_1 + 11 | 0) >> 0] | 0) & 1 | 0) {
-      break label$14
+      break block14
      }
     }
-    label$16 : {
+    block15 : {
      if ((HEAPU8[($4_1 + 8 | 0) >> 0] | 0) & 1 | 0) {
-      break label$16
+      break block15
      }
      if ((HEAPU8[($4_1 + 10 | 0) >> 0] | 0) & 1 | 0) {
-      break label$14
+      break block14
      }
     }
     HEAP32[($4_1 + 76 | 0) >> 2] = $3(HEAP32[($4_1 + 72 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 68 | 0) >> 2] | 0 | 0) | 0;
-    break label$11;
+    break block12;
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   $171 = HEAP32[($4_1 + 76 | 0) >> 2] | 0;
@@ -1732,7 +1730,7 @@ function asmFunc(imports) {
  function $6($0_1, $1_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
-  var $4_1 = 0, $109 = 0, $117_1 = 0, $127 = 0, $139 = 0, $171 = 0;
+  var $4_1 = 0, $109_1 = 0, $117_1 = 0, $127 = 0, $139 = 0, $171 = 0, $559 = 0;
   $4_1 = global$0 - 80 | 0;
   global$0 = $4_1;
   HEAP32[($4_1 + 72 | 0) >> 2] = $0_1;
@@ -1755,58 +1753,58 @@ function asmFunc(imports) {
   HEAP8[($4_1 + 10 | 0) >> 0] = 0;
   HEAP8[($4_1 + 9 | 0) >> 0] = 0;
   HEAP8[($4_1 + 8 | 0) >> 0] = 0;
-  label$1 : {
-   label$2 : {
+  block1 : {
+   block : {
     if (!((HEAP32[($4_1 + 72 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-     break label$2
+     break block
     }
     if ((HEAP32[($4_1 + 68 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-     break label$1
+     break block1
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
-  HEAP32[($4_1 + 32 | 0) >> 2] = $39(HEAP32[($4_1 + 72 | 0) >> 2] | 0 | 0) | 0;
-  HEAP32[($4_1 + 28 | 0) >> 2] = $39(HEAP32[($4_1 + 68 | 0) >> 2] | 0 | 0) | 0;
-  label$3 : {
-   label$4 : {
+  HEAP32[($4_1 + 32 | 0) >> 2] = $41(HEAP32[($4_1 + 72 | 0) >> 2] | 0 | 0) | 0;
+  HEAP32[($4_1 + 28 | 0) >> 2] = $41(HEAP32[($4_1 + 68 | 0) >> 2] | 0 | 0) | 0;
+  block3 : {
+   block2 : {
     if (!(HEAP32[($4_1 + 32 | 0) >> 2] | 0)) {
-     break label$4
+     break block2
     }
     if (HEAP32[($4_1 + 28 | 0) >> 2] | 0) {
-     break label$3
+     break block3
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 64 | 0) >> 2] = $16(0 | 0, HEAP32[($4_1 + 32 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 72 | 0) >> 2] | 0 | 0) | 0;
   HEAP32[($4_1 + 60 | 0) >> 2] = $16(0 | 0, HEAP32[($4_1 + 28 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 68 | 0) >> 2] | 0 | 0) | 0;
-  label$5 : {
-   label$6 : {
+  block5 : {
+   block4 : {
     if (!((HEAP32[($4_1 + 64 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-     break label$6
+     break block4
     }
     if ((HEAP32[($4_1 + 60 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-     break label$5
+     break block5
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 56 | 0) >> 2] = $17((HEAP32[($4_1 + 64 | 0) >> 2] | 0) - (HEAP32[($4_1 + 72 | 0) >> 2] | 0) | 0 | 0, HEAP32[($4_1 + 32 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 72 | 0) >> 2] | 0 | 0) | 0;
   HEAP32[($4_1 + 52 | 0) >> 2] = $17((HEAP32[($4_1 + 60 | 0) >> 2] | 0) - (HEAP32[($4_1 + 68 | 0) >> 2] | 0) | 0 | 0, HEAP32[($4_1 + 28 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 68 | 0) >> 2] | 0 | 0) | 0;
-  label$7 : {
-   label$8 : {
+  block7 : {
+   block6 : {
     if (!((HEAP32[($4_1 + 56 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-     break label$8
+     break block6
     }
     if ((HEAP32[($4_1 + 52 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-     break label$7
+     break block7
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 24 | 0) >> 2] = ((HEAP32[($4_1 + 56 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 64 | 0) >> 2] | 0) | 0;
@@ -1817,60 +1815,60 @@ function asmFunc(imports) {
   HEAP32[($4_1 + 36 | 0) >> 2] = (HEAP32[($4_1 + 60 | 0) >> 2] | 0) + -1 | 0;
   HEAP32[($4_1 + 16 | 0) >> 2] = ((HEAP32[($4_1 + 40 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 48 | 0) >> 2] | 0) | 0;
   HEAP32[($4_1 + 12 | 0) >> 2] = ((HEAP32[($4_1 + 36 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 44 | 0) >> 2] | 0) | 0;
-  $109 = 24;
-  HEAP8[($4_1 + 9 | 0) >> 0] = ($15(((HEAPU8[(HEAP32[($4_1 + 64 | 0) >> 2] | 0) >> 0] | 0) << $109 | 0) >> $109 | 0 | 0) | 0) & 1 | 0;
+  $109_1 = 24;
+  HEAP8[($4_1 + 9 | 0) >> 0] = ($15(((HEAPU8[(HEAP32[($4_1 + 64 | 0) >> 2] | 0) >> 0] | 0) << $109_1 | 0) >> $109_1 | 0 | 0) | 0) & 1 | 0;
   $117_1 = 24;
   HEAP8[($4_1 + 8 | 0) >> 0] = ($15(((HEAPU8[(HEAP32[($4_1 + 60 | 0) >> 2] | 0) >> 0] | 0) << $117_1 | 0) >> $117_1 | 0 | 0) | 0) & 1 | 0;
   $127 = 0;
-  label$9 : {
+  block8 : {
    if ((HEAPU8[($4_1 + 9 | 0) >> 0] | 0) & 1 | 0) {
-    break label$9
+    break block8
    }
    $127 = $36(0 | 0, HEAP32[($4_1 + 16 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 48 | 0) >> 2] | 0 | 0) | 0;
   }
   HEAP8[($4_1 + 11 | 0) >> 0] = $127 & 1 | 0;
   $139 = 0;
-  label$10 : {
+  block9 : {
    if ((HEAPU8[($4_1 + 8 | 0) >> 0] | 0) & 1 | 0) {
-    break label$10
+    break block9
    }
    $139 = $36(0 | 0, HEAP32[($4_1 + 12 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 44 | 0) >> 2] | 0 | 0) | 0;
   }
   HEAP8[($4_1 + 10 | 0) >> 0] = $139 & 1 | 0;
-  label$11 : {
-   label$12 : {
-    label$13 : {
+  block12 : {
+   block11 : {
+    block10 : {
      if ((HEAPU8[($4_1 + 11 | 0) >> 0] | 0) & 1 | 0) {
-      break label$13
+      break block10
      }
      if (!((HEAPU8[($4_1 + 10 | 0) >> 0] | 0) & 1 | 0)) {
-      break label$12
+      break block11
      }
     }
     HEAP32[($4_1 + 76 | 0) >> 2] = $4(HEAP32[($4_1 + 72 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 68 | 0) >> 2] | 0 | 0) | 0;
-    break label$11;
+    break block12;
    }
-   label$14 : {
-    label$15 : {
+   block14 : {
+    block13 : {
      if ((HEAPU8[($4_1 + 9 | 0) >> 0] | 0) & 1 | 0) {
-      break label$15
+      break block13
      }
      if ((HEAPU8[($4_1 + 11 | 0) >> 0] | 0) & 1 | 0) {
-      break label$14
+      break block14
      }
     }
-    label$16 : {
+    block15 : {
      if ((HEAPU8[($4_1 + 8 | 0) >> 0] | 0) & 1 | 0) {
-      break label$16
+      break block15
      }
      if ((HEAPU8[($4_1 + 10 | 0) >> 0] | 0) & 1 | 0) {
-      break label$14
+      break block14
      }
     }
     HEAP32[($4_1 + 76 | 0) >> 2] = $2(HEAP32[($4_1 + 72 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 68 | 0) >> 2] | 0 | 0) | 0;
-    break label$11;
+    break block12;
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   $171 = HEAP32[($4_1 + 76 | 0) >> 2] | 0;
@@ -1881,27 +1879,27 @@ function asmFunc(imports) {
  function $7($0_1, $1_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
-  var $4_1 = 0, $28_1 = 0;
+  var $4_1 = 0, $28_1 = 0, $103_1 = 0;
   $4_1 = global$0 - 32 | 0;
   global$0 = $4_1;
   HEAP32[($4_1 + 28 | 0) >> 2] = $0_1;
   HEAP32[($4_1 + 24 | 0) >> 2] = $1_1;
   HEAP32[($4_1 + 20 | 0) >> 2] = 65536;
   HEAP32[($4_1 + 16 | 0) >> 2] = 0;
-  HEAP32[($4_1 + 12 | 0) >> 2] = $102(2 | 0, 1 | 0) | 0;
+  HEAP32[($4_1 + 12 | 0) >> 2] = $105(2 | 0, 1 | 0) | 0;
   HEAP8[(HEAP32[($4_1 + 12 | 0) >> 2] | 0) >> 0] = HEAPU8[(HEAP32[($4_1 + 20 | 0) >> 2] | 0) >> 0] | 0;
   HEAP32[($4_1 + 8 | 0) >> 2] = 0;
-  label$1 : {
-   label$2 : while (1) {
+  block : {
+   label : while (1) {
     if (!((HEAP32[($4_1 + 8 | 0) >> 2] | 0) >>> 0 < (HEAP32[($4_1 + 24 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-     break label$1
+     break block
     }
     HEAP32[($4_1 + 16 | 0) >> 2] = $6(HEAP32[($4_1 + 12 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 28 | 0) >> 2] | 0 | 0) | 0;
-    $101(HEAP32[($4_1 + 12 | 0) >> 2] | 0 | 0);
+    $104(HEAP32[($4_1 + 12 | 0) >> 2] | 0 | 0);
     HEAP32[($4_1 + 12 | 0) >> 2] = 0;
     HEAP32[($4_1 + 12 | 0) >> 2] = HEAP32[($4_1 + 16 | 0) >> 2] | 0;
     HEAP32[($4_1 + 8 | 0) >> 2] = (HEAP32[($4_1 + 8 | 0) >> 2] | 0) + 1 | 0;
-    continue label$2;
+    continue label;
    };
   }
   $28_1 = HEAP32[($4_1 + 12 | 0) >> 2] | 0;
@@ -1912,13 +1910,13 @@ function asmFunc(imports) {
  function $8($0_1, $1_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
-  var $4_1 = 0, $70_1 = 0, $116_1 = 0;
+  var $4_1 = 0, $70_1 = 0, $89_1 = 0, $87_1 = 0, $88_1 = 0, $117_1 = 0, $415 = 0;
   $4_1 = global$0 - 80 | 0;
   global$0 = $4_1;
   HEAP32[($4_1 + 76 | 0) >> 2] = $0_1;
   HEAP32[($4_1 + 72 | 0) >> 2] = $1_1;
-  HEAP32[($4_1 + 68 | 0) >> 2] = $39(HEAP32[($4_1 + 76 | 0) >> 2] | 0 | 0) | 0;
-  HEAP32[($4_1 + 64 | 0) >> 2] = $39(HEAP32[($4_1 + 72 | 0) >> 2] | 0 | 0) | 0;
+  HEAP32[($4_1 + 68 | 0) >> 2] = $41(HEAP32[($4_1 + 76 | 0) >> 2] | 0 | 0) | 0;
+  HEAP32[($4_1 + 64 | 0) >> 2] = $41(HEAP32[($4_1 + 72 | 0) >> 2] | 0 | 0) | 0;
   HEAP32[($4_1 + 60 | 0) >> 2] = 0;
   HEAP32[($4_1 + 56 | 0) >> 2] = 0;
   HEAP32[($4_1 + 52 | 0) >> 2] = 0;
@@ -1932,47 +1930,55 @@ function asmFunc(imports) {
   HEAP32[($4_1 + 40 | 0) >> 2] = $17((HEAP32[($4_1 + 44 | 0) >> 2] | 0) - (HEAP32[($4_1 + 72 | 0) >> 2] | 0) | 0 | 0, HEAP32[($4_1 + 64 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 72 | 0) >> 2] | 0 | 0) | 0;
   HEAP32[($4_1 + 56 | 0) >> 2] = ((HEAP32[($4_1 + 40 | 0) >> 2] | 0) - (HEAP32[($4_1 + 44 | 0) >> 2] | 0) | 0) + 1 | 0;
   HEAP32[($4_1 + 36 | 0) >> 2] = 65536;
-  HEAP32[($4_1 + 32 | 0) >> 2] = $102(2 | 0, 1 | 0) | 0;
+  HEAP32[($4_1 + 32 | 0) >> 2] = $105(2 | 0, 1 | 0) | 0;
   HEAP32[($4_1 + 28 | 0) >> 2] = 0;
   HEAP32[($4_1 + 24 | 0) >> 2] = 0;
   HEAP8[(HEAP32[($4_1 + 32 | 0) >> 2] | 0) >> 0] = HEAPU8[(HEAP32[($4_1 + 36 | 0) >> 2] | 0) >> 0] | 0;
   HEAP32[($4_1 + 20 | 0) >> 2] = HEAP32[($4_1 + 56 | 0) >> 2] | 0;
-  label$1 : {
-   label$2 : while (1) {
+  block : {
+   label1 : while (1) {
     if (!((HEAP32[($4_1 + 20 | 0) >> 2] | 0) >>> 0 > 0 >>> 0 & 1 | 0)) {
-     break label$1
+     break block
     }
     HEAP32[($4_1 + 16 | 0) >> 2] = (HEAP32[($4_1 + 56 | 0) >> 2] | 0) - (HEAP32[($4_1 + 20 | 0) >> 2] | 0) | 0;
     $70_1 = 24;
     HEAP32[($4_1 + 12 | 0) >> 2] = $18(0 | 0, ((HEAPU8[((HEAP32[($4_1 + 44 | 0) >> 2] | 0) + ((HEAP32[($4_1 + 20 | 0) >> 2] | 0) - 1 | 0) | 0) >> 0] | 0) << $70_1 | 0) >> $70_1 | 0 | 0) | 0;
     HEAP32[($4_1 + 8 | 0) >> 2] = 0;
     HEAP32[($4_1 + 28 | 0) >> 2] = $7(HEAP32[($4_1 + 52 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 12 | 0) >> 2] | 0 | 0) | 0;
-    HEAP32[($4_1 + 8 | 0) >> 2] = $39(HEAP32[($4_1 + 28 | 0) >> 2] | 0 | 0) | 0;
-    HEAP32[($4_1 + 24 | 0) >> 2] = $102(((HEAP32[($4_1 + 8 | 0) >> 2] | 0) + (HEAP32[($4_1 + 16 | 0) >> 2] | 0) | 0) + 1 | 0 | 0, 1 | 0) | 0;
-    $41(HEAP32[($4_1 + 24 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 28 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 8 | 0) >> 2] | 0 | 0) | 0;
-    $101(HEAP32[($4_1 + 28 | 0) >> 2] | 0 | 0);
+    HEAP32[($4_1 + 8 | 0) >> 2] = $41(HEAP32[($4_1 + 28 | 0) >> 2] | 0 | 0) | 0;
+    HEAP32[($4_1 + 24 | 0) >> 2] = $105(((HEAP32[($4_1 + 8 | 0) >> 2] | 0) + (HEAP32[($4_1 + 16 | 0) >> 2] | 0) | 0) + 1 | 0 | 0, 1 | 0) | 0;
+    $87_1 = HEAP32[($4_1 + 24 | 0) >> 2] | 0;
+    $88_1 = HEAP32[($4_1 + 28 | 0) >> 2] | 0;
+    $89_1 = HEAP32[($4_1 + 8 | 0) >> 2] | 0;
+    block1 : {
+     if (!$89_1) {
+      break block1
+     }
+     wasm2js_memory_copy($87_1, $88_1, $89_1);
+    }
+    $104(HEAP32[($4_1 + 28 | 0) >> 2] | 0 | 0);
     HEAP32[($4_1 + 4 | 0) >> 2] = 0;
-    label$3 : {
-     label$4 : while (1) {
+    block2 : {
+     label : while (1) {
       if (!((HEAP32[($4_1 + 4 | 0) >> 2] | 0) >>> 0 < (HEAP32[($4_1 + 16 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-       break label$3
+       break block2
       }
       HEAP8[(((HEAP32[($4_1 + 24 | 0) >> 2] | 0) + (HEAP32[($4_1 + 8 | 0) >> 2] | 0) | 0) + (HEAP32[($4_1 + 4 | 0) >> 2] | 0) | 0) >> 0] = HEAPU8[(HEAP32[($4_1 + 36 | 0) >> 2] | 0) >> 0] | 0;
       HEAP32[($4_1 + 4 | 0) >> 2] = (HEAP32[($4_1 + 4 | 0) >> 2] | 0) + 1 | 0;
-      continue label$4;
+      continue label;
      };
     }
     HEAP32[$4_1 >> 2] = $6(HEAP32[($4_1 + 32 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 24 | 0) >> 2] | 0 | 0) | 0;
-    $101(HEAP32[($4_1 + 24 | 0) >> 2] | 0 | 0);
-    $101(HEAP32[($4_1 + 32 | 0) >> 2] | 0 | 0);
+    $104(HEAP32[($4_1 + 24 | 0) >> 2] | 0 | 0);
+    $104(HEAP32[($4_1 + 32 | 0) >> 2] | 0 | 0);
     HEAP32[($4_1 + 32 | 0) >> 2] = HEAP32[$4_1 >> 2] | 0;
     HEAP32[($4_1 + 20 | 0) >> 2] = (HEAP32[($4_1 + 20 | 0) >> 2] | 0) + -1 | 0;
-    continue label$2;
+    continue label1;
    };
   }
-  $116_1 = HEAP32[($4_1 + 32 | 0) >> 2] | 0;
+  $117_1 = HEAP32[($4_1 + 32 | 0) >> 2] | 0;
   global$0 = $4_1 + 80 | 0;
-  return $116_1 | 0;
+  return $117_1 | 0;
  }
  
  function $9($0_1, $1_1, $2_1) {
@@ -1987,12 +1993,12 @@ function asmFunc(imports) {
   HEAP32[($5_1 + 4 | 0) >> 2] = $2_1;
   $32(HEAP32[($5_1 + 12 | 0) >> 2] | 0 | 0);
   $34(HEAP32[($5_1 + 8 | 0) >> 2] | 0 | 0);
-  label$1 : {
+  block : {
    if (!((HEAP32[($5_1 + 4 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-    break label$1
+    break block
    }
-   if ($39(HEAP32[($5_1 + 4 | 0) >> 2] | 0 | 0) | 0) {
-    break label$1
+   if ($41(HEAP32[($5_1 + 4 | 0) >> 2] | 0 | 0) | 0) {
+    break block
    }
    HEAP32[($5_1 + 4 | 0) >> 2] = 65584;
   }
@@ -2002,36 +2008,45 @@ function asmFunc(imports) {
  }
  
  function $10() {
-  return HEAP32[(0 + 68504 | 0) >> 2] | 0 | 0;
+  var $5_1 = 0;
+  return HEAP32[(0 + 68512 | 0) >> 2] | 0 | 0;
  }
  
  function $11($0_1) {
   $0_1 = $0_1 | 0;
-  var $3_1 = 0;
+  var $3_1 = 0, $37_1 = 0, $34_1 = 0, $35_1 = 0;
   $3_1 = global$0 - 16 | 0;
   global$0 = $3_1;
   HEAP32[($3_1 + 12 | 0) >> 2] = $0_1;
-  label$1 : {
-   if (!((HEAP32[(0 + 68504 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-    break label$1
+  block : {
+   if (!((HEAP32[(0 + 68512 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
+    break block
    }
-   $101(HEAP32[(0 + 68504 | 0) >> 2] | 0 | 0);
-   HEAP32[(0 + 68504 | 0) >> 2] = 0;
+   $104(HEAP32[(0 + 68512 | 0) >> 2] | 0 | 0);
+   HEAP32[(0 + 68512 | 0) >> 2] = 0;
   }
-  label$2 : {
+  block1 : {
    if (!((HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-    break label$2
+    break block1
    }
-   HEAP32[(0 + 68504 | 0) >> 2] = $102(($39(HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) | 0) + 1 | 0 | 0, 1 | 0) | 0;
+   HEAP32[(0 + 68512 | 0) >> 2] = $105(($41(HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) | 0) + 1 | 0 | 0, 1 | 0) | 0;
   }
-  label$3 : {
+  block2 : {
    if (!((HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-    break label$3
+    break block2
    }
-   if (!($39(HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) | 0)) {
-    break label$3
+   if (!($41(HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) | 0)) {
+    break block2
    }
-   $41(HEAP32[(0 + 68504 | 0) >> 2] | 0 | 0, HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0, $39(HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) | 0 | 0) | 0;
+   $34_1 = HEAP32[(0 + 68512 | 0) >> 2] | 0;
+   $35_1 = HEAP32[($3_1 + 12 | 0) >> 2] | 0;
+   $37_1 = $41(HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) | 0;
+   block3 : {
+    if (!$37_1) {
+     break block3
+    }
+    wasm2js_memory_copy($34_1, $35_1, $37_1);
+   }
   }
   global$0 = $3_1 + 16 | 0;
   return;
@@ -2042,22 +2057,22 @@ function asmFunc(imports) {
   var $3_1 = 0;
   $3_1 = global$0 - 16 | 0;
   HEAP32[($3_1 + 12 | 0) >> 2] = $0_1;
-  HEAP32[(0 + 68504 | 0) >> 2] = HEAP32[($3_1 + 12 | 0) >> 2] | 0;
+  HEAP32[(0 + 68512 | 0) >> 2] = HEAP32[($3_1 + 12 | 0) >> 2] | 0;
   return;
  }
  
  function $13($0_1) {
   $0_1 = $0_1 | 0;
-  var $3_1 = 0, $15_1 = 0, $17_1 = 0;
+  var $3_1 = 0, $15_1 = 0, $17_1 = 0, $60_1 = 0;
   $3_1 = global$0 - 16 | 0;
   global$0 = $3_1;
   HEAP32[($3_1 + 12 | 0) >> 2] = $0_1;
-  label$1 : {
-   if (!((HEAP32[($3_1 + 12 | 0) >> 2] | 0) >>> 0 > ($39($10() | 0 | 0) | 0) >>> 0 & 1 | 0)) {
-    break label$1
+  block : {
+   if (!((HEAP32[($3_1 + 12 | 0) >> 2] | 0) >>> 0 > ($41($10() | 0 | 0) | 0) >>> 0 & 1 | 0)) {
+    break block
    }
-   $60(65603 | 0);
-   $40();
+   $63(65603 | 0);
+   $42();
    wasm2js_trap();
   }
   $15_1 = 24;
@@ -2069,42 +2084,42 @@ function asmFunc(imports) {
  function $14($0_1, $1_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
-  var $4_1 = 0, $18_1 = 0, $22_1 = 0, $32_1 = 0, $38_1 = 0, $41_1 = 0;
+  var $4_1 = 0, $18_1 = 0, $22_1 = 0, $32_1 = 0, $38_1 = 0, $41_1 = 0, $144 = 0;
   $4_1 = global$0 - 16 | 0;
   global$0 = $4_1;
   HEAP32[($4_1 + 12 | 0) >> 2] = $0_1;
   HEAP8[($4_1 + 11 | 0) >> 0] = $1_1;
-  label$1 : {
-   label$2 : {
-    if (!($39($10() | 0 | 0) | 0)) {
-     break label$2
+  block1 : {
+   block : {
+    if (!($41($10() | 0 | 0) | 0)) {
+     break block
     }
-    break label$1;
+    break block1;
    }
-   $60(65603 | 0);
-   $40();
+   $63(65603 | 0);
+   $42();
    wasm2js_trap();
   }
-  label$3 : {
-   label$4 : {
-    if (!((HEAP32[($4_1 + 12 | 0) >> 2] | 0) >>> 0 < ($39($10() | 0 | 0) | 0) >>> 0 & 1 | 0)) {
-     break label$4
+  block5 : {
+   block2 : {
+    if (!((HEAP32[($4_1 + 12 | 0) >> 2] | 0) >>> 0 < ($41($10() | 0 | 0) | 0) >>> 0 & 1 | 0)) {
+     break block2
     }
     $18_1 = 24;
     $22_1 = 24;
-    label$5 : {
-     label$6 : {
+    block4 : {
+     block3 : {
       if (!((((HEAPU8[(($10() | 0) + (HEAP32[($4_1 + 12 | 0) >> 2] | 0) | 0) >> 0] | 0) << $18_1 | 0) >> $18_1 | 0 | 0) != (((HEAPU8[($4_1 + 11 | 0) >> 0] | 0) << $22_1 | 0) >> $22_1 | 0 | 0) & 1 | 0)) {
-       break label$6
+       break block3
       }
       $32_1 = 24;
       $38_1 = ($14((HEAP32[($4_1 + 12 | 0) >> 2] | 0) + 1 | 0 | 0, ((HEAPU8[($4_1 + 11 | 0) >> 0] | 0) << $32_1 | 0) >> $32_1 | 0 | 0) | 0) & 1 | 0;
-      break label$5;
+      break block4;
      }
      $38_1 = 1;
     }
     $41_1 = $38_1;
-    break label$3;
+    break block5;
    }
    $41_1 = 0;
   }
@@ -2114,7 +2129,7 @@ function asmFunc(imports) {
  
  function $15($0_1) {
   $0_1 = $0_1 | 0;
-  var $3_1 = 0, $5_1 = 0, $10_1 = 0, $15_1 = 0;
+  var $3_1 = 0, $5_1 = 0, $10_1 = 0, $15_1 = 0, $52_1 = 0;
   $3_1 = global$0 - 16 | 0;
   global$0 = $3_1;
   HEAP8[($3_1 + 15 | 0) >> 0] = $0_1;
@@ -2129,59 +2144,59 @@ function asmFunc(imports) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
-  var $5_1 = 0, $27_1 = 0, $38_1 = 0, $50_1 = 0, $55_1 = 0, $61_1 = 0, $70_1 = 0;
+  var $5_1 = 0, $27_1 = 0, $38_1 = 0, $50_1 = 0, $55_1 = 0, $61_1 = 0, $70_1 = 0, $230 = 0;
   $5_1 = global$0 - 16 | 0;
   global$0 = $5_1;
   HEAP32[($5_1 + 12 | 0) >> 2] = $0_1;
   HEAP32[($5_1 + 8 | 0) >> 2] = $1_1;
   HEAP32[($5_1 + 4 | 0) >> 2] = $2_1;
-  label$1 : {
-   label$2 : {
-    if (!($39($10() | 0 | 0) | 0)) {
-     break label$2
+  block1 : {
+   block : {
+    if (!($41($10() | 0 | 0) | 0)) {
+     break block
     }
-    break label$1;
+    break block1;
    }
-   $60(65603 | 0);
-   $40();
+   $63(65603 | 0);
+   $42();
    wasm2js_trap();
   }
-  label$3 : {
-   label$4 : {
+  block6 : {
+   block2 : {
     if (!((HEAP32[($5_1 + 12 | 0) >> 2] | 0) >>> 0 < ((HEAP32[($5_1 + 12 | 0) >> 2] | 0) + 1 | 0) >>> 0 & 1 | 0)) {
-     break label$4
+     break block2
     }
     if (!(((HEAP32[($5_1 + 12 | 0) >> 2] | 0) + 1 | 0) >>> 0 < (HEAP32[($5_1 + 8 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-     break label$4
+     break block2
     }
     $27_1 = 24;
-    label$5 : {
-     label$6 : {
-      label$7 : {
+    block5 : {
+     block4 : {
+      block3 : {
        if (($15(((HEAPU8[((HEAP32[($5_1 + 4 | 0) >> 2] | 0) + (HEAP32[($5_1 + 12 | 0) >> 2] | 0) | 0) >> 0] | 0) << $27_1 | 0) >> $27_1 | 0 | 0) | 0) & 1 | 0) {
-        break label$7
+        break block3
        }
        $38_1 = 24;
        if (($14(0 | 0, ((HEAPU8[((HEAP32[($5_1 + 4 | 0) >> 2] | 0) + (HEAP32[($5_1 + 12 | 0) >> 2] | 0) | 0) >> 0] | 0) << $38_1 | 0) >> $38_1 | 0 | 0) | 0) & 1 | 0) {
-        break label$6
+        break block4
        }
       }
       $50_1 = $16((HEAP32[($5_1 + 12 | 0) >> 2] | 0) + 1 | 0 | 0, HEAP32[($5_1 + 8 | 0) >> 2] | 0 | 0, HEAP32[($5_1 + 4 | 0) >> 2] | 0 | 0) | 0;
-      break label$5;
+      break block5;
      }
      $50_1 = (HEAP32[($5_1 + 4 | 0) >> 2] | 0) + (HEAP32[($5_1 + 12 | 0) >> 2] | 0) | 0;
     }
     $55_1 = $50_1;
-    break label$3;
+    break block6;
    }
    $61_1 = 24;
-   label$8 : {
-    label$9 : {
+   block8 : {
+    block7 : {
      if (!(($14(0 | 0, ((HEAPU8[((HEAP32[($5_1 + 4 | 0) >> 2] | 0) + (HEAP32[($5_1 + 12 | 0) >> 2] | 0) | 0) >> 0] | 0) << $61_1 | 0) >> $61_1 | 0 | 0) | 0) & 1 | 0)) {
-      break label$9
+      break block7
      }
      $70_1 = (HEAP32[($5_1 + 4 | 0) >> 2] | 0) + (HEAP32[($5_1 + 12 | 0) >> 2] | 0) | 0;
-     break label$8;
+     break block8;
     }
     $70_1 = 0;
    }
@@ -2195,53 +2210,53 @@ function asmFunc(imports) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
-  var $5_1 = 0, $28_1 = 0, $40_1 = 0, $45_1 = 0, $51_1 = 0, $60_1 = 0;
+  var $5_1 = 0, $28_1 = 0, $40_1 = 0, $45_1 = 0, $51_1 = 0, $60_1 = 0, $214 = 0;
   $5_1 = global$0 - 16 | 0;
   global$0 = $5_1;
   HEAP32[($5_1 + 12 | 0) >> 2] = $0_1;
   HEAP32[($5_1 + 8 | 0) >> 2] = $1_1;
   HEAP32[($5_1 + 4 | 0) >> 2] = $2_1;
-  label$1 : {
-   label$2 : {
-    if (!($39($10() | 0 | 0) | 0)) {
-     break label$2
+  block1 : {
+   block : {
+    if (!($41($10() | 0 | 0) | 0)) {
+     break block
     }
-    break label$1;
+    break block1;
    }
-   $60(65603 | 0);
-   $40();
+   $63(65603 | 0);
+   $42();
    wasm2js_trap();
   }
-  label$3 : {
-   label$4 : {
+  block5 : {
+   block2 : {
     if (!((HEAP32[($5_1 + 12 | 0) >> 2] | 0) >>> 0 < ((HEAP32[($5_1 + 12 | 0) >> 2] | 0) + 1 | 0) >>> 0 & 1 | 0)) {
-     break label$4
+     break block2
     }
     if (!(((HEAP32[($5_1 + 12 | 0) >> 2] | 0) + 1 | 0) >>> 0 < (HEAP32[($5_1 + 8 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-     break label$4
+     break block2
     }
     $28_1 = 24;
-    label$5 : {
-     label$6 : {
+    block4 : {
+     block3 : {
       if (!(($14(0 | 0, ((HEAPU8[((HEAP32[($5_1 + 4 | 0) >> 2] | 0) + (HEAP32[($5_1 + 12 | 0) >> 2] | 0) | 0) >> 0] | 0) << $28_1 | 0) >> $28_1 | 0 | 0) | 0) & 1 | 0)) {
-       break label$6
+       break block3
       }
       $40_1 = $17((HEAP32[($5_1 + 12 | 0) >> 2] | 0) + 1 | 0 | 0, HEAP32[($5_1 + 8 | 0) >> 2] | 0 | 0, HEAP32[($5_1 + 4 | 0) >> 2] | 0 | 0) | 0;
-      break label$5;
+      break block4;
      }
      $40_1 = (HEAP32[($5_1 + 4 | 0) >> 2] | 0) + (HEAP32[($5_1 + 12 | 0) >> 2] | 0) | 0;
     }
     $45_1 = $40_1;
-    break label$3;
+    break block5;
    }
    $51_1 = 24;
-   label$7 : {
-    label$8 : {
+   block7 : {
+    block6 : {
      if (!(($14(0 | 0, ((HEAPU8[((HEAP32[($5_1 + 4 | 0) >> 2] | 0) + (HEAP32[($5_1 + 12 | 0) >> 2] | 0) | 0) >> 0] | 0) << $51_1 | 0) >> $51_1 | 0 | 0) | 0) & 1 | 0)) {
-      break label$8
+      break block6
      }
      $60_1 = (HEAP32[($5_1 + 4 | 0) >> 2] | 0) + (HEAP32[($5_1 + 12 | 0) >> 2] | 0) | 0;
-     break label$7;
+     break block7;
     }
     $60_1 = ((HEAP32[($5_1 + 4 | 0) >> 2] | 0) + (HEAP32[($5_1 + 12 | 0) >> 2] | 0) | 0) + -1 | 0;
    }
@@ -2254,46 +2269,46 @@ function asmFunc(imports) {
  function $18($0_1, $1_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
-  var $4_1 = 0, $10_1 = 0, $24_1 = 0, $29_1 = 0, $36_1 = 0, $41_1 = 0;
+  var $4_1 = 0, $10_1 = 0, $24_1 = 0, $29_1 = 0, $36_1 = 0, $41_1 = 0, $144 = 0;
   $4_1 = global$0 - 16 | 0;
   global$0 = $4_1;
   HEAP32[($4_1 + 12 | 0) >> 2] = $0_1;
   HEAP8[($4_1 + 11 | 0) >> 0] = $1_1;
-  label$1 : {
-   label$2 : {
-    if (!($39($10() | 0 | 0) | 0)) {
-     break label$2
+  block1 : {
+   block : {
+    if (!($41($10() | 0 | 0) | 0)) {
+     break block
     }
-    break label$1;
+    break block1;
    }
-   $60(65603 | 0);
-   $40();
+   $63(65603 | 0);
+   $42();
    wasm2js_trap();
   }
   $10_1 = 24;
-  label$3 : {
+  block2 : {
    if (($14(0 | 0, ((HEAPU8[($4_1 + 11 | 0) >> 0] | 0) << $10_1 | 0) >> $10_1 | 0 | 0) | 0) & 1 | 0) {
-    break label$3
+    break block2
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
-  label$4 : {
+  block3 : {
    if ((HEAP32[($4_1 + 12 | 0) >> 2] | 0) >>> 0 < ((HEAP32[($4_1 + 12 | 0) >> 2] | 0) + 1 | 0) >>> 0 & 1 | 0) {
-    break label$4
+    break block3
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   $24_1 = 24;
   $29_1 = 24;
-  label$5 : {
-   label$6 : {
+  block5 : {
+   block4 : {
     if (!((((HEAPU8[($4_1 + 11 | 0) >> 0] | 0) << $24_1 | 0) >> $24_1 | 0 | 0) == ((($13(HEAP32[($4_1 + 12 | 0) >> 2] | 0 | 0) | 0) << $29_1 | 0) >> $29_1 | 0 | 0) & 1 | 0)) {
-     break label$6
+     break block4
     }
     $36_1 = HEAP32[($4_1 + 12 | 0) >> 2] | 0;
-    break label$5;
+    break block5;
    }
    $41_1 = 24;
    $36_1 = $18((HEAP32[($4_1 + 12 | 0) >> 2] | 0) + 1 | 0 | 0, ((HEAPU8[($4_1 + 11 | 0) >> 0] | 0) << $41_1 | 0) >> $41_1 | 0 | 0) | 0;
@@ -2305,49 +2320,49 @@ function asmFunc(imports) {
  function $19($0_1, $1_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
-  var $4_1 = 0, $10_1 = 0, $16_1 = 0, $38_1 = 0;
+  var $4_1 = 0, $10_1 = 0, $16_1 = 0, $38_1 = 0, $131 = 0;
   $4_1 = global$0 - 16 | 0;
   global$0 = $4_1;
   HEAP8[($4_1 + 11 | 0) >> 0] = $0_1;
   HEAP8[($4_1 + 10 | 0) >> 0] = $1_1;
-  label$1 : {
-   label$2 : {
-    if (!($39($10() | 0 | 0) | 0)) {
-     break label$2
+  block1 : {
+   block : {
+    if (!($41($10() | 0 | 0) | 0)) {
+     break block
     }
-    break label$1;
+    break block1;
    }
-   $60(65603 | 0);
-   $40();
+   $63(65603 | 0);
+   $42();
    wasm2js_trap();
   }
   $10_1 = 24;
   HEAP32[($4_1 + 4 | 0) >> 2] = $18(0 | 0, ((HEAPU8[($4_1 + 11 | 0) >> 0] | 0) << $10_1 | 0) >> $10_1 | 0 | 0) | 0;
   $16_1 = 24;
   HEAP32[$4_1 >> 2] = $18(0 | 0, ((HEAPU8[($4_1 + 10 | 0) >> 0] | 0) << $16_1 | 0) >> $16_1 | 0 | 0) | 0;
-  label$3 : {
-   label$4 : {
+  block3 : {
+   block2 : {
     if (!((HEAP32[($4_1 + 4 | 0) >> 2] | 0 | 0) == (HEAP32[$4_1 >> 2] | 0 | 0) & 1 | 0)) {
-     break label$4
+     break block2
     }
     HEAP32[($4_1 + 12 | 0) >> 2] = 0;
-    break label$3;
+    break block3;
    }
-   label$5 : {
+   block4 : {
     if (!((HEAP32[($4_1 + 4 | 0) >> 2] | 0) >>> 0 > (HEAP32[$4_1 >> 2] | 0) >>> 0 & 1 | 0)) {
-     break label$5
+     break block4
     }
     HEAP32[($4_1 + 12 | 0) >> 2] = 1;
-    break label$3;
+    break block3;
    }
-   label$6 : {
+   block5 : {
     if (!((HEAP32[($4_1 + 4 | 0) >> 2] | 0) >>> 0 < (HEAP32[$4_1 >> 2] | 0) >>> 0 & 1 | 0)) {
-     break label$6
+     break block5
     }
     HEAP32[($4_1 + 12 | 0) >> 2] = -1;
-    break label$3;
+    break block3;
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   $38_1 = HEAP32[($4_1 + 12 | 0) >> 2] | 0;
@@ -2358,20 +2373,20 @@ function asmFunc(imports) {
  function $20($0_1, $1_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
-  var $4_1 = 0, $93_1 = 0, $110_1 = 0, $113_1 = 0, $123 = 0;
+  var $4_1 = 0, $93_1 = 0, $110_1 = 0, $113_1 = 0, $123_1 = 0, $415 = 0;
   $4_1 = global$0 - 48 | 0;
   global$0 = $4_1;
   HEAP32[($4_1 + 40 | 0) >> 2] = $0_1;
   HEAP32[($4_1 + 36 | 0) >> 2] = $1_1;
-  label$1 : {
-   label$2 : {
-    if (!($39($10() | 0 | 0) | 0)) {
-     break label$2
+  block1 : {
+   block : {
+    if (!($41($10() | 0 | 0) | 0)) {
+     break block
     }
-    break label$1;
+    break block1;
    }
-   $60(65603 | 0);
-   $40();
+   $63(65603 | 0);
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 32 | 0) >> 2] = 0;
@@ -2380,103 +2395,103 @@ function asmFunc(imports) {
   HEAP32[($4_1 + 20 | 0) >> 2] = 0;
   HEAP32[($4_1 + 16 | 0) >> 2] = 0;
   HEAP32[($4_1 + 12 | 0) >> 2] = 0;
-  HEAP32[($4_1 + 32 | 0) >> 2] = $39(HEAP32[($4_1 + 40 | 0) >> 2] | 0 | 0) | 0;
-  HEAP32[($4_1 + 28 | 0) >> 2] = $39(HEAP32[($4_1 + 36 | 0) >> 2] | 0 | 0) | 0;
+  HEAP32[($4_1 + 32 | 0) >> 2] = $41(HEAP32[($4_1 + 40 | 0) >> 2] | 0 | 0) | 0;
+  HEAP32[($4_1 + 28 | 0) >> 2] = $41(HEAP32[($4_1 + 36 | 0) >> 2] | 0 | 0) | 0;
   HEAP32[($4_1 + 24 | 0) >> 2] = $16(0 | 0, HEAP32[($4_1 + 32 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 40 | 0) >> 2] | 0 | 0) | 0;
   HEAP32[($4_1 + 20 | 0) >> 2] = $16(0 | 0, HEAP32[($4_1 + 28 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 36 | 0) >> 2] | 0 | 0) | 0;
-  label$3 : {
-   label$4 : {
+  block3 : {
+   block2 : {
     if (!((HEAP32[($4_1 + 24 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-     break label$4
+     break block2
     }
     if ((HEAP32[($4_1 + 20 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-     break label$3
+     break block3
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 16 | 0) >> 2] = $17((HEAP32[($4_1 + 24 | 0) >> 2] | 0) - (HEAP32[($4_1 + 40 | 0) >> 2] | 0) | 0 | 0, HEAP32[($4_1 + 32 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 40 | 0) >> 2] | 0 | 0) | 0;
   HEAP32[($4_1 + 12 | 0) >> 2] = $17((HEAP32[($4_1 + 20 | 0) >> 2] | 0) - (HEAP32[($4_1 + 36 | 0) >> 2] | 0) | 0 | 0, HEAP32[($4_1 + 28 | 0) >> 2] | 0 | 0, HEAP32[($4_1 + 36 | 0) >> 2] | 0 | 0) | 0;
-  label$5 : {
-   label$6 : {
+  block5 : {
+   block4 : {
     if (!((HEAP32[($4_1 + 16 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-     break label$6
+     break block4
     }
     if ((HEAP32[($4_1 + 12 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0) {
-     break label$5
+     break block5
     }
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
   HEAP32[($4_1 + 32 | 0) >> 2] = ((HEAP32[($4_1 + 16 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 24 | 0) >> 2] | 0) | 0;
   HEAP32[($4_1 + 28 | 0) >> 2] = ((HEAP32[($4_1 + 12 | 0) >> 2] | 0) + 1 | 0) - (HEAP32[($4_1 + 20 | 0) >> 2] | 0) | 0;
-  label$7 : {
-   label$8 : {
+  block7 : {
+   block6 : {
     if (!((HEAP32[($4_1 + 32 | 0) >> 2] | 0) >>> 0 > (HEAP32[($4_1 + 28 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-     break label$8
+     break block6
     }
     HEAP32[($4_1 + 44 | 0) >> 2] = 1;
-    break label$7;
+    break block7;
    }
-   label$9 : {
+   block8 : {
     if (!((HEAP32[($4_1 + 32 | 0) >> 2] | 0) >>> 0 < (HEAP32[($4_1 + 28 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-     break label$9
+     break block8
     }
     HEAP32[($4_1 + 44 | 0) >> 2] = -1;
-    break label$7;
+    break block7;
    }
-   label$10 : {
+   block9 : {
     if (!((HEAP32[($4_1 + 32 | 0) >> 2] | 0 | 0) == (HEAP32[($4_1 + 28 | 0) >> 2] | 0 | 0) & 1 | 0)) {
-     break label$10
+     break block9
     }
     HEAP32[($4_1 + 8 | 0) >> 2] = 0;
     HEAP32[($4_1 + 4 | 0) >> 2] = 0;
-    label$11 : while (1) {
+    label : while (1) {
      $93_1 = 0;
-     label$12 : {
+     block10 : {
       if (!((HEAP32[($4_1 + 4 | 0) >> 2] | 0) >>> 0 < (HEAP32[($4_1 + 32 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-       break label$12
+       break block10
       }
       $93_1 = (HEAP32[($4_1 + 4 | 0) >> 2] | 0) >>> 0 < ((HEAP32[($4_1 + 4 | 0) >> 2] | 0) + 1 | 0) >>> 0;
      }
-     label$13 : {
+     block11 : {
       if (!($93_1 & 1 | 0)) {
-       break label$13
+       break block11
       }
       $110_1 = 24;
       $113_1 = 24;
       HEAP32[($4_1 + 8 | 0) >> 2] = $19(((HEAPU8[((HEAP32[($4_1 + 24 | 0) >> 2] | 0) + (HEAP32[($4_1 + 4 | 0) >> 2] | 0) | 0) >> 0] | 0) << $110_1 | 0) >> $110_1 | 0 | 0, ((HEAPU8[((HEAP32[($4_1 + 20 | 0) >> 2] | 0) + (HEAP32[($4_1 + 4 | 0) >> 2] | 0) | 0) >> 0] | 0) << $113_1 | 0) >> $113_1 | 0 | 0) | 0;
-      label$14 : {
-       label$15 : {
+      block13 : {
+       block12 : {
         if (HEAP32[($4_1 + 8 | 0) >> 2] | 0) {
-         break label$15
+         break block12
         }
-        break label$14;
+        break block13;
        }
        HEAP32[($4_1 + 44 | 0) >> 2] = HEAP32[($4_1 + 8 | 0) >> 2] | 0;
-       break label$7;
+       break block7;
       }
       HEAP32[($4_1 + 4 | 0) >> 2] = (HEAP32[($4_1 + 4 | 0) >> 2] | 0) + 1 | 0;
-      continue label$11;
+      continue label;
      }
-     break label$11;
+     break label;
     };
     HEAP32[($4_1 + 44 | 0) >> 2] = HEAP32[($4_1 + 8 | 0) >> 2] | 0;
-    break label$7;
+    break block7;
    }
-   $40();
+   $42();
    wasm2js_trap();
   }
-  $123 = HEAP32[($4_1 + 44 | 0) >> 2] | 0;
+  $123_1 = HEAP32[($4_1 + 44 | 0) >> 2] | 0;
   global$0 = $4_1 + 48 | 0;
-  return $123 | 0;
+  return $123_1 | 0;
  }
  
  function $21($0_1) {
   $0_1 = $0_1 | 0;
-  var $3_1 = 0, $7_1 = 0, $11_1 = 0, $20_1 = 0, $18_1 = 0, $26_1 = 0;
+  var $3_1 = 0, $7_1 = 0, $11_1 = 0, $20_1 = 0, $18_1 = 0, $26_1 = 0, $93_1 = 0;
   $3_1 = global$0 - 32 | 0;
   global$0 = $3_1;
   HEAP8[($3_1 + 31 | 0) >> 0] = $0_1;
@@ -2485,12 +2500,12 @@ function asmFunc(imports) {
   $7_1 = 24;
   HEAP32[$3_1 >> 2] = ((HEAPU8[($3_1 + 31 | 0) >> 0] | 0) << $7_1 | 0) >> $7_1 | 0;
   $11_1 = 0;
-  HEAP32[($3_1 + 20 | 0) >> 2] = $66($11_1 | 0, $11_1 | 0, 65604 | 0, $3_1 | 0) | 0;
-  HEAP32[($3_1 + 24 | 0) >> 2] = $102((HEAP32[($3_1 + 20 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
+  HEAP32[($3_1 + 20 | 0) >> 2] = $68($11_1 | 0, $11_1 | 0, 65604 | 0, $3_1 | 0) | 0;
+  HEAP32[($3_1 + 24 | 0) >> 2] = $105((HEAP32[($3_1 + 20 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
   $18_1 = HEAP32[($3_1 + 24 | 0) >> 2] | 0;
   $20_1 = 24;
   HEAP32[($3_1 + 16 | 0) >> 2] = ((HEAPU8[($3_1 + 31 | 0) >> 0] | 0) << $20_1 | 0) >> $20_1 | 0;
-  $67($18_1 | 0, 65604 | 0, $3_1 + 16 | 0 | 0) | 0;
+  $69($18_1 | 0, 65604 | 0, $3_1 + 16 | 0 | 0) | 0;
   $26_1 = HEAP32[($3_1 + 24 | 0) >> 2] | 0;
   global$0 = $3_1 + 32 | 0;
   return $26_1 | 0;
@@ -2498,7 +2513,7 @@ function asmFunc(imports) {
  
  function $22($0_1) {
   $0_1 = $0_1 | 0;
-  var $3_1 = 0, $10_1 = 0, $17_1 = 0, $24_1 = 0;
+  var $3_1 = 0, $10_1 = 0, $17_1 = 0, $24_1 = 0, $85_1 = 0;
   $3_1 = global$0 - 32 | 0;
   global$0 = $3_1;
   HEAP8[($3_1 + 31 | 0) >> 0] = $0_1;
@@ -2506,11 +2521,11 @@ function asmFunc(imports) {
   HEAP32[($3_1 + 20 | 0) >> 2] = 0;
   HEAP32[$3_1 >> 2] = (HEAPU8[($3_1 + 31 | 0) >> 0] | 0) & 255 | 0;
   $10_1 = 0;
-  HEAP32[($3_1 + 20 | 0) >> 2] = $66($10_1 | 0, $10_1 | 0, 65608 | 0, $3_1 | 0) | 0;
-  HEAP32[($3_1 + 24 | 0) >> 2] = $102((HEAP32[($3_1 + 20 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
+  HEAP32[($3_1 + 20 | 0) >> 2] = $68($10_1 | 0, $10_1 | 0, 65608 | 0, $3_1 | 0) | 0;
+  HEAP32[($3_1 + 24 | 0) >> 2] = $105((HEAP32[($3_1 + 20 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
   $17_1 = HEAP32[($3_1 + 24 | 0) >> 2] | 0;
   HEAP32[($3_1 + 16 | 0) >> 2] = (HEAPU8[($3_1 + 31 | 0) >> 0] | 0) & 255 | 0;
-  $67($17_1 | 0, 65608 | 0, $3_1 + 16 | 0 | 0) | 0;
+  $69($17_1 | 0, 65608 | 0, $3_1 + 16 | 0 | 0) | 0;
   $24_1 = HEAP32[($3_1 + 24 | 0) >> 2] | 0;
   global$0 = $3_1 + 32 | 0;
   return $24_1 | 0;
@@ -2518,7 +2533,7 @@ function asmFunc(imports) {
  
  function $23($0_1) {
   $0_1 = $0_1 | 0;
-  var $3_1 = 0, $7_1 = 0, $11_1 = 0, $20_1 = 0, $18_1 = 0, $26_1 = 0;
+  var $3_1 = 0, $7_1 = 0, $11_1 = 0, $20_1 = 0, $18_1 = 0, $26_1 = 0, $93_1 = 0;
   $3_1 = global$0 - 32 | 0;
   global$0 = $3_1;
   HEAP16[($3_1 + 30 | 0) >> 1] = $0_1;
@@ -2527,12 +2542,12 @@ function asmFunc(imports) {
   $7_1 = 16;
   HEAP32[$3_1 >> 2] = ((HEAPU16[($3_1 + 30 | 0) >> 1] | 0) << $7_1 | 0) >> $7_1 | 0;
   $11_1 = 0;
-  HEAP32[($3_1 + 20 | 0) >> 2] = $66($11_1 | 0, $11_1 | 0, 65604 | 0, $3_1 | 0) | 0;
-  HEAP32[($3_1 + 24 | 0) >> 2] = $102((HEAP32[($3_1 + 20 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
+  HEAP32[($3_1 + 20 | 0) >> 2] = $68($11_1 | 0, $11_1 | 0, 65604 | 0, $3_1 | 0) | 0;
+  HEAP32[($3_1 + 24 | 0) >> 2] = $105((HEAP32[($3_1 + 20 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
   $18_1 = HEAP32[($3_1 + 24 | 0) >> 2] | 0;
   $20_1 = 16;
   HEAP32[($3_1 + 16 | 0) >> 2] = ((HEAPU16[($3_1 + 30 | 0) >> 1] | 0) << $20_1 | 0) >> $20_1 | 0;
-  $67($18_1 | 0, 65604 | 0, $3_1 + 16 | 0 | 0) | 0;
+  $69($18_1 | 0, 65604 | 0, $3_1 + 16 | 0 | 0) | 0;
   $26_1 = HEAP32[($3_1 + 24 | 0) >> 2] | 0;
   global$0 = $3_1 + 32 | 0;
   return $26_1 | 0;
@@ -2540,7 +2555,7 @@ function asmFunc(imports) {
  
  function $24($0_1) {
   $0_1 = $0_1 | 0;
-  var $3_1 = 0, $10_1 = 0, $17_1 = 0, $24_1 = 0;
+  var $3_1 = 0, $10_1 = 0, $17_1 = 0, $24_1 = 0, $85_1 = 0;
   $3_1 = global$0 - 32 | 0;
   global$0 = $3_1;
   HEAP16[($3_1 + 30 | 0) >> 1] = $0_1;
@@ -2548,11 +2563,11 @@ function asmFunc(imports) {
   HEAP32[($3_1 + 20 | 0) >> 2] = 0;
   HEAP32[$3_1 >> 2] = (HEAPU16[($3_1 + 30 | 0) >> 1] | 0) & 65535 | 0;
   $10_1 = 0;
-  HEAP32[($3_1 + 20 | 0) >> 2] = $66($10_1 | 0, $10_1 | 0, 65608 | 0, $3_1 | 0) | 0;
-  HEAP32[($3_1 + 24 | 0) >> 2] = $102((HEAP32[($3_1 + 20 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
+  HEAP32[($3_1 + 20 | 0) >> 2] = $68($10_1 | 0, $10_1 | 0, 65608 | 0, $3_1 | 0) | 0;
+  HEAP32[($3_1 + 24 | 0) >> 2] = $105((HEAP32[($3_1 + 20 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
   $17_1 = HEAP32[($3_1 + 24 | 0) >> 2] | 0;
   HEAP32[($3_1 + 16 | 0) >> 2] = (HEAPU16[($3_1 + 30 | 0) >> 1] | 0) & 65535 | 0;
-  $67($17_1 | 0, 65608 | 0, $3_1 + 16 | 0 | 0) | 0;
+  $69($17_1 | 0, 65608 | 0, $3_1 + 16 | 0 | 0) | 0;
   $24_1 = HEAP32[($3_1 + 24 | 0) >> 2] | 0;
   global$0 = $3_1 + 32 | 0;
   return $24_1 | 0;
@@ -2560,7 +2575,7 @@ function asmFunc(imports) {
  
  function $25($0_1) {
   $0_1 = $0_1 | 0;
-  var $3_1 = 0, $8_1 = 0, $15_1 = 0, $20_1 = 0;
+  var $3_1 = 0, $8_1 = 0, $15_1 = 0, $20_1 = 0, $75_1 = 0;
   $3_1 = global$0 - 32 | 0;
   global$0 = $3_1;
   HEAP32[($3_1 + 28 | 0) >> 2] = $0_1;
@@ -2568,11 +2583,11 @@ function asmFunc(imports) {
   HEAP32[($3_1 + 20 | 0) >> 2] = 0;
   HEAP32[$3_1 >> 2] = HEAP32[($3_1 + 28 | 0) >> 2] | 0;
   $8_1 = 0;
-  HEAP32[($3_1 + 20 | 0) >> 2] = $66($8_1 | 0, $8_1 | 0, 65604 | 0, $3_1 | 0) | 0;
-  HEAP32[($3_1 + 24 | 0) >> 2] = $102((HEAP32[($3_1 + 20 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
+  HEAP32[($3_1 + 20 | 0) >> 2] = $68($8_1 | 0, $8_1 | 0, 65604 | 0, $3_1 | 0) | 0;
+  HEAP32[($3_1 + 24 | 0) >> 2] = $105((HEAP32[($3_1 + 20 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
   $15_1 = HEAP32[($3_1 + 24 | 0) >> 2] | 0;
   HEAP32[($3_1 + 16 | 0) >> 2] = HEAP32[($3_1 + 28 | 0) >> 2] | 0;
-  $67($15_1 | 0, 65604 | 0, $3_1 + 16 | 0 | 0) | 0;
+  $69($15_1 | 0, 65604 | 0, $3_1 + 16 | 0 | 0) | 0;
   $20_1 = HEAP32[($3_1 + 24 | 0) >> 2] | 0;
   global$0 = $3_1 + 32 | 0;
   return $20_1 | 0;
@@ -2580,7 +2595,7 @@ function asmFunc(imports) {
  
  function $26($0_1) {
   $0_1 = $0_1 | 0;
-  var $3_1 = 0, $8_1 = 0, $15_1 = 0, $20_1 = 0;
+  var $3_1 = 0, $8_1 = 0, $15_1 = 0, $20_1 = 0, $75_1 = 0;
   $3_1 = global$0 - 32 | 0;
   global$0 = $3_1;
   HEAP32[($3_1 + 28 | 0) >> 2] = $0_1;
@@ -2588,11 +2603,11 @@ function asmFunc(imports) {
   HEAP32[($3_1 + 20 | 0) >> 2] = 0;
   HEAP32[$3_1 >> 2] = HEAP32[($3_1 + 28 | 0) >> 2] | 0;
   $8_1 = 0;
-  HEAP32[($3_1 + 20 | 0) >> 2] = $66($8_1 | 0, $8_1 | 0, 65608 | 0, $3_1 | 0) | 0;
-  HEAP32[($3_1 + 24 | 0) >> 2] = $102((HEAP32[($3_1 + 20 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
+  HEAP32[($3_1 + 20 | 0) >> 2] = $68($8_1 | 0, $8_1 | 0, 65608 | 0, $3_1 | 0) | 0;
+  HEAP32[($3_1 + 24 | 0) >> 2] = $105((HEAP32[($3_1 + 20 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
   $15_1 = HEAP32[($3_1 + 24 | 0) >> 2] | 0;
   HEAP32[($3_1 + 16 | 0) >> 2] = HEAP32[($3_1 + 28 | 0) >> 2] | 0;
-  $67($15_1 | 0, 65608 | 0, $3_1 + 16 | 0 | 0) | 0;
+  $69($15_1 | 0, 65608 | 0, $3_1 + 16 | 0 | 0) | 0;
   $20_1 = HEAP32[($3_1 + 24 | 0) >> 2] | 0;
   global$0 = $3_1 + 32 | 0;
   return $20_1 | 0;
@@ -2600,7 +2615,7 @@ function asmFunc(imports) {
  
  function $27($0_1) {
   $0_1 = $0_1 | 0;
-  var $3_1 = 0, $8_1 = 0, $15_1 = 0, $20_1 = 0;
+  var $3_1 = 0, $8_1 = 0, $15_1 = 0, $20_1 = 0, $75_1 = 0;
   $3_1 = global$0 - 32 | 0;
   global$0 = $3_1;
   HEAP32[($3_1 + 28 | 0) >> 2] = $0_1;
@@ -2608,11 +2623,11 @@ function asmFunc(imports) {
   HEAP32[($3_1 + 20 | 0) >> 2] = 0;
   HEAP32[$3_1 >> 2] = HEAP32[($3_1 + 28 | 0) >> 2] | 0;
   $8_1 = 0;
-  HEAP32[($3_1 + 20 | 0) >> 2] = $66($8_1 | 0, $8_1 | 0, 65612 | 0, $3_1 | 0) | 0;
-  HEAP32[($3_1 + 24 | 0) >> 2] = $102((HEAP32[($3_1 + 20 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
+  HEAP32[($3_1 + 20 | 0) >> 2] = $68($8_1 | 0, $8_1 | 0, 65612 | 0, $3_1 | 0) | 0;
+  HEAP32[($3_1 + 24 | 0) >> 2] = $105((HEAP32[($3_1 + 20 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
   $15_1 = HEAP32[($3_1 + 24 | 0) >> 2] | 0;
   HEAP32[($3_1 + 16 | 0) >> 2] = HEAP32[($3_1 + 28 | 0) >> 2] | 0;
-  $67($15_1 | 0, 65612 | 0, $3_1 + 16 | 0 | 0) | 0;
+  $69($15_1 | 0, 65612 | 0, $3_1 + 16 | 0 | 0) | 0;
   $20_1 = HEAP32[($3_1 + 24 | 0) >> 2] | 0;
   global$0 = $3_1 + 32 | 0;
   return $20_1 | 0;
@@ -2620,7 +2635,7 @@ function asmFunc(imports) {
  
  function $28($0_1) {
   $0_1 = $0_1 | 0;
-  var $3_1 = 0, $8_1 = 0, $15_1 = 0, $20_1 = 0;
+  var $3_1 = 0, $8_1 = 0, $15_1 = 0, $20_1 = 0, $75_1 = 0;
   $3_1 = global$0 - 32 | 0;
   global$0 = $3_1;
   HEAP32[($3_1 + 28 | 0) >> 2] = $0_1;
@@ -2628,11 +2643,11 @@ function asmFunc(imports) {
   HEAP32[($3_1 + 20 | 0) >> 2] = 0;
   HEAP32[$3_1 >> 2] = HEAP32[($3_1 + 28 | 0) >> 2] | 0;
   $8_1 = 0;
-  HEAP32[($3_1 + 20 | 0) >> 2] = $66($8_1 | 0, $8_1 | 0, 65617 | 0, $3_1 | 0) | 0;
-  HEAP32[($3_1 + 24 | 0) >> 2] = $102((HEAP32[($3_1 + 20 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
+  HEAP32[($3_1 + 20 | 0) >> 2] = $68($8_1 | 0, $8_1 | 0, 65617 | 0, $3_1 | 0) | 0;
+  HEAP32[($3_1 + 24 | 0) >> 2] = $105((HEAP32[($3_1 + 20 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
   $15_1 = HEAP32[($3_1 + 24 | 0) >> 2] | 0;
   HEAP32[($3_1 + 16 | 0) >> 2] = HEAP32[($3_1 + 28 | 0) >> 2] | 0;
-  $67($15_1 | 0, 65617 | 0, $3_1 + 16 | 0 | 0) | 0;
+  $69($15_1 | 0, 65617 | 0, $3_1 + 16 | 0 | 0) | 0;
   $20_1 = HEAP32[($3_1 + 24 | 0) >> 2] | 0;
   global$0 = $3_1 + 32 | 0;
   return $20_1 | 0;
@@ -2641,7 +2656,7 @@ function asmFunc(imports) {
  function $29($0_1, $0$hi) {
   $0_1 = $0_1 | 0;
   $0$hi = $0$hi | 0;
-  var $3_1 = 0, i64toi32_i32$0 = 0, i64toi32_i32$1 = 0, $7_1 = 0, $37_1 = 0, $14_1 = 0, $60_1 = 0, $18_1 = 0;
+  var $3_1 = 0, i64toi32_i32$0 = 0, i64toi32_i32$1 = 0, $7_1 = 0, $37_1 = 0, $14_1 = 0, $60_1 = 0, $18_1 = 0, $75_1 = 0;
   $3_1 = global$0 - 48 | 0;
   global$0 = $3_1;
   i64toi32_i32$0 = $0$hi;
@@ -2657,8 +2672,8 @@ function asmFunc(imports) {
   HEAP32[$3_1 >> 2] = $37_1;
   HEAP32[($3_1 + 4 | 0) >> 2] = i64toi32_i32$1;
   $7_1 = 0;
-  HEAP32[($3_1 + 32 | 0) >> 2] = $66($7_1 | 0, $7_1 | 0, 65622 | 0, $3_1 | 0) | 0;
-  HEAP32[($3_1 + 36 | 0) >> 2] = $102((HEAP32[($3_1 + 32 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
+  HEAP32[($3_1 + 32 | 0) >> 2] = $68($7_1 | 0, $7_1 | 0, 65622 | 0, $3_1 | 0) | 0;
+  HEAP32[($3_1 + 36 | 0) >> 2] = $105((HEAP32[($3_1 + 32 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
   $14_1 = HEAP32[($3_1 + 36 | 0) >> 2] | 0;
   i64toi32_i32$1 = HEAP32[($3_1 + 40 | 0) >> 2] | 0;
   i64toi32_i32$0 = HEAP32[($3_1 + 44 | 0) >> 2] | 0;
@@ -2666,7 +2681,7 @@ function asmFunc(imports) {
   i64toi32_i32$1 = $3_1;
   HEAP32[($3_1 + 16 | 0) >> 2] = $60_1;
   HEAP32[($3_1 + 20 | 0) >> 2] = i64toi32_i32$0;
-  $67($14_1 | 0, 65622 | 0, $3_1 + 16 | 0 | 0) | 0;
+  $69($14_1 | 0, 65622 | 0, $3_1 + 16 | 0 | 0) | 0;
   $18_1 = HEAP32[($3_1 + 36 | 0) >> 2] | 0;
   global$0 = $3_1 + 48 | 0;
   return $18_1 | 0;
@@ -2675,7 +2690,7 @@ function asmFunc(imports) {
  function $30($0_1, $0$hi) {
   $0_1 = $0_1 | 0;
   $0$hi = $0$hi | 0;
-  var $3_1 = 0, i64toi32_i32$0 = 0, i64toi32_i32$1 = 0, $7_1 = 0, $37_1 = 0, $14_1 = 0, $60_1 = 0, $18_1 = 0;
+  var $3_1 = 0, i64toi32_i32$0 = 0, i64toi32_i32$1 = 0, $7_1 = 0, $37_1 = 0, $14_1 = 0, $60_1 = 0, $18_1 = 0, $75_1 = 0;
   $3_1 = global$0 - 48 | 0;
   global$0 = $3_1;
   i64toi32_i32$0 = $0$hi;
@@ -2691,8 +2706,8 @@ function asmFunc(imports) {
   HEAP32[$3_1 >> 2] = $37_1;
   HEAP32[($3_1 + 4 | 0) >> 2] = i64toi32_i32$1;
   $7_1 = 0;
-  HEAP32[($3_1 + 32 | 0) >> 2] = $66($7_1 | 0, $7_1 | 0, 65628 | 0, $3_1 | 0) | 0;
-  HEAP32[($3_1 + 36 | 0) >> 2] = $102((HEAP32[($3_1 + 32 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
+  HEAP32[($3_1 + 32 | 0) >> 2] = $68($7_1 | 0, $7_1 | 0, 65628 | 0, $3_1 | 0) | 0;
+  HEAP32[($3_1 + 36 | 0) >> 2] = $105((HEAP32[($3_1 + 32 | 0) >> 2] | 0) + 1 | 0 | 0, 1 | 0) | 0;
   $14_1 = HEAP32[($3_1 + 36 | 0) >> 2] | 0;
   i64toi32_i32$1 = HEAP32[($3_1 + 40 | 0) >> 2] | 0;
   i64toi32_i32$0 = HEAP32[($3_1 + 44 | 0) >> 2] | 0;
@@ -2700,79 +2715,97 @@ function asmFunc(imports) {
   i64toi32_i32$1 = $3_1;
   HEAP32[($3_1 + 16 | 0) >> 2] = $60_1;
   HEAP32[($3_1 + 20 | 0) >> 2] = i64toi32_i32$0;
-  $67($14_1 | 0, 65628 | 0, $3_1 + 16 | 0 | 0) | 0;
+  $69($14_1 | 0, 65628 | 0, $3_1 + 16 | 0 | 0) | 0;
   $18_1 = HEAP32[($3_1 + 36 | 0) >> 2] | 0;
   global$0 = $3_1 + 48 | 0;
   return $18_1 | 0;
  }
  
  function $31() {
-  return HEAP32[(0 + 68508 | 0) >> 2] | 0 | 0;
+  var $5_1 = 0;
+  return HEAP32[(0 + 68516 | 0) >> 2] | 0 | 0;
  }
  
  function $32($0_1) {
   $0_1 = $0_1 | 0;
-  var $3_1 = 0;
+  var $3_1 = 0, $37_1 = 0, $34_1 = 0, $35_1 = 0;
   $3_1 = global$0 - 16 | 0;
   global$0 = $3_1;
   HEAP32[($3_1 + 12 | 0) >> 2] = $0_1;
-  label$1 : {
-   if (!((HEAP32[(0 + 68508 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-    break label$1
+  block : {
+   if (!((HEAP32[(0 + 68516 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
+    break block
    }
-   $101(HEAP32[(0 + 68508 | 0) >> 2] | 0 | 0);
-   HEAP32[(0 + 68508 | 0) >> 2] = 0;
+   $104(HEAP32[(0 + 68516 | 0) >> 2] | 0 | 0);
+   HEAP32[(0 + 68516 | 0) >> 2] = 0;
   }
-  label$2 : {
+  block1 : {
    if (!((HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-    break label$2
+    break block1
    }
-   HEAP32[(0 + 68508 | 0) >> 2] = $102(($39(HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) | 0) + 1 | 0 | 0, 1 | 0) | 0;
+   HEAP32[(0 + 68516 | 0) >> 2] = $105(($41(HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) | 0) + 1 | 0 | 0, 1 | 0) | 0;
   }
-  label$3 : {
+  block2 : {
    if (!((HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-    break label$3
+    break block2
    }
-   if (!($39(HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) | 0)) {
-    break label$3
+   if (!($41(HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) | 0)) {
+    break block2
    }
-   $41(HEAP32[(0 + 68508 | 0) >> 2] | 0 | 0, HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0, $39(HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) | 0 | 0) | 0;
+   $34_1 = HEAP32[(0 + 68516 | 0) >> 2] | 0;
+   $35_1 = HEAP32[($3_1 + 12 | 0) >> 2] | 0;
+   $37_1 = $41(HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) | 0;
+   block3 : {
+    if (!$37_1) {
+     break block3
+    }
+    wasm2js_memory_copy($34_1, $35_1, $37_1);
+   }
   }
   global$0 = $3_1 + 16 | 0;
   return;
  }
  
  function $33() {
-  return HEAP32[(0 + 68512 | 0) >> 2] | 0 | 0;
+  var $5_1 = 0;
+  return HEAP32[(0 + 68520 | 0) >> 2] | 0 | 0;
  }
  
  function $34($0_1) {
   $0_1 = $0_1 | 0;
-  var $3_1 = 0;
+  var $3_1 = 0, $37_1 = 0, $34_1 = 0, $35_1 = 0;
   $3_1 = global$0 - 16 | 0;
   global$0 = $3_1;
   HEAP32[($3_1 + 12 | 0) >> 2] = $0_1;
-  label$1 : {
-   if (!((HEAP32[(0 + 68512 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-    break label$1
+  block : {
+   if (!((HEAP32[(0 + 68520 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
+    break block
    }
-   $101(HEAP32[(0 + 68512 | 0) >> 2] | 0 | 0);
-   HEAP32[(0 + 68512 | 0) >> 2] = 0;
+   $104(HEAP32[(0 + 68520 | 0) >> 2] | 0 | 0);
+   HEAP32[(0 + 68520 | 0) >> 2] = 0;
   }
-  label$2 : {
+  block1 : {
    if (!((HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-    break label$2
+    break block1
    }
-   HEAP32[(0 + 68512 | 0) >> 2] = $102(($39(HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) | 0) + 1 | 0 | 0, 1 | 0) | 0;
+   HEAP32[(0 + 68520 | 0) >> 2] = $105(($41(HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) | 0) + 1 | 0 | 0, 1 | 0) | 0;
   }
-  label$3 : {
+  block2 : {
    if (!((HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) != (0 | 0) & 1 | 0)) {
-    break label$3
+    break block2
    }
-   if (!($39(HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) | 0)) {
-    break label$3
+   if (!($41(HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) | 0)) {
+    break block2
    }
-   $41(HEAP32[(0 + 68512 | 0) >> 2] | 0 | 0, HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0, $39(HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) | 0 | 0) | 0;
+   $34_1 = HEAP32[(0 + 68520 | 0) >> 2] | 0;
+   $35_1 = HEAP32[($3_1 + 12 | 0) >> 2] | 0;
+   $37_1 = $41(HEAP32[($3_1 + 12 | 0) >> 2] | 0 | 0) | 0;
+   block3 : {
+    if (!$37_1) {
+     break block3
+    }
+    wasm2js_memory_copy($34_1, $35_1, $37_1);
+   }
   }
   global$0 = $3_1 + 16 | 0;
   return;
@@ -2783,7 +2816,7 @@ function asmFunc(imports) {
   var $3_1 = 0;
   $3_1 = global$0 - 16 | 0;
   HEAP32[($3_1 + 12 | 0) >> 2] = $0_1;
-  HEAP32[(0 + 68512 | 0) >> 2] = HEAP32[($3_1 + 12 | 0) >> 2] | 0;
+  HEAP32[(0 + 68520 | 0) >> 2] = HEAP32[($3_1 + 12 | 0) >> 2] | 0;
   return;
  }
  
@@ -2791,38 +2824,38 @@ function asmFunc(imports) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
-  var $5_1 = 0, $31_1 = 0, $41_1 = 0;
+  var $5_1 = 0, $31_1 = 0, $41_1 = 0, $150 = 0;
   $5_1 = global$0 - 16 | 0;
   global$0 = $5_1;
   HEAP32[($5_1 + 12 | 0) >> 2] = $0_1;
   HEAP32[($5_1 + 8 | 0) >> 2] = $1_1;
   HEAP32[($5_1 + 4 | 0) >> 2] = $2_1;
-  label$1 : {
-   label$2 : {
+  block3 : {
+   block : {
     if (!(HEAP32[($5_1 + 8 | 0) >> 2] | 0)) {
-     break label$2
+     break block
     }
-    if (!($39($31() | 0 | 0) | 0)) {
-     break label$2
+    if (!($41($31() | 0 | 0) | 0)) {
+     break block
     }
-    if (!(((HEAP32[($5_1 + 12 | 0) >> 2] | 0) + ($39($31() | 0 | 0) | 0) | 0) >>> 0 <= (HEAP32[($5_1 + 8 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-     break label$2
+    if (!(((HEAP32[($5_1 + 12 | 0) >> 2] | 0) + ($41($31() | 0 | 0) | 0) | 0) >>> 0 <= (HEAP32[($5_1 + 8 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
+     break block
     }
-    if (!((HEAP32[($5_1 + 12 | 0) >> 2] | 0) >>> 0 <= ($39($31() | 0 | 0) | 0) >>> 0 & 1 | 0)) {
-     break label$2
+    if (!((HEAP32[($5_1 + 12 | 0) >> 2] | 0) >>> 0 <= ($41($31() | 0 | 0) | 0) >>> 0 & 1 | 0)) {
+     break block
     }
-    label$3 : {
-     label$4 : {
-      if ($76($31() | 0 | 0, (HEAP32[($5_1 + 4 | 0) >> 2] | 0) + (HEAP32[($5_1 + 12 | 0) >> 2] | 0) | 0 | 0, $39($31() | 0 | 0) | 0 | 0) | 0) {
-       break label$4
+    block2 : {
+     block1 : {
+      if ($78($31() | 0 | 0, (HEAP32[($5_1 + 4 | 0) >> 2] | 0) + (HEAP32[($5_1 + 12 | 0) >> 2] | 0) | 0 | 0, $41($31() | 0 | 0) | 0 | 0) | 0) {
+       break block1
       }
       $31_1 = 1;
-      break label$3;
+      break block2;
      }
      $31_1 = ($36((HEAP32[($5_1 + 12 | 0) >> 2] | 0) + 1 | 0 | 0, HEAP32[($5_1 + 8 | 0) >> 2] | 0 | 0, HEAP32[($5_1 + 4 | 0) >> 2] | 0 | 0) | 0) & 1 | 0;
     }
     $41_1 = $31_1;
-    break label$1;
+    break block3;
    }
    $41_1 = 0;
   }
@@ -2834,38 +2867,38 @@ function asmFunc(imports) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
-  var $5_1 = 0, $31_1 = 0, $41_1 = 0;
+  var $5_1 = 0, $31_1 = 0, $41_1 = 0, $150 = 0;
   $5_1 = global$0 - 16 | 0;
   global$0 = $5_1;
   HEAP32[($5_1 + 12 | 0) >> 2] = $0_1;
   HEAP32[($5_1 + 8 | 0) >> 2] = $1_1;
   HEAP32[($5_1 + 4 | 0) >> 2] = $2_1;
-  label$1 : {
-   label$2 : {
+  block3 : {
+   block : {
     if (!(HEAP32[($5_1 + 8 | 0) >> 2] | 0)) {
-     break label$2
+     break block
     }
-    if (!($39($33() | 0 | 0) | 0)) {
-     break label$2
+    if (!($41($33() | 0 | 0) | 0)) {
+     break block
     }
-    if (!(((HEAP32[($5_1 + 12 | 0) >> 2] | 0) + ($39($33() | 0 | 0) | 0) | 0) >>> 0 <= (HEAP32[($5_1 + 8 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
-     break label$2
+    if (!(((HEAP32[($5_1 + 12 | 0) >> 2] | 0) + ($41($33() | 0 | 0) | 0) | 0) >>> 0 <= (HEAP32[($5_1 + 8 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
+     break block
     }
-    if (!((HEAP32[($5_1 + 12 | 0) >> 2] | 0) >>> 0 <= ($39($33() | 0 | 0) | 0) >>> 0 & 1 | 0)) {
-     break label$2
+    if (!((HEAP32[($5_1 + 12 | 0) >> 2] | 0) >>> 0 <= ($41($33() | 0 | 0) | 0) >>> 0 & 1 | 0)) {
+     break block
     }
-    label$3 : {
-     label$4 : {
-      if ($76($33() | 0 | 0, (HEAP32[($5_1 + 4 | 0) >> 2] | 0) + (HEAP32[($5_1 + 12 | 0) >> 2] | 0) | 0 | 0, $39($33() | 0 | 0) | 0 | 0) | 0) {
-       break label$4
+    block2 : {
+     block1 : {
+      if ($78($33() | 0 | 0, (HEAP32[($5_1 + 4 | 0) >> 2] | 0) + (HEAP32[($5_1 + 12 | 0) >> 2] | 0) | 0 | 0, $41($33() | 0 | 0) | 0 | 0) | 0) {
+       break block1
       }
       $31_1 = 1;
-      break label$3;
+      break block2;
      }
      $31_1 = ($37((HEAP32[($5_1 + 12 | 0) >> 2] | 0) + 1 | 0 | 0, HEAP32[($5_1 + 8 | 0) >> 2] | 0 | 0, HEAP32[($5_1 + 4 | 0) >> 2] | 0 | 0) | 0) & 1 | 0;
     }
     $41_1 = $31_1;
-    break label$1;
+    break block3;
    }
    $41_1 = 0;
   }
@@ -2877,16 +2910,16 @@ function asmFunc(imports) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
-  var $5_1 = 0, $13_1 = 0;
+  var $5_1 = 0, $13_1 = 0, $74_1 = 0;
   $5_1 = global$0 - 16 | 0;
   global$0 = $5_1;
   HEAP32[($5_1 + 12 | 0) >> 2] = $0_1;
   HEAP32[($5_1 + 8 | 0) >> 2] = $1_1;
   HEAP32[($5_1 + 4 | 0) >> 2] = $2_1;
   $13_1 = 0;
-  label$1 : {
+  block : {
    if (($36(HEAP32[($5_1 + 12 | 0) >> 2] | 0 | 0, HEAP32[($5_1 + 8 | 0) >> 2] | 0 | 0, HEAP32[($5_1 + 4 | 0) >> 2] | 0 | 0) | 0) & 1 | 0) {
-    break label$1
+    break block
    }
    $13_1 = ($37(HEAP32[($5_1 + 12 | 0) >> 2] | 0 | 0, HEAP32[($5_1 + 8 | 0) >> 2] | 0 | 0, HEAP32[($5_1 + 4 | 0) >> 2] | 0 | 0) | 0) ^ -1 | 0;
   }
@@ -2894,87 +2927,218 @@ function asmFunc(imports) {
   return $13_1 & 1 | 0 | 0;
  }
  
- function $39($0_1) {
+ function $39($0_1, $1_1, $2_1) {
   $0_1 = $0_1 | 0;
-  var $3_1 = 0, $9_1 = 0;
+  $1_1 = $1_1 | 0;
+  $2_1 = $2_1 | 0;
+  var $5_1 = 0, $25_1 = 0, $94_1 = 0;
+  $5_1 = global$0 - 16 | 0;
+  global$0 = $5_1;
+  HEAP32[($5_1 + 8 | 0) >> 2] = $0_1;
+  HEAP32[($5_1 + 4 | 0) >> 2] = $1_1;
+  HEAP32[$5_1 >> 2] = $2_1;
+  block1 : {
+   block : {
+    if (!(($36(HEAP32[($5_1 + 8 | 0) >> 2] | 0 | 0, HEAP32[($5_1 + 4 | 0) >> 2] | 0 | 0, HEAP32[$5_1 >> 2] | 0 | 0) | 0) & 1 | 0)) {
+     break block
+    }
+    HEAP32[($5_1 + 12 | 0) >> 2] = HEAP32[($5_1 + 8 | 0) >> 2] | 0;
+    break block1;
+   }
+   block2 : {
+    if (!((HEAP32[($5_1 + 8 | 0) >> 2] | 0) >>> 0 >= (HEAP32[($5_1 + 4 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
+     break block2
+    }
+    HEAP32[($5_1 + 12 | 0) >> 2] = -1;
+    break block1;
+   }
+   HEAP32[($5_1 + 12 | 0) >> 2] = $39((HEAP32[($5_1 + 8 | 0) >> 2] | 0) + 1 | 0 | 0, HEAP32[($5_1 + 4 | 0) >> 2] | 0 | 0, HEAP32[$5_1 >> 2] | 0 | 0) | 0;
+  }
+  $25_1 = HEAP32[($5_1 + 12 | 0) >> 2] | 0;
+  global$0 = $5_1 + 16 | 0;
+  return $25_1 | 0;
+ }
+ 
+ function $40($0_1, $1_1, $2_1) {
+  $0_1 = $0_1 | 0;
+  $1_1 = $1_1 | 0;
+  $2_1 = $2_1 | 0;
+  var $5_1 = 0, $25_1 = 0, $94_1 = 0;
+  $5_1 = global$0 - 16 | 0;
+  global$0 = $5_1;
+  HEAP32[($5_1 + 8 | 0) >> 2] = $0_1;
+  HEAP32[($5_1 + 4 | 0) >> 2] = $1_1;
+  HEAP32[$5_1 >> 2] = $2_1;
+  block1 : {
+   block : {
+    if (!(($37(HEAP32[($5_1 + 8 | 0) >> 2] | 0 | 0, HEAP32[($5_1 + 4 | 0) >> 2] | 0 | 0, HEAP32[$5_1 >> 2] | 0 | 0) | 0) & 1 | 0)) {
+     break block
+    }
+    HEAP32[($5_1 + 12 | 0) >> 2] = HEAP32[($5_1 + 8 | 0) >> 2] | 0;
+    break block1;
+   }
+   block2 : {
+    if (!((HEAP32[($5_1 + 8 | 0) >> 2] | 0) >>> 0 >= (HEAP32[($5_1 + 4 | 0) >> 2] | 0) >>> 0 & 1 | 0)) {
+     break block2
+    }
+    HEAP32[($5_1 + 12 | 0) >> 2] = -1;
+    break block1;
+   }
+   HEAP32[($5_1 + 12 | 0) >> 2] = $40((HEAP32[($5_1 + 8 | 0) >> 2] | 0) + 1 | 0 | 0, HEAP32[($5_1 + 4 | 0) >> 2] | 0 | 0, HEAP32[$5_1 >> 2] | 0 | 0) | 0;
+  }
+  $25_1 = HEAP32[($5_1 + 12 | 0) >> 2] | 0;
+  global$0 = $5_1 + 16 | 0;
+  return $25_1 | 0;
+ }
+ 
+ function $41($0_1) {
+  $0_1 = $0_1 | 0;
+  var $3_1 = 0, $9_1 = 0, $51_1 = 0;
   $3_1 = global$0 - 16 | 0;
   HEAP32[($3_1 + 12 | 0) >> 2] = $0_1;
   HEAP32[($3_1 + 8 | 0) >> 2] = 0;
-  label$1 : {
-   label$2 : while (1) {
+  block : {
+   label : while (1) {
     $9_1 = 24;
     if (!(((HEAPU8[((HEAP32[($3_1 + 12 | 0) >> 2] | 0) + (HEAP32[($3_1 + 8 | 0) >> 2] | 0) | 0) >> 0] | 0) << $9_1 | 0) >> $9_1 | 0)) {
-     break label$1
+     break block
     }
     HEAP32[($3_1 + 8 | 0) >> 2] = (HEAP32[($3_1 + 8 | 0) >> 2] | 0) + 1 | 0;
-    continue label$2;
+    continue label;
    };
   }
   return HEAP32[($3_1 + 8 | 0) >> 2] | 0 | 0;
  }
  
- function $40() {
+ function $42() {
   fimport$0();
   wasm2js_trap();
  }
  
- function $41($0_1, $1_1, $2_1) {
+ function $43() {
+  return 68524 | 0;
+ }
+ 
+ function $44($0_1) {
+  $0_1 = $0_1 | 0;
+  return 1 | 0;
+ }
+ 
+ function $45($0_1) {
+  $0_1 = $0_1 | 0;
+ }
+ 
+ function $46($0_1, $1_1) {
+  $0_1 = $0_1 | 0;
+  $1_1 = $1_1 | 0;
+  return 0 | 0;
+ }
+ 
+ function $47($0_1) {
+  $0_1 = $0_1 | 0;
+ }
+ 
+ function $48($0_1) {
+  $0_1 = $0_1 | 0;
+ }
+ 
+ function $49() {
+  $47(68528 | 0);
+  return 68532 | 0;
+ }
+ 
+ function $50() {
+  $48(68528 | 0);
+ }
+ 
+ function $51($0_1) {
+  $0_1 = $0_1 | 0;
+  var $1_1 = 0;
+  $1_1 = HEAP32[($0_1 + 72 | 0) >> 2] | 0;
+  HEAP32[($0_1 + 72 | 0) >> 2] = $1_1 + -1 | 0 | $1_1 | 0;
+  block : {
+   $1_1 = HEAP32[$0_1 >> 2] | 0;
+   if (!($1_1 & 8 | 0)) {
+    break block
+   }
+   HEAP32[$0_1 >> 2] = $1_1 | 32 | 0;
+   return -1 | 0;
+  }
+  HEAP32[($0_1 + 4 | 0) >> 2] = 0;
+  HEAP32[($0_1 + 8 | 0) >> 2] = 0;
+  $1_1 = HEAP32[($0_1 + 44 | 0) >> 2] | 0;
+  HEAP32[($0_1 + 28 | 0) >> 2] = $1_1;
+  HEAP32[($0_1 + 20 | 0) >> 2] = $1_1;
+  HEAP32[($0_1 + 16 | 0) >> 2] = $1_1 + (HEAP32[($0_1 + 48 | 0) >> 2] | 0) | 0;
+  return 0 | 0;
+ }
+ 
+ function $52($0_1, $1_1, $2_1) {
+  $0_1 = $0_1 | 0;
+  $1_1 = $1_1 | 0;
+  $2_1 = $2_1 | 0;
+  if ($2_1) {
+   wasm2js_memory_copy($0_1, $1_1, $2_1)
+  }
+  return $0_1 | 0;
+ }
+ 
+ function $53($0_1, $1_1, $2_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
   var $3_1 = 0, $4_1 = 0, $5_1 = 0;
-  label$1 : {
+  block : {
    if ($2_1 >>> 0 < 512 >>> 0) {
-    break label$1
+    break block
    }
-   fimport$1($0_1 | 0, $1_1 | 0, $2_1 | 0);
-   return $0_1 | 0;
+   return $52($0_1 | 0, $1_1 | 0, $2_1 | 0) | 0 | 0;
   }
   $3_1 = $0_1 + $2_1 | 0;
-  label$2 : {
-   label$3 : {
+  block6 : {
+   block1 : {
     if (($1_1 ^ $0_1 | 0) & 3 | 0) {
-     break label$3
+     break block1
     }
-    label$4 : {
-     label$5 : {
+    block3 : {
+     block2 : {
       if ($0_1 & 3 | 0) {
-       break label$5
+       break block2
       }
       $2_1 = $0_1;
-      break label$4;
+      break block3;
      }
-     label$6 : {
+     block4 : {
       if ($2_1) {
-       break label$6
+       break block4
       }
       $2_1 = $0_1;
-      break label$4;
+      break block3;
      }
      $2_1 = $0_1;
-     label$7 : while (1) {
+     label : while (1) {
       HEAP8[$2_1 >> 0] = HEAPU8[$1_1 >> 0] | 0;
       $1_1 = $1_1 + 1 | 0;
       $2_1 = $2_1 + 1 | 0;
       if (!($2_1 & 3 | 0)) {
-       break label$4
+       break block3
       }
       if ($2_1 >>> 0 < $3_1 >>> 0) {
-       continue label$7
+       continue label
       }
-      break label$7;
+      break label;
      };
     }
     $4_1 = $3_1 & -4 | 0;
-    label$8 : {
+    block5 : {
      if ($3_1 >>> 0 < 64 >>> 0) {
-      break label$8
+      break block5
      }
      $5_1 = $4_1 + -64 | 0;
      if ($2_1 >>> 0 > $5_1 >>> 0) {
-      break label$8
+      break block5
      }
-     label$9 : while (1) {
+     label1 : while (1) {
       HEAP32[$2_1 >> 2] = HEAP32[$1_1 >> 2] | 0;
       HEAP32[($2_1 + 4 | 0) >> 2] = HEAP32[($1_1 + 4 | 0) >> 2] | 0;
       HEAP32[($2_1 + 8 | 0) >> 2] = HEAP32[($1_1 + 8 | 0) >> 2] | 0;
@@ -2994,41 +3158,41 @@ function asmFunc(imports) {
       $1_1 = $1_1 + 64 | 0;
       $2_1 = $2_1 + 64 | 0;
       if ($2_1 >>> 0 <= $5_1 >>> 0) {
-       continue label$9
+       continue label1
       }
-      break label$9;
+      break label1;
      };
     }
     if ($2_1 >>> 0 >= $4_1 >>> 0) {
-     break label$2
+     break block6
     }
-    label$10 : while (1) {
+    label2 : while (1) {
      HEAP32[$2_1 >> 2] = HEAP32[$1_1 >> 2] | 0;
      $1_1 = $1_1 + 4 | 0;
      $2_1 = $2_1 + 4 | 0;
      if ($2_1 >>> 0 < $4_1 >>> 0) {
-      continue label$10
+      continue label2
      }
-     break label$2;
+     break block6;
     };
    }
-   label$11 : {
+   block7 : {
     if ($3_1 >>> 0 >= 4 >>> 0) {
-     break label$11
+     break block7
     }
     $2_1 = $0_1;
-    break label$2;
+    break block6;
    }
-   label$12 : {
+   block8 : {
     $4_1 = $3_1 + -4 | 0;
     if ($0_1 >>> 0 <= $4_1 >>> 0) {
-     break label$12
+     break block8
     }
     $2_1 = $0_1;
-    break label$2;
+    break block6;
    }
    $2_1 = $0_1;
-   label$13 : while (1) {
+   label3 : while (1) {
     HEAP8[$2_1 >> 0] = HEAPU8[$1_1 >> 0] | 0;
     HEAP8[($2_1 + 1 | 0) >> 0] = HEAPU8[($1_1 + 1 | 0) >> 0] | 0;
     HEAP8[($2_1 + 2 | 0) >> 0] = HEAPU8[($1_1 + 2 | 0) >> 0] | 0;
@@ -3036,222 +3200,164 @@ function asmFunc(imports) {
     $1_1 = $1_1 + 4 | 0;
     $2_1 = $2_1 + 4 | 0;
     if ($2_1 >>> 0 <= $4_1 >>> 0) {
-     continue label$13
+     continue label3
     }
-    break label$13;
+    break label3;
    };
   }
-  label$14 : {
+  block9 : {
    if ($2_1 >>> 0 >= $3_1 >>> 0) {
-    break label$14
+    break block9
    }
-   label$15 : while (1) {
+   label4 : while (1) {
     HEAP8[$2_1 >> 0] = HEAPU8[$1_1 >> 0] | 0;
     $1_1 = $1_1 + 1 | 0;
     $2_1 = $2_1 + 1 | 0;
     if (($2_1 | 0) != ($3_1 | 0)) {
-     continue label$15
+     continue label4
     }
-    break label$15;
+    break label4;
    };
   }
   return $0_1 | 0;
  }
  
- function $42() {
-  return 68516 | 0;
- }
- 
- function $43($0_1) {
-  $0_1 = $0_1 | 0;
-  return 1 | 0;
- }
- 
- function $44($0_1) {
-  $0_1 = $0_1 | 0;
- }
- 
- function $45($0_1, $1_1) {
-  $0_1 = $0_1 | 0;
-  $1_1 = $1_1 | 0;
-  return 0 | 0;
- }
- 
- function $46($0_1) {
-  $0_1 = $0_1 | 0;
- }
- 
- function $47($0_1) {
-  $0_1 = $0_1 | 0;
- }
- 
- function $48() {
-  $46(68520 | 0);
-  return 68524 | 0;
- }
- 
- function $49() {
-  $47(68520 | 0);
- }
- 
- function $50($0_1) {
-  $0_1 = $0_1 | 0;
-  var $1_1 = 0;
-  $1_1 = HEAP32[($0_1 + 72 | 0) >> 2] | 0;
-  HEAP32[($0_1 + 72 | 0) >> 2] = $1_1 + -1 | 0 | $1_1 | 0;
-  label$1 : {
-   $1_1 = HEAP32[$0_1 >> 2] | 0;
-   if (!($1_1 & 8 | 0)) {
-    break label$1
-   }
-   HEAP32[$0_1 >> 2] = $1_1 | 32 | 0;
-   return -1 | 0;
-  }
-  HEAP32[($0_1 + 4 | 0) >> 2] = 0;
-  HEAP32[($0_1 + 8 | 0) >> 2] = 0;
-  $1_1 = HEAP32[($0_1 + 44 | 0) >> 2] | 0;
-  HEAP32[($0_1 + 28 | 0) >> 2] = $1_1;
-  HEAP32[($0_1 + 20 | 0) >> 2] = $1_1;
-  HEAP32[($0_1 + 16 | 0) >> 2] = $1_1 + (HEAP32[($0_1 + 48 | 0) >> 2] | 0) | 0;
-  return 0 | 0;
- }
- 
- function $51($0_1, $1_1, $2_1) {
+ function $54($0_1, $1_1, $2_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
   var $3_1 = 0, $4_1 = 0, $5_1 = 0;
-  label$1 : {
-   label$2 : {
+  block1 : {
+   block : {
     $3_1 = HEAP32[($2_1 + 16 | 0) >> 2] | 0;
     if ($3_1) {
-     break label$2
+     break block
     }
     $4_1 = 0;
-    if ($50($2_1 | 0) | 0) {
-     break label$1
+    if ($51($2_1 | 0) | 0) {
+     break block1
     }
     $3_1 = HEAP32[($2_1 + 16 | 0) >> 2] | 0;
    }
-   label$3 : {
+   block2 : {
     $4_1 = HEAP32[($2_1 + 20 | 0) >> 2] | 0;
     if ($1_1 >>> 0 <= ($3_1 - $4_1 | 0) >>> 0) {
-     break label$3
+     break block2
     }
     return FUNCTION_TABLE[HEAP32[($2_1 + 36 | 0) >> 2] | 0 | 0]($2_1, $0_1, $1_1) | 0 | 0;
    }
-   label$4 : {
-    label$5 : {
+   block5 : {
+    block3 : {
      if ((HEAP32[($2_1 + 80 | 0) >> 2] | 0 | 0) < (0 | 0)) {
-      break label$5
+      break block3
      }
      if (!$1_1) {
-      break label$5
+      break block3
      }
      $3_1 = $1_1;
-     label$6 : {
-      label$7 : while (1) {
+     block4 : {
+      label : while (1) {
        $5_1 = $0_1 + $3_1 | 0;
        if ((HEAPU8[($5_1 + -1 | 0) >> 0] | 0 | 0) == (10 | 0)) {
-        break label$6
+        break block4
        }
        $3_1 = $3_1 + -1 | 0;
        if (!$3_1) {
-        break label$5
+        break block3
        }
-       continue label$7;
+       continue label;
       };
      }
      $4_1 = FUNCTION_TABLE[HEAP32[($2_1 + 36 | 0) >> 2] | 0 | 0]($2_1, $0_1, $3_1) | 0;
      if ($4_1 >>> 0 < $3_1 >>> 0) {
-      break label$1
+      break block1
      }
      $1_1 = $1_1 - $3_1 | 0;
      $4_1 = HEAP32[($2_1 + 20 | 0) >> 2] | 0;
-     break label$4;
+     break block5;
     }
     $5_1 = $0_1;
     $3_1 = 0;
    }
-   $41($4_1 | 0, $5_1 | 0, $1_1 | 0) | 0;
+   $53($4_1 | 0, $5_1 | 0, $1_1 | 0) | 0;
    HEAP32[($2_1 + 20 | 0) >> 2] = (HEAP32[($2_1 + 20 | 0) >> 2] | 0) + $1_1 | 0;
    $4_1 = $3_1 + $1_1 | 0;
   }
   return $4_1 | 0;
  }
  
- function $52($0_1, $1_1, $2_1, $3_1) {
+ function $55($0_1, $1_1, $2_1, $3_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
   $3_1 = $3_1 | 0;
   var $4_1 = 0, $5_1 = 0;
   $4_1 = Math_imul($2_1, $1_1);
-  label$1 : {
-   label$2 : {
+  block1 : {
+   block : {
     if ((HEAP32[($3_1 + 76 | 0) >> 2] | 0 | 0) > (-1 | 0)) {
-     break label$2
+     break block
     }
-    $0_1 = $51($0_1 | 0, $4_1 | 0, $3_1 | 0) | 0;
-    break label$1;
+    $0_1 = $54($0_1 | 0, $4_1 | 0, $3_1 | 0) | 0;
+    break block1;
    }
-   $5_1 = $43($3_1 | 0) | 0;
-   $0_1 = $51($0_1 | 0, $4_1 | 0, $3_1 | 0) | 0;
+   $5_1 = $44($3_1 | 0) | 0;
+   $0_1 = $54($0_1 | 0, $4_1 | 0, $3_1 | 0) | 0;
    if (!$5_1) {
-    break label$1
+    break block1
    }
-   $44($3_1 | 0);
+   $45($3_1 | 0);
   }
-  label$3 : {
+  block2 : {
    if (($0_1 | 0) != ($4_1 | 0)) {
-    break label$3
+    break block2
    }
    return ($1_1 ? $2_1 : 0) | 0;
   }
   return ($0_1 >>> 0) / ($1_1 >>> 0) | 0 | 0;
  }
  
- function $53($0_1, $1_1) {
+ function $56($0_1, $1_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   var $3_1 = 0, $2_1 = 0, $4_1 = 0;
   $2_1 = global$0 - 16 | 0;
   global$0 = $2_1;
   HEAP8[($2_1 + 15 | 0) >> 0] = $1_1;
-  label$1 : {
-   label$2 : {
+  block2 : {
+   block : {
     $3_1 = HEAP32[($0_1 + 16 | 0) >> 2] | 0;
     if ($3_1) {
-     break label$2
+     break block
     }
-    label$3 : {
-     if (!($50($0_1 | 0) | 0)) {
-      break label$3
+    block1 : {
+     if (!($51($0_1 | 0) | 0)) {
+      break block1
      }
      $3_1 = -1;
-     break label$1;
+     break block2;
     }
     $3_1 = HEAP32[($0_1 + 16 | 0) >> 2] | 0;
    }
-   label$4 : {
+   block3 : {
     $4_1 = HEAP32[($0_1 + 20 | 0) >> 2] | 0;
     if (($4_1 | 0) == ($3_1 | 0)) {
-     break label$4
+     break block3
     }
     $3_1 = $1_1 & 255 | 0;
     if ((HEAP32[($0_1 + 80 | 0) >> 2] | 0 | 0) == ($3_1 | 0)) {
-     break label$4
+     break block3
     }
     HEAP32[($0_1 + 20 | 0) >> 2] = $4_1 + 1 | 0;
     HEAP8[$4_1 >> 0] = $1_1;
-    break label$1;
+    break block2;
    }
-   label$5 : {
+   block4 : {
     if ((FUNCTION_TABLE[HEAP32[($0_1 + 36 | 0) >> 2] | 0 | 0]($0_1, $2_1 + 15 | 0, 1) | 0 | 0) == (1 | 0)) {
-     break label$5
+     break block4
     }
     $3_1 = -1;
-    break label$1;
+    break block2;
    }
    $3_1 = HEAPU8[($2_1 + 15 | 0) >> 0] | 0;
   }
@@ -3259,84 +3365,84 @@ function asmFunc(imports) {
   return $3_1 | 0;
  }
  
- function $54($0_1, $1_1) {
+ function $57($0_1, $1_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
-  return $55($0_1 | 0, $1_1 | 0) | 0 | 0;
+  return $58($0_1 | 0, $1_1 | 0) | 0 | 0;
  }
  
- function $55($0_1, $1_1) {
+ function $58($0_1, $1_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   var $2_1 = 0, $3_1 = 0;
-  label$1 : {
-   label$2 : {
+  block1 : {
+   block : {
     $2_1 = HEAP32[($1_1 + 76 | 0) >> 2] | 0;
     if (($2_1 | 0) < (0 | 0)) {
-     break label$2
+     break block
     }
     if (!$2_1) {
-     break label$1
+     break block1
     }
-    if (($2_1 & 1073741823 | 0 | 0) != (HEAP32[(($64() | 0) + 24 | 0) >> 2] | 0 | 0)) {
-     break label$1
+    if (($2_1 & 1073741823 | 0 | 0) != (HEAP32[(($66() | 0) + 24 | 0) >> 2] | 0 | 0)) {
+     break block1
     }
    }
-   label$3 : {
+   block2 : {
     $2_1 = $0_1 & 255 | 0;
     if (($2_1 | 0) == (HEAP32[($1_1 + 80 | 0) >> 2] | 0 | 0)) {
-     break label$3
+     break block2
     }
     $3_1 = HEAP32[($1_1 + 20 | 0) >> 2] | 0;
     if (($3_1 | 0) == (HEAP32[($1_1 + 16 | 0) >> 2] | 0 | 0)) {
-     break label$3
+     break block2
     }
     HEAP32[($1_1 + 20 | 0) >> 2] = $3_1 + 1 | 0;
     HEAP8[$3_1 >> 0] = $0_1;
     return $2_1 | 0;
    }
-   return $53($1_1 | 0, $2_1 | 0) | 0 | 0;
+   return $56($1_1 | 0, $2_1 | 0) | 0 | 0;
   }
-  return $56($0_1 | 0, $1_1 | 0) | 0 | 0;
+  return $59($0_1 | 0, $1_1 | 0) | 0 | 0;
  }
  
- function $56($0_1, $1_1) {
+ function $59($0_1, $1_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   var $3_1 = 0, $2_1 = 0, $4_1 = 0;
-  label$1 : {
+  block : {
    $2_1 = $1_1 + 76 | 0;
-   if (!($57($2_1 | 0) | 0)) {
-    break label$1
+   if (!($60($2_1 | 0) | 0)) {
+    break block
    }
-   $43($1_1 | 0) | 0;
+   $44($1_1 | 0) | 0;
   }
-  label$2 : {
-   label$3 : {
+  block2 : {
+   block1 : {
     $3_1 = $0_1 & 255 | 0;
     if (($3_1 | 0) == (HEAP32[($1_1 + 80 | 0) >> 2] | 0 | 0)) {
-     break label$3
+     break block1
     }
     $4_1 = HEAP32[($1_1 + 20 | 0) >> 2] | 0;
     if (($4_1 | 0) == (HEAP32[($1_1 + 16 | 0) >> 2] | 0 | 0)) {
-     break label$3
+     break block1
     }
     HEAP32[($1_1 + 20 | 0) >> 2] = $4_1 + 1 | 0;
     HEAP8[$4_1 >> 0] = $0_1;
-    break label$2;
+    break block2;
    }
-   $3_1 = $53($1_1 | 0, $3_1 | 0) | 0;
+   $3_1 = $56($1_1 | 0, $3_1 | 0) | 0;
   }
-  label$4 : {
-   if (!(($58($2_1 | 0) | 0) & 1073741824 | 0)) {
-    break label$4
+  block3 : {
+   if (!(($61($2_1 | 0) | 0) & 1073741824 | 0)) {
+    break block3
    }
-   $59($2_1 | 0);
+   $62($2_1 | 0);
   }
   return $3_1 | 0;
  }
  
- function $57($0_1) {
+ function $60($0_1) {
   $0_1 = $0_1 | 0;
   var $1_1 = 0;
   $1_1 = HEAP32[$0_1 >> 2] | 0;
@@ -3344,7 +3450,7 @@ function asmFunc(imports) {
   return $1_1 | 0;
  }
  
- function $58($0_1) {
+ function $61($0_1) {
   $0_1 = $0_1 | 0;
   var $1_1 = 0;
   $1_1 = HEAP32[$0_1 >> 2] | 0;
@@ -3352,157 +3458,73 @@ function asmFunc(imports) {
   return $1_1 | 0;
  }
  
- function $59($0_1) {
+ function $62($0_1) {
   $0_1 = $0_1 | 0;
-  $45($0_1 | 0, 1 | 0) | 0;
+  $46($0_1 | 0, 1 | 0) | 0;
  }
  
- function $60($0_1) {
+ function $63($0_1) {
   $0_1 = $0_1 | 0;
   var $1_1 = 0, $2_1 = 0, $3_1 = 0, $4_1 = 0;
-  $1_1 = $74(HEAP32[($42() | 0) >> 2] | 0 | 0) | 0;
-  label$1 : {
-   label$2 : {
-    if ((HEAP32[(0 + 68428 | 0) >> 2] | 0 | 0) >= (0 | 0)) {
-     break label$2
+  $1_1 = $76(HEAP32[($43() | 0) >> 2] | 0 | 0) | 0;
+  block1 : {
+   block : {
+    if ((HEAP32[(0 + 68436 | 0) >> 2] | 0 | 0) >= (0 | 0)) {
+     break block
     }
     $2_1 = 1;
-    break label$1;
+    break block1;
    }
-   $2_1 = !($43(68352 | 0) | 0);
+   $2_1 = !($44(68360 | 0) | 0);
   }
-  $3_1 = HEAP32[(0 + 68424 | 0) >> 2] | 0;
-  $4_1 = HEAP32[(0 + 68488 | 0) >> 2] | 0;
-  label$3 : {
+  $3_1 = HEAP32[(0 + 68432 | 0) >> 2] | 0;
+  $4_1 = HEAP32[(0 + 68496 | 0) >> 2] | 0;
+  block2 : {
    if (!$0_1) {
-    break label$3
+    break block2
    }
    if (!(HEAPU8[$0_1 >> 0] | 0)) {
-    break label$3
+    break block2
    }
-   $52($0_1 | 0, $75($0_1 | 0) | 0 | 0, 1 | 0, 68352 | 0) | 0;
-   $54(58 | 0, 68352 | 0) | 0;
-   $54(32 | 0, 68352 | 0) | 0;
+   $55($0_1 | 0, $77($0_1 | 0) | 0 | 0, 1 | 0, 68360 | 0) | 0;
+   $57(58 | 0, 68360 | 0) | 0;
+   $57(32 | 0, 68360 | 0) | 0;
   }
-  $52($1_1 | 0, $75($1_1 | 0) | 0 | 0, 1 | 0, 68352 | 0) | 0;
-  $54(10 | 0, 68352 | 0) | 0;
-  HEAP32[(0 + 68488 | 0) >> 2] = $4_1;
-  HEAP32[(0 + 68424 | 0) >> 2] = $3_1;
-  label$4 : {
+  $55($1_1 | 0, $77($1_1 | 0) | 0 | 0, 1 | 0, 68360 | 0) | 0;
+  $57(10 | 0, 68360 | 0) | 0;
+  HEAP32[(0 + 68496 | 0) >> 2] = $4_1;
+  HEAP32[(0 + 68432 | 0) >> 2] = $3_1;
+  block3 : {
    if ($2_1) {
-    break label$4
+    break block3
    }
-   $44(68352 | 0);
+   $45(68360 | 0);
   }
- }
- 
- function $61($0_1, $1_1, $2_1) {
-  $0_1 = $0_1 | 0;
-  $1_1 = $1_1 | 0;
-  $2_1 = $2_1 | 0;
-  var $3_1 = 0, i64toi32_i32$0 = 0, $4_1 = 0, i64toi32_i32$1 = 0, $6_1 = 0, $5_1 = 0, $6$hi = 0;
-  label$1 : {
-   if (!$2_1) {
-    break label$1
-   }
-   HEAP8[$0_1 >> 0] = $1_1;
-   $3_1 = $0_1 + $2_1 | 0;
-   HEAP8[($3_1 + -1 | 0) >> 0] = $1_1;
-   if ($2_1 >>> 0 < 3 >>> 0) {
-    break label$1
-   }
-   HEAP8[($0_1 + 2 | 0) >> 0] = $1_1;
-   HEAP8[($0_1 + 1 | 0) >> 0] = $1_1;
-   HEAP8[($3_1 + -3 | 0) >> 0] = $1_1;
-   HEAP8[($3_1 + -2 | 0) >> 0] = $1_1;
-   if ($2_1 >>> 0 < 7 >>> 0) {
-    break label$1
-   }
-   HEAP8[($0_1 + 3 | 0) >> 0] = $1_1;
-   HEAP8[($3_1 + -4 | 0) >> 0] = $1_1;
-   if ($2_1 >>> 0 < 9 >>> 0) {
-    break label$1
-   }
-   $4_1 = (0 - $0_1 | 0) & 3 | 0;
-   $3_1 = $0_1 + $4_1 | 0;
-   $1_1 = Math_imul($1_1 & 255 | 0, 16843009);
-   HEAP32[$3_1 >> 2] = $1_1;
-   $4_1 = ($2_1 - $4_1 | 0) & -4 | 0;
-   $2_1 = $3_1 + $4_1 | 0;
-   HEAP32[($2_1 + -4 | 0) >> 2] = $1_1;
-   if ($4_1 >>> 0 < 9 >>> 0) {
-    break label$1
-   }
-   HEAP32[($3_1 + 8 | 0) >> 2] = $1_1;
-   HEAP32[($3_1 + 4 | 0) >> 2] = $1_1;
-   HEAP32[($2_1 + -8 | 0) >> 2] = $1_1;
-   HEAP32[($2_1 + -12 | 0) >> 2] = $1_1;
-   if ($4_1 >>> 0 < 25 >>> 0) {
-    break label$1
-   }
-   HEAP32[($3_1 + 24 | 0) >> 2] = $1_1;
-   HEAP32[($3_1 + 20 | 0) >> 2] = $1_1;
-   HEAP32[($3_1 + 16 | 0) >> 2] = $1_1;
-   HEAP32[($3_1 + 12 | 0) >> 2] = $1_1;
-   HEAP32[($2_1 + -16 | 0) >> 2] = $1_1;
-   HEAP32[($2_1 + -20 | 0) >> 2] = $1_1;
-   HEAP32[($2_1 + -24 | 0) >> 2] = $1_1;
-   HEAP32[($2_1 + -28 | 0) >> 2] = $1_1;
-   $5_1 = $3_1 & 4 | 0 | 24 | 0;
-   $2_1 = $4_1 - $5_1 | 0;
-   if ($2_1 >>> 0 < 32 >>> 0) {
-    break label$1
-   }
-   i64toi32_i32$0 = 0;
-   i64toi32_i32$1 = 1;
-   i64toi32_i32$1 = __wasm_i64_mul($1_1 | 0, i64toi32_i32$0 | 0, 1 | 0, i64toi32_i32$1 | 0) | 0;
-   i64toi32_i32$0 = i64toi32_i32$HIGH_BITS;
-   $6_1 = i64toi32_i32$1;
-   $6$hi = i64toi32_i32$0;
-   $1_1 = $3_1 + $5_1 | 0;
-   label$2 : while (1) {
-    i64toi32_i32$0 = $6$hi;
-    i64toi32_i32$1 = $1_1;
-    HEAP32[($1_1 + 24 | 0) >> 2] = $6_1;
-    HEAP32[($1_1 + 28 | 0) >> 2] = i64toi32_i32$0;
-    i64toi32_i32$1 = $1_1;
-    HEAP32[($1_1 + 16 | 0) >> 2] = $6_1;
-    HEAP32[($1_1 + 20 | 0) >> 2] = i64toi32_i32$0;
-    i64toi32_i32$1 = $1_1;
-    HEAP32[($1_1 + 8 | 0) >> 2] = $6_1;
-    HEAP32[($1_1 + 12 | 0) >> 2] = i64toi32_i32$0;
-    i64toi32_i32$1 = $1_1;
-    HEAP32[$1_1 >> 2] = $6_1;
-    HEAP32[($1_1 + 4 | 0) >> 2] = i64toi32_i32$0;
-    $1_1 = $1_1 + 32 | 0;
-    $2_1 = $2_1 + -32 | 0;
-    if ($2_1 >>> 0 > 31 >>> 0) {
-     continue label$2
-    }
-    break label$2;
-   };
-  }
-  return $0_1 | 0;
- }
- 
- function $62() {
-  return 42 | 0;
- }
- 
- function $63() {
-  return $62() | 0 | 0;
  }
  
  function $64() {
-  return 68588 | 0;
+  return 42 | 0;
  }
  
  function $65() {
-  HEAP32[(0 + 68684 | 0) >> 2] = 68564;
-  HEAP32[(0 + 68612 | 0) >> 2] = $63() | 0;
+  return $64() | 0 | 0;
  }
  
- function $66($0_1, $1_1, $2_1, $3_1) {
+ function $66() {
+  return 68596 | 0;
+ }
+ 
+ function $67() {
+  var $0_1 = 0;
+  HEAP32[(0 + 68692 | 0) >> 2] = 68572;
+  $0_1 = $65() | 0;
+  HEAP32[(0 + 68652 | 0) >> 2] = 65536 - 0 | 0;
+  HEAP32[(0 + 68648 | 0) >> 2] = 65536;
+  HEAP32[(0 + 68620 | 0) >> 2] = $0_1;
+  HEAP32[(0 + 68656 | 0) >> 2] = HEAP32[(0 + 68352 | 0) >> 2] | 0;
+ }
+ 
+ function $68($0_1, $1_1, $2_1, $3_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
@@ -3511,12 +3533,12 @@ function asmFunc(imports) {
   $4_1 = global$0 - 16 | 0;
   global$0 = $4_1;
   HEAP32[($4_1 + 12 | 0) >> 2] = $3_1;
-  $3_1 = $93($0_1 | 0, $1_1 | 0, $2_1 | 0, $3_1 | 0) | 0;
+  $3_1 = $96($0_1 | 0, $1_1 | 0, $2_1 | 0, $3_1 | 0) | 0;
   global$0 = $4_1 + 16 | 0;
   return $3_1 | 0;
  }
  
- function $67($0_1, $1_1, $2_1) {
+ function $69($0_1, $1_1, $2_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
@@ -3524,22 +3546,22 @@ function asmFunc(imports) {
   $3_1 = global$0 - 16 | 0;
   global$0 = $3_1;
   HEAP32[($3_1 + 12 | 0) >> 2] = $2_1;
-  $2_1 = $95($0_1 | 0, $1_1 | 0, $2_1 | 0) | 0;
+  $2_1 = $98($0_1 | 0, $1_1 | 0, $2_1 | 0) | 0;
   global$0 = $3_1 + 16 | 0;
   return $2_1 | 0;
  }
  
- function $68($0_1) {
+ function $70($0_1) {
   $0_1 = $0_1 | 0;
   return $0_1 | 0;
  }
  
- function $69($0_1) {
+ function $71($0_1) {
   $0_1 = $0_1 | 0;
-  return $96(fimport$2($68(HEAP32[($0_1 + 60 | 0) >> 2] | 0 | 0) | 0 | 0) | 0 | 0) | 0 | 0;
+  return $99(fimport$1($70(HEAP32[($0_1 + 60 | 0) >> 2] | 0 | 0) | 0 | 0) | 0 | 0) | 0 | 0;
  }
  
- function $70($0_1, $1_1, $2_1) {
+ function $72($0_1, $1_1, $2_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
@@ -3556,32 +3578,32 @@ function asmFunc(imports) {
   $6_1 = $1_1 + $2_1 | 0;
   $4_1 = $3_1 + 16 | 0;
   $7_1 = 2;
-  label$1 : {
-   label$2 : {
-    label$3 : {
-     label$4 : {
-      label$5 : {
-       if (!($96(fimport$3(HEAP32[($0_1 + 60 | 0) >> 2] | 0 | 0, $3_1 + 16 | 0 | 0, 2 | 0, $3_1 + 12 | 0 | 0) | 0 | 0) | 0)) {
-        break label$5
+  block5 : {
+   block4 : {
+    block2 : {
+     block1 : {
+      block : {
+       if (!($99(fimport$2(HEAP32[($0_1 + 60 | 0) >> 2] | 0 | 0, $3_1 + 16 | 0 | 0, 2 | 0, $3_1 + 12 | 0 | 0) | 0 | 0) | 0)) {
+        break block
        }
        $5_1 = $4_1;
-       break label$4;
+       break block1;
       }
-      label$6 : while (1) {
+      label : while (1) {
        $1_1 = HEAP32[($3_1 + 12 | 0) >> 2] | 0;
        if (($6_1 | 0) == ($1_1 | 0)) {
-        break label$3
+        break block2
        }
-       label$7 : {
+       block3 : {
         if (($1_1 | 0) > (-1 | 0)) {
-         break label$7
+         break block3
         }
         $5_1 = $4_1;
-        break label$2;
+        break block4;
        }
        $8_1 = HEAP32[($4_1 + 4 | 0) >> 2] | 0;
        $9_1 = $1_1 >>> 0 > $8_1 >>> 0;
-       $5_1 = $4_1 + ($9_1 << 3 | 0) | 0;
+       $5_1 = $4_1 + ($9_1 ? 8 : 0) | 0;
        $8_1 = $1_1 - ($9_1 ? $8_1 : 0) | 0;
        HEAP32[$5_1 >> 2] = (HEAP32[$5_1 >> 2] | 0) + $8_1 | 0;
        $4_1 = $4_1 + ($9_1 ? 12 : 4) | 0;
@@ -3589,14 +3611,14 @@ function asmFunc(imports) {
        $6_1 = $6_1 - $1_1 | 0;
        $4_1 = $5_1;
        $7_1 = $7_1 - $9_1 | 0;
-       if (!($96(fimport$3(HEAP32[($0_1 + 60 | 0) >> 2] | 0 | 0, $4_1 | 0, $7_1 | 0, $3_1 + 12 | 0 | 0) | 0 | 0) | 0)) {
-        continue label$6
+       if (!($99(fimport$2(HEAP32[($0_1 + 60 | 0) >> 2] | 0 | 0, $4_1 | 0, $7_1 | 0, $3_1 + 12 | 0 | 0) | 0 | 0) | 0)) {
+        continue label
        }
-       break label$6;
+       break label;
       };
      }
      if (($6_1 | 0) != (-1 | 0)) {
-      break label$2
+      break block4
      }
     }
     $1_1 = HEAP32[($0_1 + 44 | 0) >> 2] | 0;
@@ -3604,7 +3626,7 @@ function asmFunc(imports) {
     HEAP32[($0_1 + 20 | 0) >> 2] = $1_1;
     HEAP32[($0_1 + 16 | 0) >> 2] = $1_1 + (HEAP32[($0_1 + 48 | 0) >> 2] | 0) | 0;
     $1_1 = $2_1;
-    break label$1;
+    break block5;
    }
    $1_1 = 0;
    HEAP32[($0_1 + 28 | 0) >> 2] = 0;
@@ -3612,7 +3634,7 @@ function asmFunc(imports) {
    HEAP32[($0_1 + 20 | 0) >> 2] = 0;
    HEAP32[$0_1 >> 2] = HEAP32[$0_1 >> 2] | 0 | 32 | 0;
    if (($7_1 | 0) == (2 | 0)) {
-    break label$1
+    break block5
    }
    $1_1 = $2_1 - (HEAP32[($5_1 + 4 | 0) >> 2] | 0) | 0;
   }
@@ -3620,7 +3642,7 @@ function asmFunc(imports) {
   return $1_1 | 0;
  }
  
- function $71($0_1, $1_1, $1$hi, $2_1) {
+ function $73($0_1, $1_1, $1$hi, $2_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $1$hi = $1$hi | 0;
@@ -3629,7 +3651,7 @@ function asmFunc(imports) {
   $3_1 = global$0 - 16 | 0;
   global$0 = $3_1;
   i64toi32_i32$0 = $1$hi;
-  $2_1 = $96($122($0_1 | 0, $1_1 | 0, i64toi32_i32$0 | 0, $2_1 & 255 | 0 | 0, $3_1 + 8 | 0 | 0) | 0 | 0) | 0;
+  $2_1 = $99($125($0_1 | 0, $1_1 | 0, i64toi32_i32$0 | 0, $2_1 & 255 | 0 | 0, $3_1 + 8 | 0 | 0) | 0 | 0) | 0;
   i64toi32_i32$2 = $3_1;
   i64toi32_i32$0 = HEAP32[(i64toi32_i32$2 + 8 | 0) >> 2] | 0;
   i64toi32_i32$1 = HEAP32[(i64toi32_i32$2 + 12 | 0) >> 2] | 0;
@@ -3644,118 +3666,118 @@ function asmFunc(imports) {
   return i64toi32_i32$3 | 0;
  }
  
- function $72($0_1, $1_1, $1$hi, $2_1) {
+ function $74($0_1, $1_1, $1$hi, $2_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $1$hi = $1$hi | 0;
   $2_1 = $2_1 | 0;
   var i64toi32_i32$0 = 0, i64toi32_i32$1 = 0;
   i64toi32_i32$0 = $1$hi;
-  i64toi32_i32$0 = $71(HEAP32[($0_1 + 60 | 0) >> 2] | 0 | 0, $1_1 | 0, i64toi32_i32$0 | 0, $2_1 | 0) | 0;
+  i64toi32_i32$0 = $73(HEAP32[($0_1 + 60 | 0) >> 2] | 0 | 0, $1_1 | 0, i64toi32_i32$0 | 0, $2_1 | 0) | 0;
   i64toi32_i32$1 = i64toi32_i32$HIGH_BITS;
   i64toi32_i32$HIGH_BITS = i64toi32_i32$1;
   return i64toi32_i32$0 | 0;
  }
  
- function $73($0_1, $1_1) {
+ function $75($0_1, $1_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   return (HEAPU16[((($0_1 >>> 0 > 153 >>> 0 ? 0 : $0_1) << 1 | 0) + 67552 | 0) >> 1] | 0) + 65634 | 0 | 0;
  }
  
- function $74($0_1) {
+ function $76($0_1) {
   $0_1 = $0_1 | 0;
-  return $73($0_1 | 0, $0_1 | 0) | 0 | 0;
+  return $75($0_1 | 0, $0_1 | 0) | 0 | 0;
  }
  
- function $75($0_1) {
+ function $77($0_1) {
   $0_1 = $0_1 | 0;
   var $1_1 = 0, $2_1 = 0, $3_1 = 0;
   $1_1 = $0_1;
-  label$1 : {
-   label$2 : {
+  block2 : {
+   block : {
     if (!($1_1 & 3 | 0)) {
-     break label$2
+     break block
     }
-    label$3 : {
+    block1 : {
      if (HEAPU8[$1_1 >> 0] | 0) {
-      break label$3
+      break block1
      }
      return $1_1 - $1_1 | 0 | 0;
     }
     $1_1 = $0_1;
-    label$4 : while (1) {
+    label : while (1) {
      $1_1 = $1_1 + 1 | 0;
      if (!($1_1 & 3 | 0)) {
-      break label$2
+      break block
      }
      if (HEAPU8[$1_1 >> 0] | 0) {
-      continue label$4
+      continue label
      }
-     break label$1;
+     break block2;
     };
    }
-   label$5 : while (1) {
+   label1 : while (1) {
     $2_1 = $1_1;
     $1_1 = $1_1 + 4 | 0;
     $3_1 = HEAP32[$2_1 >> 2] | 0;
     if (((16843008 - $3_1 | 0 | $3_1 | 0) & -2139062144 | 0 | 0) == (-2139062144 | 0)) {
-     continue label$5
+     continue label1
     }
-    break label$5;
+    break label1;
    };
-   label$6 : while (1) {
+   label2 : while (1) {
     $1_1 = $2_1;
     $2_1 = $1_1 + 1 | 0;
     if (HEAPU8[$1_1 >> 0] | 0) {
-     continue label$6
+     continue label2
     }
-    break label$6;
+    break label2;
    };
   }
   return $1_1 - $0_1 | 0 | 0;
  }
  
- function $76($0_1, $1_1, $2_1) {
+ function $78($0_1, $1_1, $2_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
   var $3_1 = 0, $4_1 = 0;
-  label$1 : {
+  block : {
    if ($2_1) {
-    break label$1
+    break block
    }
    return 0 | 0;
   }
-  label$2 : {
-   label$3 : {
+  block2 : {
+   block1 : {
     $3_1 = HEAPU8[$0_1 >> 0] | 0;
     if ($3_1) {
-     break label$3
+     break block1
     }
     $0_1 = 0;
-    break label$2;
+    break block2;
    }
-   label$4 : {
-    label$5 : while (1) {
+   block3 : {
+    label : while (1) {
      $4_1 = HEAPU8[$1_1 >> 0] | 0;
      if (($3_1 & 255 | 0 | 0) != ($4_1 | 0)) {
-      break label$4
+      break block3
      }
      if (!$4_1) {
-      break label$4
+      break block3
      }
      $2_1 = $2_1 + -1 | 0;
      if (!$2_1) {
-      break label$4
+      break block3
      }
      $1_1 = $1_1 + 1 | 0;
      $3_1 = HEAPU8[($0_1 + 1 | 0) >> 0] | 0;
      $0_1 = $0_1 + 1 | 0;
      if ($3_1) {
-      continue label$5
+      continue label
      }
-     break label$5;
+     break label;
     };
     $3_1 = 0;
    }
@@ -3764,98 +3786,98 @@ function asmFunc(imports) {
   return $0_1 - (HEAPU8[$1_1 >> 0] | 0) | 0 | 0;
  }
  
- function $77($0_1, $1_1, $2_1) {
+ function $79($0_1, $1_1, $2_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
   var $3_1 = 0, $4_1 = 0;
   $3_1 = ($2_1 | 0) != (0 | 0);
-  label$1 : {
-   label$2 : {
-    label$3 : {
+  block2 : {
+   block1 : {
+    block : {
      if (!($0_1 & 3 | 0)) {
-      break label$3
+      break block
      }
      if (!$2_1) {
-      break label$3
+      break block
      }
      $4_1 = $1_1 & 255 | 0;
-     label$4 : while (1) {
+     label : while (1) {
       if ((HEAPU8[$0_1 >> 0] | 0 | 0) == ($4_1 | 0)) {
-       break label$2
+       break block1
       }
       $2_1 = $2_1 + -1 | 0;
       $3_1 = ($2_1 | 0) != (0 | 0);
       $0_1 = $0_1 + 1 | 0;
       if (!($0_1 & 3 | 0)) {
-       break label$3
+       break block
       }
       if ($2_1) {
-       continue label$4
+       continue label
       }
-      break label$4;
+      break label;
      };
     }
     if (!$3_1) {
-     break label$1
+     break block2
     }
-    label$5 : {
+    block3 : {
      if ((HEAPU8[$0_1 >> 0] | 0 | 0) == ($1_1 & 255 | 0 | 0)) {
-      break label$5
+      break block3
      }
      if ($2_1 >>> 0 < 4 >>> 0) {
-      break label$5
+      break block3
      }
      $4_1 = Math_imul($1_1 & 255 | 0, 16843009);
-     label$6 : while (1) {
+     label1 : while (1) {
       $3_1 = (HEAP32[$0_1 >> 2] | 0) ^ $4_1 | 0;
       if (((16843008 - $3_1 | 0 | $3_1 | 0) & -2139062144 | 0 | 0) != (-2139062144 | 0)) {
-       break label$2
+       break block1
       }
       $0_1 = $0_1 + 4 | 0;
       $2_1 = $2_1 + -4 | 0;
       if ($2_1 >>> 0 > 3 >>> 0) {
-       continue label$6
+       continue label1
       }
-      break label$6;
+      break label1;
      };
     }
     if (!$2_1) {
-     break label$1
+     break block2
     }
    }
    $3_1 = $1_1 & 255 | 0;
-   label$7 : while (1) {
-    label$8 : {
+   label2 : while (1) {
+    block4 : {
      if ((HEAPU8[$0_1 >> 0] | 0 | 0) != ($3_1 | 0)) {
-      break label$8
+      break block4
      }
      return $0_1 | 0;
     }
     $0_1 = $0_1 + 1 | 0;
     $2_1 = $2_1 + -1 | 0;
     if ($2_1) {
-     continue label$7
+     continue label2
     }
-    break label$7;
+    break label2;
    };
   }
   return 0 | 0;
  }
  
- function $78($0_1, $1_1) {
+ function $80($0_1, $1_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   var $2_1 = 0;
-  $2_1 = $77($0_1 | 0, 0 | 0, $1_1 | 0) | 0;
+  $2_1 = $79($0_1 | 0, 0 | 0, $1_1 | 0) | 0;
   return ($2_1 ? $2_1 - $0_1 | 0 : $1_1) | 0;
  }
  
- function $79($0_1, $1_1) {
+ function $81($0_1, $1_1) {
   $0_1 = +$0_1;
   $1_1 = $1_1 | 0;
   var i64toi32_i32$0 = 0, i64toi32_i32$1 = 0, i64toi32_i32$3 = 0, $3_1 = 0, i64toi32_i32$2 = 0, i64toi32_i32$4 = 0, $2_1 = 0, $10_1 = 0, $2$hi = 0;
-  label$1 : {
+  block : {
    wasm2js_scratch_store_f64(+$0_1);
    i64toi32_i32$0 = wasm2js_scratch_load_i32(1 | 0) | 0;
    $2_1 = wasm2js_scratch_load_i32(0 | 0) | 0;
@@ -3873,21 +3895,21 @@ function asmFunc(imports) {
    }
    $3_1 = $10_1 & 2047 | 0;
    if (($3_1 | 0) == (2047 | 0)) {
-    break label$1
+    break block
    }
-   label$2 : {
+   block1 : {
     if ($3_1) {
-     break label$2
+     break block1
     }
-    label$3 : {
-     label$4 : {
+    block3 : {
+     block2 : {
       if ($0_1 != 0.0) {
-       break label$4
+       break block2
       }
       $3_1 = 0;
-      break label$3;
+      break block3;
      }
-     $0_1 = +$79(+($0_1 * 18446744073709551615.0), $1_1 | 0);
+     $0_1 = +$81(+($0_1 * 18446744073709551615.0), $1_1 | 0);
      $3_1 = (HEAP32[$1_1 >> 2] | 0) + -64 | 0;
     }
     HEAP32[$1_1 >> 2] = $3_1;
@@ -3910,7 +3932,96 @@ function asmFunc(imports) {
   return +$0_1;
  }
  
- function $80($0_1, $1_1, $2_1, $3_1, $4_1) {
+ function $82($0_1, $1_1, $2_1) {
+  $0_1 = $0_1 | 0;
+  $1_1 = $1_1 | 0;
+  $2_1 = $2_1 | 0;
+  var $3_1 = 0, i64toi32_i32$0 = 0, $4_1 = 0, i64toi32_i32$1 = 0, $6_1 = 0, $5_1 = 0, $6$hi = 0;
+  block : {
+   if (!$2_1) {
+    break block
+   }
+   HEAP8[$0_1 >> 0] = $1_1;
+   $3_1 = $0_1 + $2_1 | 0;
+   HEAP8[($3_1 + -1 | 0) >> 0] = $1_1;
+   if ($2_1 >>> 0 < 3 >>> 0) {
+    break block
+   }
+   HEAP8[($0_1 + 2 | 0) >> 0] = $1_1;
+   HEAP8[($0_1 + 1 | 0) >> 0] = $1_1;
+   HEAP8[($3_1 + -3 | 0) >> 0] = $1_1;
+   HEAP8[($3_1 + -2 | 0) >> 0] = $1_1;
+   if ($2_1 >>> 0 < 7 >>> 0) {
+    break block
+   }
+   HEAP8[($0_1 + 3 | 0) >> 0] = $1_1;
+   HEAP8[($3_1 + -4 | 0) >> 0] = $1_1;
+   if ($2_1 >>> 0 < 9 >>> 0) {
+    break block
+   }
+   $4_1 = (0 - $0_1 | 0) & 3 | 0;
+   $3_1 = $0_1 + $4_1 | 0;
+   $1_1 = Math_imul($1_1 & 255 | 0, 16843009);
+   HEAP32[$3_1 >> 2] = $1_1;
+   $4_1 = ($2_1 - $4_1 | 0) & -4 | 0;
+   $2_1 = $3_1 + $4_1 | 0;
+   HEAP32[($2_1 + -4 | 0) >> 2] = $1_1;
+   if ($4_1 >>> 0 < 9 >>> 0) {
+    break block
+   }
+   HEAP32[($3_1 + 8 | 0) >> 2] = $1_1;
+   HEAP32[($3_1 + 4 | 0) >> 2] = $1_1;
+   HEAP32[($2_1 + -8 | 0) >> 2] = $1_1;
+   HEAP32[($2_1 + -12 | 0) >> 2] = $1_1;
+   if ($4_1 >>> 0 < 25 >>> 0) {
+    break block
+   }
+   HEAP32[($3_1 + 24 | 0) >> 2] = $1_1;
+   HEAP32[($3_1 + 20 | 0) >> 2] = $1_1;
+   HEAP32[($3_1 + 16 | 0) >> 2] = $1_1;
+   HEAP32[($3_1 + 12 | 0) >> 2] = $1_1;
+   HEAP32[($2_1 + -16 | 0) >> 2] = $1_1;
+   HEAP32[($2_1 + -20 | 0) >> 2] = $1_1;
+   HEAP32[($2_1 + -24 | 0) >> 2] = $1_1;
+   HEAP32[($2_1 + -28 | 0) >> 2] = $1_1;
+   $5_1 = $3_1 & 4 | 0 | 24 | 0;
+   $2_1 = $4_1 - $5_1 | 0;
+   if ($2_1 >>> 0 < 32 >>> 0) {
+    break block
+   }
+   i64toi32_i32$0 = 0;
+   i64toi32_i32$1 = 1;
+   i64toi32_i32$1 = __wasm_i64_mul($1_1 | 0, i64toi32_i32$0 | 0, 1 | 0, i64toi32_i32$1 | 0) | 0;
+   i64toi32_i32$0 = i64toi32_i32$HIGH_BITS;
+   $6_1 = i64toi32_i32$1;
+   $6$hi = i64toi32_i32$0;
+   $1_1 = $3_1 + $5_1 | 0;
+   label : while (1) {
+    i64toi32_i32$0 = $6$hi;
+    i64toi32_i32$1 = $1_1;
+    HEAP32[($1_1 + 24 | 0) >> 2] = $6_1;
+    HEAP32[($1_1 + 28 | 0) >> 2] = i64toi32_i32$0;
+    i64toi32_i32$1 = $1_1;
+    HEAP32[($1_1 + 16 | 0) >> 2] = $6_1;
+    HEAP32[($1_1 + 20 | 0) >> 2] = i64toi32_i32$0;
+    i64toi32_i32$1 = $1_1;
+    HEAP32[($1_1 + 8 | 0) >> 2] = $6_1;
+    HEAP32[($1_1 + 12 | 0) >> 2] = i64toi32_i32$0;
+    i64toi32_i32$1 = $1_1;
+    HEAP32[$1_1 >> 2] = $6_1;
+    HEAP32[($1_1 + 4 | 0) >> 2] = i64toi32_i32$0;
+    $1_1 = $1_1 + 32 | 0;
+    $2_1 = $2_1 + -32 | 0;
+    if ($2_1 >>> 0 > 31 >>> 0) {
+     continue label
+    }
+    break label;
+   };
+  }
+  return $0_1 | 0;
+ }
+ 
+ function $83($0_1, $1_1, $2_1, $3_1, $4_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
@@ -3920,34 +4031,39 @@ function asmFunc(imports) {
   $5_1 = global$0 - 208 | 0;
   global$0 = $5_1;
   HEAP32[($5_1 + 204 | 0) >> 2] = $2_1;
-  $61($5_1 + 160 | 0 | 0, 0 | 0, 40 | 0) | 0;
+  block : {
+   if (!40) {
+    break block
+   }
+   wasm2js_memory_fill($5_1 + 160 | 0, 0, 40);
+  }
   HEAP32[($5_1 + 200 | 0) >> 2] = HEAP32[($5_1 + 204 | 0) >> 2] | 0;
-  label$1 : {
-   label$2 : {
-    if (($81(0 | 0, $1_1 | 0, $5_1 + 200 | 0 | 0, $5_1 + 80 | 0 | 0, $5_1 + 160 | 0 | 0, $3_1 | 0, $4_1 | 0) | 0 | 0) >= (0 | 0)) {
-     break label$2
+  block2 : {
+   block1 : {
+    if (($84(0 | 0, $1_1 | 0, $5_1 + 200 | 0 | 0, $5_1 + 80 | 0 | 0, $5_1 + 160 | 0 | 0, $3_1 | 0, $4_1 | 0) | 0 | 0) >= (0 | 0)) {
+     break block1
     }
     $4_1 = -1;
-    break label$1;
+    break block2;
    }
-   label$3 : {
-    label$4 : {
+   block4 : {
+    block3 : {
      if ((HEAP32[($0_1 + 76 | 0) >> 2] | 0 | 0) >= (0 | 0)) {
-      break label$4
+      break block3
      }
      $6_1 = 1;
-     break label$3;
+     break block4;
     }
-    $6_1 = !($43($0_1 | 0) | 0);
+    $6_1 = !($44($0_1 | 0) | 0);
    }
    $7_1 = HEAP32[$0_1 >> 2] | 0;
    HEAP32[$0_1 >> 2] = $7_1 & -33 | 0;
-   label$5 : {
-    label$6 : {
-     label$7 : {
-      label$8 : {
+   block8 : {
+    block7 : {
+     block6 : {
+      block5 : {
        if (HEAP32[($0_1 + 48 | 0) >> 2] | 0) {
-        break label$8
+        break block5
        }
        HEAP32[($0_1 + 48 | 0) >> 2] = 80;
        HEAP32[($0_1 + 28 | 0) >> 2] = 0;
@@ -3956,24 +4072,24 @@ function asmFunc(imports) {
        HEAP32[($0_1 + 20 | 0) >> 2] = i64toi32_i32$0;
        $8_1 = HEAP32[($0_1 + 44 | 0) >> 2] | 0;
        HEAP32[($0_1 + 44 | 0) >> 2] = $5_1;
-       break label$7;
+       break block6;
       }
       $8_1 = 0;
       if (HEAP32[($0_1 + 16 | 0) >> 2] | 0) {
-       break label$6
+       break block7
       }
      }
      $2_1 = -1;
-     if ($50($0_1 | 0) | 0) {
-      break label$5
+     if ($51($0_1 | 0) | 0) {
+      break block8
      }
     }
-    $2_1 = $81($0_1 | 0, $1_1 | 0, $5_1 + 200 | 0 | 0, $5_1 + 80 | 0 | 0, $5_1 + 160 | 0 | 0, $3_1 | 0, $4_1 | 0) | 0;
+    $2_1 = $84($0_1 | 0, $1_1 | 0, $5_1 + 200 | 0 | 0, $5_1 + 80 | 0 | 0, $5_1 + 160 | 0 | 0, $3_1 | 0, $4_1 | 0) | 0;
    }
    $4_1 = $7_1 & 32 | 0;
-   label$9 : {
+   block9 : {
     if (!$8_1) {
-     break label$9
+     break block9
     }
     FUNCTION_TABLE[HEAP32[($0_1 + 36 | 0) >> 2] | 0 | 0]($0_1, 0, 0) | 0;
     HEAP32[($0_1 + 48 | 0) >> 2] = 0;
@@ -3989,15 +4105,15 @@ function asmFunc(imports) {
    HEAP32[$0_1 >> 2] = $3_1 | $4_1 | 0;
    $4_1 = $3_1 & 32 | 0 ? -1 : $2_1;
    if ($6_1) {
-    break label$1
+    break block2
    }
-   $44($0_1 | 0);
+   $45($0_1 | 0);
   }
   global$0 = $5_1 + 208 | 0;
   return $4_1 | 0;
  }
  
- function $81($0_1, $1_1, $2_1, $3_1, $4_1, $5_1, $6_1) {
+ function $84($0_1, $1_1, $2_1, $3_1, $4_1, $5_1, $6_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
@@ -4005,7 +4121,7 @@ function asmFunc(imports) {
   $4_1 = $4_1 | 0;
   $5_1 = $5_1 | 0;
   $6_1 = $6_1 | 0;
-  var $12_1 = 0, $7_1 = 0, $15_1 = 0, $20_1 = 0, $17_1 = 0, $14_1 = 0, i64toi32_i32$0 = 0, i64toi32_i32$1 = 0, $13_1 = 0, $11_1 = 0, i64toi32_i32$2 = 0, $16_1 = 0, $19_1 = 0, $22_1 = 0, i64toi32_i32$5 = 0, $25_1 = 0, $25$hi = 0, $9_1 = 0, $18_1 = 0, $24_1 = 0, $10_1 = 0, i64toi32_i32$3 = 0, $21_1 = 0, $23_1 = 0, $33_1 = 0, $34_1 = 0, $35_1 = 0, $8_1 = 0, $266 = 0;
+  var $12_1 = 0, $7_1 = 0, $15_1 = 0, $20_1 = 0, $17_1 = 0, $14_1 = 0, i64toi32_i32$0 = 0, i64toi32_i32$1 = 0, $13_1 = 0, $11_1 = 0, i64toi32_i32$2 = 0, $16_1 = 0, $19_1 = 0, $22_1 = 0, $18_1 = 0, i64toi32_i32$5 = 0, $25_1 = 0, $25$hi = 0, $9_1 = 0, $24_1 = 0, $10_1 = 0, i64toi32_i32$3 = 0, $21_1 = 0, $23_1 = 0, $33_1 = 0, $34_1 = 0, $35_1 = 0, $8_1 = 0, $267 = 0;
   $7_1 = global$0 - 64 | 0;
   global$0 = $7_1;
   HEAP32[($7_1 + 60 | 0) >> 2] = $1_1;
@@ -4013,86 +4129,86 @@ function asmFunc(imports) {
   $9_1 = $7_1 + 40 | 0;
   $10_1 = 0;
   $11_1 = 0;
-  label$1 : {
-   label$2 : {
-    label$3 : {
-     label$4 : {
-      label$5 : while (1) {
+  block68 : {
+   block32 : {
+    block26 : {
+     block : {
+      label4 : while (1) {
        $12_1 = 0;
-       label$6 : while (1) {
+       label1 : while (1) {
         $13_1 = $1_1;
         if (($12_1 | 0) > ($11_1 ^ 2147483647 | 0 | 0)) {
-         break label$4
+         break block
         }
         $11_1 = $12_1 + $11_1 | 0;
         $12_1 = $1_1;
-        label$7 : {
-         label$8 : {
-          label$9 : {
-           label$10 : {
-            label$11 : {
-             label$12 : {
+        block31 : {
+         block34 : {
+          block47 : {
+           block60 : {
+            block15 : {
+             block1 : {
               $14_1 = HEAPU8[$12_1 >> 0] | 0;
               if (!$14_1) {
-               break label$12
+               break block1
               }
-              label$13 : while (1) {
-               label$14 : {
-                label$15 : {
-                 label$16 : {
+              label7 : while (1) {
+               block4 : {
+                block3 : {
+                 block2 : {
                   $14_1 = $14_1 & 255 | 0;
                   if ($14_1) {
-                   break label$16
+                   break block2
                   }
                   $1_1 = $12_1;
-                  break label$15;
+                  break block3;
                  }
                  if (($14_1 | 0) != (37 | 0)) {
-                  break label$14
+                  break block4
                  }
                  $14_1 = $12_1;
-                 label$17 : while (1) {
-                  label$18 : {
+                 label : while (1) {
+                  block5 : {
                    if ((HEAPU8[($14_1 + 1 | 0) >> 0] | 0 | 0) == (37 | 0)) {
-                    break label$18
+                    break block5
                    }
                    $1_1 = $14_1;
-                   break label$15;
+                   break block3;
                   }
                   $12_1 = $12_1 + 1 | 0;
                   $15_1 = HEAPU8[($14_1 + 2 | 0) >> 0] | 0;
                   $1_1 = $14_1 + 2 | 0;
                   $14_1 = $1_1;
                   if (($15_1 | 0) == (37 | 0)) {
-                   continue label$17
+                   continue label
                   }
-                  break label$17;
+                  break label;
                  };
                 }
                 $12_1 = $12_1 - $13_1 | 0;
                 $14_1 = $11_1 ^ 2147483647 | 0;
                 if (($12_1 | 0) > ($14_1 | 0)) {
-                 break label$4
+                 break block
                 }
-                label$19 : {
+                block6 : {
                  if (!$0_1) {
-                  break label$19
+                  break block6
                  }
-                 $82($0_1 | 0, $13_1 | 0, $12_1 | 0);
+                 $85($0_1 | 0, $13_1 | 0, $12_1 | 0);
                 }
                 if ($12_1) {
-                 continue label$6
+                 continue label1
                 }
                 HEAP32[($7_1 + 60 | 0) >> 2] = $1_1;
                 $12_1 = $1_1 + 1 | 0;
                 $16_1 = -1;
-                label$20 : {
+                block7 : {
                  $15_1 = (HEAP8[($1_1 + 1 | 0) >> 0] | 0) + -48 | 0;
                  if ($15_1 >>> 0 > 9 >>> 0) {
-                  break label$20
+                  break block7
                  }
                  if ((HEAPU8[($1_1 + 2 | 0) >> 0] | 0 | 0) != (36 | 0)) {
-                  break label$20
+                  break block7
                  }
                  $12_1 = $1_1 + 3 | 0;
                  $10_1 = 1;
@@ -4100,80 +4216,80 @@ function asmFunc(imports) {
                 }
                 HEAP32[($7_1 + 60 | 0) >> 2] = $12_1;
                 $17_1 = 0;
-                label$21 : {
-                 label$22 : {
+                block9 : {
+                 block8 : {
                   $18_1 = HEAP8[$12_1 >> 0] | 0;
                   $1_1 = $18_1 + -32 | 0;
                   if ($1_1 >>> 0 <= 31 >>> 0) {
-                   break label$22
+                   break block8
                   }
                   $15_1 = $12_1;
-                  break label$21;
+                  break block9;
                  }
                  $17_1 = 0;
                  $15_1 = $12_1;
                  $1_1 = 1 << $1_1 | 0;
                  if (!($1_1 & 75913 | 0)) {
-                  break label$21
+                  break block9
                  }
-                 label$23 : while (1) {
+                 label2 : while (1) {
                   $15_1 = $12_1 + 1 | 0;
                   HEAP32[($7_1 + 60 | 0) >> 2] = $15_1;
                   $17_1 = $1_1 | $17_1 | 0;
                   $18_1 = HEAP8[($12_1 + 1 | 0) >> 0] | 0;
                   $1_1 = $18_1 + -32 | 0;
                   if ($1_1 >>> 0 >= 32 >>> 0) {
-                   break label$21
+                   break block9
                   }
                   $12_1 = $15_1;
                   $1_1 = 1 << $1_1 | 0;
                   if ($1_1 & 75913 | 0) {
-                   continue label$23
+                   continue label2
                   }
-                  break label$23;
+                  break label2;
                  };
                 }
-                label$24 : {
-                 label$25 : {
+                block17 : {
+                 block10 : {
                   if (($18_1 | 0) != (42 | 0)) {
-                   break label$25
+                   break block10
                   }
-                  label$26 : {
-                   label$27 : {
+                  block14 : {
+                   block11 : {
                     $12_1 = (HEAP8[($15_1 + 1 | 0) >> 0] | 0) + -48 | 0;
                     if ($12_1 >>> 0 > 9 >>> 0) {
-                     break label$27
+                     break block11
                     }
                     if ((HEAPU8[($15_1 + 2 | 0) >> 0] | 0 | 0) != (36 | 0)) {
-                     break label$27
+                     break block11
                     }
-                    label$28 : {
-                     label$29 : {
+                    block13 : {
+                     block12 : {
                       if ($0_1) {
-                       break label$29
+                       break block12
                       }
                       HEAP32[($4_1 + ($12_1 << 2 | 0) | 0) >> 2] = 10;
                       $19_1 = 0;
-                      break label$28;
+                      break block13;
                      }
                      $19_1 = HEAP32[($3_1 + ($12_1 << 3 | 0) | 0) >> 2] | 0;
                     }
                     $1_1 = $15_1 + 3 | 0;
                     $10_1 = 1;
-                    break label$26;
+                    break block14;
                    }
                    if ($10_1) {
-                    break label$11
+                    break block15
                    }
                    $1_1 = $15_1 + 1 | 0;
-                   label$30 : {
+                   block16 : {
                     if ($0_1) {
-                     break label$30
+                     break block16
                     }
                     HEAP32[($7_1 + 60 | 0) >> 2] = $1_1;
                     $10_1 = 0;
                     $19_1 = 0;
-                    break label$24;
+                    break block17;
                    }
                    $12_1 = HEAP32[$2_1 >> 2] | 0;
                    HEAP32[$2_1 >> 2] = $12_1 + 4 | 0;
@@ -4182,65 +4298,65 @@ function asmFunc(imports) {
                   }
                   HEAP32[($7_1 + 60 | 0) >> 2] = $1_1;
                   if (($19_1 | 0) > (-1 | 0)) {
-                   break label$24
+                   break block17
                   }
                   $19_1 = 0 - $19_1 | 0;
                   $17_1 = $17_1 | 8192 | 0;
-                  break label$24;
+                  break block17;
                  }
-                 $19_1 = $83($7_1 + 60 | 0 | 0) | 0;
+                 $19_1 = $86($7_1 + 60 | 0 | 0) | 0;
                  if (($19_1 | 0) < (0 | 0)) {
-                  break label$4
+                  break block
                  }
                  $1_1 = HEAP32[($7_1 + 60 | 0) >> 2] | 0;
                 }
                 $12_1 = 0;
                 $20_1 = -1;
-                label$31 : {
-                 label$32 : {
+                block19 : {
+                 block18 : {
                   if ((HEAPU8[$1_1 >> 0] | 0 | 0) == (46 | 0)) {
-                   break label$32
+                   break block18
                   }
                   $21_1 = 0;
-                  break label$31;
+                  break block19;
                  }
-                 label$33 : {
+                 block20 : {
                   if ((HEAPU8[($1_1 + 1 | 0) >> 0] | 0 | 0) != (42 | 0)) {
-                   break label$33
+                   break block20
                   }
-                  label$34 : {
-                   label$35 : {
+                  block24 : {
+                   block21 : {
                     $15_1 = (HEAP8[($1_1 + 2 | 0) >> 0] | 0) + -48 | 0;
                     if ($15_1 >>> 0 > 9 >>> 0) {
-                     break label$35
+                     break block21
                     }
                     if ((HEAPU8[($1_1 + 3 | 0) >> 0] | 0 | 0) != (36 | 0)) {
-                     break label$35
+                     break block21
                     }
-                    label$36 : {
-                     label$37 : {
+                    block23 : {
+                     block22 : {
                       if ($0_1) {
-                       break label$37
+                       break block22
                       }
                       HEAP32[($4_1 + ($15_1 << 2 | 0) | 0) >> 2] = 10;
                       $20_1 = 0;
-                      break label$36;
+                      break block23;
                      }
                      $20_1 = HEAP32[($3_1 + ($15_1 << 3 | 0) | 0) >> 2] | 0;
                     }
                     $1_1 = $1_1 + 4 | 0;
-                    break label$34;
+                    break block24;
                    }
                    if ($10_1) {
-                    break label$11
+                    break block15
                    }
                    $1_1 = $1_1 + 2 | 0;
-                   label$38 : {
+                   block25 : {
                     if ($0_1) {
-                     break label$38
+                     break block25
                     }
                     $20_1 = 0;
-                    break label$34;
+                    break block24;
                    }
                    $15_1 = HEAP32[$2_1 >> 2] | 0;
                    HEAP32[$2_1 >> 2] = $15_1 + 4 | 0;
@@ -4248,122 +4364,103 @@ function asmFunc(imports) {
                   }
                   HEAP32[($7_1 + 60 | 0) >> 2] = $1_1;
                   $21_1 = ($20_1 | 0) > (-1 | 0);
-                  break label$31;
+                  break block19;
                  }
                  HEAP32[($7_1 + 60 | 0) >> 2] = $1_1 + 1 | 0;
                  $21_1 = 1;
-                 $20_1 = $83($7_1 + 60 | 0 | 0) | 0;
+                 $20_1 = $86($7_1 + 60 | 0 | 0) | 0;
                  $1_1 = HEAP32[($7_1 + 60 | 0) >> 2] | 0;
                 }
-                label$39 : while (1) {
+                label3 : while (1) {
                  $15_1 = $12_1;
                  $22_1 = 28;
                  $18_1 = $1_1;
                  $12_1 = HEAP8[$1_1 >> 0] | 0;
                  if (($12_1 + -123 | 0) >>> 0 < -58 >>> 0) {
-                  break label$3
+                  break block26
                  }
                  $1_1 = $1_1 + 1 | 0;
                  $12_1 = HEAPU8[(($12_1 + Math_imul($15_1, 58) | 0) + 67807 | 0) >> 0] | 0;
-                 if (($12_1 + -1 | 0) >>> 0 < 8 >>> 0) {
-                  continue label$39
+                 if ((($12_1 + -1 | 0) & 255 | 0) >>> 0 < 8 >>> 0) {
+                  continue label3
                  }
-                 break label$39;
+                 break label3;
                 };
                 HEAP32[($7_1 + 60 | 0) >> 2] = $1_1;
-                label$40 : {
-                 label$41 : {
+                block30 : {
+                 block27 : {
                   if (($12_1 | 0) == (27 | 0)) {
-                   break label$41
+                   break block27
                   }
                   if (!$12_1) {
-                   break label$3
+                   break block26
                   }
-                  label$42 : {
+                  block28 : {
                    if (($16_1 | 0) < (0 | 0)) {
-                    break label$42
+                    break block28
                    }
-                   label$43 : {
+                   block29 : {
                     if ($0_1) {
-                     break label$43
+                     break block29
                     }
                     HEAP32[($4_1 + ($16_1 << 2 | 0) | 0) >> 2] = $12_1;
-                    continue label$5;
+                    continue label4;
                    }
                    i64toi32_i32$2 = $3_1 + ($16_1 << 3 | 0) | 0;
                    i64toi32_i32$0 = HEAP32[i64toi32_i32$2 >> 2] | 0;
                    i64toi32_i32$1 = HEAP32[(i64toi32_i32$2 + 4 | 0) >> 2] | 0;
-                   $266 = i64toi32_i32$0;
+                   $267 = i64toi32_i32$0;
                    i64toi32_i32$0 = $7_1;
-                   HEAP32[($7_1 + 48 | 0) >> 2] = $266;
+                   HEAP32[($7_1 + 48 | 0) >> 2] = $267;
                    HEAP32[($7_1 + 52 | 0) >> 2] = i64toi32_i32$1;
-                   break label$40;
+                   break block30;
                   }
                   if (!$0_1) {
-                   break label$7
+                   break block31
                   }
-                  $84($7_1 + 48 | 0 | 0, $12_1 | 0, $2_1 | 0, $6_1 | 0);
-                  break label$40;
+                  $87($7_1 + 48 | 0 | 0, $12_1 | 0, $2_1 | 0, $6_1 | 0);
+                  break block30;
                  }
                  if (($16_1 | 0) > (-1 | 0)) {
-                  break label$3
+                  break block26
                  }
                  $12_1 = 0;
                  if (!$0_1) {
-                  continue label$6
+                  continue label1
                  }
                 }
                 if ((HEAPU8[$0_1 >> 0] | 0) & 32 | 0) {
-                 break label$2
+                 break block32
                 }
                 $23_1 = $17_1 & -65537 | 0;
                 $17_1 = $17_1 & 8192 | 0 ? $23_1 : $17_1;
                 $16_1 = 0;
                 $24_1 = 65539;
                 $22_1 = $9_1;
-                label$44 : {
-                 label$45 : {
-                  label$46 : {
-                   label$47 : {
-                    label$48 : {
-                     label$49 : {
-                      label$50 : {
-                       label$51 : {
-                        label$52 : {
-                         label$53 : {
-                          label$54 : {
-                           label$55 : {
-                            label$56 : {
-                             label$57 : {
-                              label$58 : {
-                               label$59 : {
-                                label$60 : {
-                                 $12_1 = HEAP8[$18_1 >> 0] | 0;
-                                 $12_1 = $15_1 ? (($12_1 & 15 | 0 | 0) == (3 | 0) ? $12_1 & -45 | 0 : $12_1) : $12_1;
+                block35 : {
+                 block65 : {
+                  block64 : {
+                   block62 : {
+                    block46 : {
+                     block44 : {
+                      block41 : {
+                       block36 : {
+                        block56 : {
+                         block48 : {
+                          block37 : {
+                           block39 : {
+                            block33 : {
+                             block40 : {
+                              block38 : {
+                               block42 : {
+                                block43 : {
+                                 $18_1 = HEAPU8[$18_1 >> 0] | 0;
+                                 $12_1 = $18_1 << 24 >> 24;
+                                 $12_1 = $15_1 ? (($18_1 & 15 | 0 | 0) == (3 | 0) ? $12_1 & -45 | 0 : $12_1) : $12_1;
                                  switch ($12_1 + -88 | 0 | 0) {
-                                 case 9:
-                                 case 13:
-                                 case 14:
-                                 case 15:
-                                  break label$44;
-                                 case 27:
-                                  break label$50;
-                                 case 11:
-                                  break label$51;
-                                 case 12:
-                                 case 17:
-                                  break label$54;
-                                 case 23:
-                                  break label$55;
                                  case 0:
                                  case 32:
-                                  break label$56;
-                                 case 24:
-                                  break label$57;
-                                 case 22:
-                                  break label$58;
-                                 case 29:
-                                  break label$59;
+                                  break block33;
                                  case 1:
                                  case 2:
                                  case 3:
@@ -4383,32 +4480,52 @@ function asmFunc(imports) {
                                  case 28:
                                  case 30:
                                  case 31:
-                                  break label$8;
+                                  break block34;
+                                 case 9:
+                                 case 13:
+                                 case 14:
+                                 case 15:
+                                  break block35;
+                                 case 11:
+                                  break block36;
+                                 case 12:
+                                 case 17:
+                                  break block37;
+                                 case 22:
+                                  break block38;
+                                 case 23:
+                                  break block39;
+                                 case 24:
+                                  break block40;
+                                 case 27:
+                                  break block41;
+                                 case 29:
+                                  break block42;
                                  default:
-                                  break label$60;
+                                  break block43;
                                  };
                                 }
                                 $22_1 = $9_1;
-                                label$61 : {
+                                block45 : {
                                  switch ($12_1 + -65 | 0 | 0) {
+                                 case 1:
+                                 case 3:
+                                  break block34;
                                  case 0:
                                  case 4:
                                  case 5:
                                  case 6:
-                                  break label$44;
+                                  break block35;
                                  case 2:
-                                  break label$49;
-                                 case 1:
-                                 case 3:
-                                  break label$8;
+                                  break block44;
                                  default:
-                                  break label$61;
+                                  break block45;
                                  };
                                 }
                                 if (($12_1 | 0) == (83 | 0)) {
-                                 break label$48
+                                 break block46
                                 }
-                                break label$9;
+                                break block47;
                                }
                                $16_1 = 0;
                                $24_1 = 65539;
@@ -4417,37 +4534,37 @@ function asmFunc(imports) {
                                i64toi32_i32$0 = HEAP32[($7_1 + 52 | 0) >> 2] | 0;
                                $25_1 = i64toi32_i32$1;
                                $25$hi = i64toi32_i32$0;
-                               break label$53;
+                               break block48;
                               }
                               $12_1 = 0;
-                              label$62 : {
-                               switch ($15_1 & 255 | 0 | 0) {
+                              block55 : {
+                               switch ($15_1 | 0) {
                                case 0:
                                 HEAP32[(HEAP32[($7_1 + 48 | 0) >> 2] | 0) >> 2] = $11_1;
-                                continue label$6;
+                                continue label1;
                                case 1:
                                 HEAP32[(HEAP32[($7_1 + 48 | 0) >> 2] | 0) >> 2] = $11_1;
-                                continue label$6;
+                                continue label1;
                                case 2:
                                 i64toi32_i32$1 = $11_1;
                                 i64toi32_i32$0 = i64toi32_i32$1 >> 31 | 0;
                                 i64toi32_i32$1 = HEAP32[($7_1 + 48 | 0) >> 2] | 0;
                                 HEAP32[i64toi32_i32$1 >> 2] = $11_1;
                                 HEAP32[(i64toi32_i32$1 + 4 | 0) >> 2] = i64toi32_i32$0;
-                                continue label$6;
+                                continue label1;
                                case 3:
                                 HEAP16[(HEAP32[($7_1 + 48 | 0) >> 2] | 0) >> 1] = $11_1;
-                                continue label$6;
+                                continue label1;
                                case 4:
                                 HEAP8[(HEAP32[($7_1 + 48 | 0) >> 2] | 0) >> 0] = $11_1;
-                                continue label$6;
+                                continue label1;
                                case 6:
                                 HEAP32[(HEAP32[($7_1 + 48 | 0) >> 2] | 0) >> 2] = $11_1;
-                                continue label$6;
+                                continue label1;
                                case 7:
-                                break label$62;
+                                break block55;
                                default:
-                                continue label$6;
+                                continue label1;
                                };
                               }
                               i64toi32_i32$1 = $11_1;
@@ -4455,7 +4572,7 @@ function asmFunc(imports) {
                               i64toi32_i32$1 = HEAP32[($7_1 + 48 | 0) >> 2] | 0;
                               HEAP32[i64toi32_i32$1 >> 2] = $11_1;
                               HEAP32[(i64toi32_i32$1 + 4 | 0) >> 2] = i64toi32_i32$0;
-                              continue label$6;
+                              continue label1;
                              }
                              $20_1 = $20_1 >>> 0 > 8 >>> 0 ? $20_1 : 8;
                              $17_1 = $17_1 | 8 | 0;
@@ -4468,16 +4585,16 @@ function asmFunc(imports) {
                             i64toi32_i32$1 = HEAP32[($7_1 + 52 | 0) >> 2] | 0;
                             $25_1 = i64toi32_i32$0;
                             $25$hi = i64toi32_i32$1;
-                            $13_1 = $85(i64toi32_i32$0 | 0, i64toi32_i32$1 | 0, $9_1 | 0, $12_1 & 32 | 0 | 0) | 0;
+                            $13_1 = $88(i64toi32_i32$0 | 0, i64toi32_i32$1 | 0, $9_1 | 0, $12_1 & 32 | 0 | 0) | 0;
                             if (!(i64toi32_i32$0 | i64toi32_i32$1 | 0)) {
-                             break label$52
+                             break block56
                             }
                             if (!($17_1 & 8 | 0)) {
-                             break label$52
+                             break block56
                             }
                             $24_1 = ($12_1 >>> 4 | 0) + 65539 | 0;
                             $16_1 = 2;
-                            break label$52;
+                            break block56;
                            }
                            $16_1 = 0;
                            $24_1 = 65539;
@@ -4486,15 +4603,15 @@ function asmFunc(imports) {
                            i64toi32_i32$0 = HEAP32[($7_1 + 52 | 0) >> 2] | 0;
                            $25_1 = i64toi32_i32$1;
                            $25$hi = i64toi32_i32$0;
-                           $13_1 = $86(i64toi32_i32$1 | 0, i64toi32_i32$0 | 0, $9_1 | 0) | 0;
+                           $13_1 = $89(i64toi32_i32$1 | 0, i64toi32_i32$0 | 0, $9_1 | 0) | 0;
                            if (!($17_1 & 8 | 0)) {
-                            break label$52
+                            break block56
                            }
                            $12_1 = $9_1 - $13_1 | 0;
                            $20_1 = ($20_1 | 0) > ($12_1 | 0) ? $20_1 : $12_1 + 1 | 0;
-                           break label$52;
+                           break block56;
                           }
-                          label$69 : {
+                          block57 : {
                            i64toi32_i32$2 = $7_1;
                            i64toi32_i32$0 = HEAP32[($7_1 + 48 | 0) >> 2] | 0;
                            i64toi32_i32$1 = HEAP32[($7_1 + 52 | 0) >> 2] | 0;
@@ -4519,7 +4636,7 @@ function asmFunc(imports) {
                             $33_1 = $35_1;
                            }
                            if ($33_1) {
-                            break label$69
+                            break block57
                            }
                            i64toi32_i32$2 = $25$hi;
                            i64toi32_i32$2 = 0;
@@ -4535,68 +4652,68 @@ function asmFunc(imports) {
                            HEAP32[($7_1 + 52 | 0) >> 2] = i64toi32_i32$5;
                            $16_1 = 1;
                            $24_1 = 65539;
-                           break label$53;
+                           break block48;
                           }
-                          label$70 : {
+                          block58 : {
                            if (!($17_1 & 2048 | 0)) {
-                            break label$70
+                            break block58
                            }
                            $16_1 = 1;
                            $24_1 = 65540;
-                           break label$53;
+                           break block48;
                           }
                           $16_1 = $17_1 & 1 | 0;
                           $24_1 = $16_1 ? 65541 : 65539;
                          }
                          i64toi32_i32$5 = $25$hi;
-                         $13_1 = $87($25_1 | 0, i64toi32_i32$5 | 0, $9_1 | 0) | 0;
+                         $13_1 = $90($25_1 | 0, i64toi32_i32$5 | 0, $9_1 | 0) | 0;
                         }
                         if ($21_1 & ($20_1 | 0) < (0 | 0) | 0) {
-                         break label$4
+                         break block
                         }
                         $17_1 = $21_1 ? $17_1 & -65537 | 0 : $17_1;
-                        label$71 : {
+                        block59 : {
                          i64toi32_i32$5 = $25$hi;
                          i64toi32_i32$2 = $25_1;
                          i64toi32_i32$3 = 0;
                          i64toi32_i32$0 = 0;
                          if ((i64toi32_i32$2 | 0) != (i64toi32_i32$0 | 0) | (i64toi32_i32$5 | 0) != (i64toi32_i32$3 | 0) | 0) {
-                          break label$71
+                          break block59
                          }
                          if ($20_1) {
-                          break label$71
+                          break block59
                          }
                          $13_1 = $9_1;
                          $22_1 = $13_1;
                          $20_1 = 0;
-                         break label$8;
+                         break block34;
                         }
                         i64toi32_i32$2 = $25$hi;
                         $12_1 = ($9_1 - $13_1 | 0) + !($25_1 | i64toi32_i32$2 | 0) | 0;
                         $20_1 = ($20_1 | 0) > ($12_1 | 0) ? $20_1 : $12_1;
-                        break label$9;
+                        break block47;
                        }
                        $12_1 = HEAPU8[($7_1 + 48 | 0) >> 0] | 0;
-                       break label$10;
+                       break block60;
                       }
                       $12_1 = HEAP32[($7_1 + 48 | 0) >> 2] | 0;
                       $13_1 = $12_1 ? $12_1 : 65597;
-                      $12_1 = $78($13_1 | 0, ($20_1 >>> 0 < 2147483647 >>> 0 ? $20_1 : 2147483647) | 0) | 0;
+                      $12_1 = $80($13_1 | 0, ($20_1 >>> 0 < 2147483647 >>> 0 ? $20_1 : 2147483647) | 0) | 0;
                       $22_1 = $13_1 + $12_1 | 0;
-                      label$72 : {
+                      block61 : {
                        if (($20_1 | 0) <= (-1 | 0)) {
-                        break label$72
+                        break block61
                        }
                        $17_1 = $23_1;
                        $20_1 = $12_1;
-                       break label$8;
+                       break block34;
                       }
                       $17_1 = $23_1;
                       $20_1 = $12_1;
                       if (HEAPU8[$22_1 >> 0] | 0) {
-                       break label$4
+                       break block
                       }
-                      break label$8;
+                      break block34;
                      }
                      i64toi32_i32$0 = $7_1;
                      i64toi32_i32$2 = HEAP32[($7_1 + 48 | 0) >> 2] | 0;
@@ -4604,21 +4721,21 @@ function asmFunc(imports) {
                      $25_1 = i64toi32_i32$2;
                      $25$hi = i64toi32_i32$5;
                      if (!!(i64toi32_i32$2 | i64toi32_i32$5 | 0)) {
-                      break label$47
+                      break block62
                      }
                      $12_1 = 0;
-                     break label$10;
+                     break block60;
                     }
-                    label$73 : {
+                    block63 : {
                      if (!$20_1) {
-                      break label$73
+                      break block63
                      }
                      $14_1 = HEAP32[($7_1 + 48 | 0) >> 2] | 0;
-                     break label$46;
+                     break block64;
                     }
                     $12_1 = 0;
-                    $88($0_1 | 0, 32 | 0, $19_1 | 0, 0 | 0, $17_1 | 0);
-                    break label$45;
+                    $91($0_1 | 0, 32 | 0, $19_1 | 0, 0 | 0, $17_1 | 0);
+                    break block65;
                    }
                    HEAP32[($7_1 + 12 | 0) >> 2] = 0;
                    i64toi32_i32$5 = $25$hi;
@@ -4628,161 +4745,161 @@ function asmFunc(imports) {
                    $20_1 = -1;
                   }
                   $12_1 = 0;
-                  label$74 : {
-                   label$75 : while (1) {
+                  block66 : {
+                   label5 : while (1) {
                     $15_1 = HEAP32[$14_1 >> 2] | 0;
                     if (!$15_1) {
-                     break label$74
+                     break block66
                     }
-                    $15_1 = $98($7_1 + 4 | 0 | 0, $15_1 | 0) | 0;
+                    $15_1 = $101($7_1 + 4 | 0 | 0, $15_1 | 0) | 0;
                     if (($15_1 | 0) < (0 | 0)) {
-                     break label$2
+                     break block32
                     }
                     if ($15_1 >>> 0 > ($20_1 - $12_1 | 0) >>> 0) {
-                     break label$74
+                     break block66
                     }
                     $14_1 = $14_1 + 4 | 0;
                     $12_1 = $15_1 + $12_1 | 0;
                     if ($12_1 >>> 0 < $20_1 >>> 0) {
-                     continue label$75
+                     continue label5
                     }
-                    break label$75;
+                    break label5;
                    };
                   }
                   $22_1 = 61;
                   if (($12_1 | 0) < (0 | 0)) {
-                   break label$3
+                   break block26
                   }
-                  $88($0_1 | 0, 32 | 0, $19_1 | 0, $12_1 | 0, $17_1 | 0);
-                  label$76 : {
+                  $91($0_1 | 0, 32 | 0, $19_1 | 0, $12_1 | 0, $17_1 | 0);
+                  block67 : {
                    if ($12_1) {
-                    break label$76
+                    break block67
                    }
                    $12_1 = 0;
-                   break label$45;
+                   break block65;
                   }
                   $15_1 = 0;
                   $14_1 = HEAP32[($7_1 + 48 | 0) >> 2] | 0;
-                  label$77 : while (1) {
+                  label6 : while (1) {
                    $13_1 = HEAP32[$14_1 >> 2] | 0;
                    if (!$13_1) {
-                    break label$45
+                    break block65
                    }
-                   $13_1 = $98($7_1 + 4 | 0 | 0, $13_1 | 0) | 0;
+                   $13_1 = $101($7_1 + 4 | 0 | 0, $13_1 | 0) | 0;
                    $15_1 = $13_1 + $15_1 | 0;
                    if ($15_1 >>> 0 > $12_1 >>> 0) {
-                    break label$45
+                    break block65
                    }
-                   $82($0_1 | 0, $7_1 + 4 | 0 | 0, $13_1 | 0);
+                   $85($0_1 | 0, $7_1 + 4 | 0 | 0, $13_1 | 0);
                    $14_1 = $14_1 + 4 | 0;
                    if ($15_1 >>> 0 < $12_1 >>> 0) {
-                    continue label$77
+                    continue label6
                    }
-                   break label$77;
+                   break label6;
                   };
                  }
-                 $88($0_1 | 0, 32 | 0, $19_1 | 0, $12_1 | 0, $17_1 ^ 8192 | 0 | 0);
+                 $91($0_1 | 0, 32 | 0, $19_1 | 0, $12_1 | 0, $17_1 ^ 8192 | 0 | 0);
                  $12_1 = ($19_1 | 0) > ($12_1 | 0) ? $19_1 : $12_1;
-                 continue label$6;
+                 continue label1;
                 }
                 if ($21_1 & ($20_1 | 0) < (0 | 0) | 0) {
-                 break label$4
+                 break block
                 }
                 $22_1 = 61;
                 $12_1 = FUNCTION_TABLE[$5_1 | 0]($0_1, +HEAPF64[($7_1 + 48 | 0) >> 3], $19_1, $20_1, $17_1, $12_1) | 0;
                 if (($12_1 | 0) >= (0 | 0)) {
-                 continue label$6
+                 continue label1
                 }
-                break label$3;
+                break block26;
                }
                $14_1 = HEAPU8[($12_1 + 1 | 0) >> 0] | 0;
                $12_1 = $12_1 + 1 | 0;
-               continue label$13;
+               continue label7;
               };
              }
              if ($0_1) {
-              break label$1
+              break block68
              }
              if (!$10_1) {
-              break label$7
+              break block31
              }
              $12_1 = 1;
-             label$78 : {
-              label$79 : while (1) {
+             block69 : {
+              label8 : while (1) {
                $14_1 = HEAP32[($4_1 + ($12_1 << 2 | 0) | 0) >> 2] | 0;
                if (!$14_1) {
-                break label$78
+                break block69
                }
-               $84($3_1 + ($12_1 << 3 | 0) | 0 | 0, $14_1 | 0, $2_1 | 0, $6_1 | 0);
+               $87($3_1 + ($12_1 << 3 | 0) | 0 | 0, $14_1 | 0, $2_1 | 0, $6_1 | 0);
                $11_1 = 1;
                $12_1 = $12_1 + 1 | 0;
                if (($12_1 | 0) != (10 | 0)) {
-                continue label$79
+                continue label8
                }
-               break label$1;
+               break block68;
               };
              }
-             label$80 : {
+             block70 : {
               if ($12_1 >>> 0 < 10 >>> 0) {
-               break label$80
+               break block70
               }
               $11_1 = 1;
-              break label$1;
+              break block68;
              }
-             label$81 : while (1) {
+             label9 : while (1) {
               if (HEAP32[($4_1 + ($12_1 << 2 | 0) | 0) >> 2] | 0) {
-               break label$11
+               break block15
               }
               $11_1 = 1;
               $12_1 = $12_1 + 1 | 0;
               if (($12_1 | 0) == (10 | 0)) {
-               break label$1
+               break block68
               }
-              continue label$81;
+              continue label9;
              };
             }
             $22_1 = 28;
-            break label$3;
+            break block26;
            }
            HEAP8[($7_1 + 39 | 0) >> 0] = $12_1;
            $20_1 = 1;
            $13_1 = $8_1;
            $22_1 = $9_1;
            $17_1 = $23_1;
-           break label$8;
+           break block34;
           }
           $22_1 = $9_1;
          }
          $1_1 = $22_1 - $13_1 | 0;
          $18_1 = ($20_1 | 0) > ($1_1 | 0) ? $20_1 : $1_1;
          if (($18_1 | 0) > ($16_1 ^ 2147483647 | 0 | 0)) {
-          break label$4
+          break block
          }
          $22_1 = 61;
          $15_1 = $16_1 + $18_1 | 0;
          $12_1 = ($19_1 | 0) > ($15_1 | 0) ? $19_1 : $15_1;
          if (($12_1 | 0) > ($14_1 | 0)) {
-          break label$3
+          break block26
          }
-         $88($0_1 | 0, 32 | 0, $12_1 | 0, $15_1 | 0, $17_1 | 0);
-         $82($0_1 | 0, $24_1 | 0, $16_1 | 0);
-         $88($0_1 | 0, 48 | 0, $12_1 | 0, $15_1 | 0, $17_1 ^ 65536 | 0 | 0);
-         $88($0_1 | 0, 48 | 0, $18_1 | 0, $1_1 | 0, 0 | 0);
-         $82($0_1 | 0, $13_1 | 0, $1_1 | 0);
-         $88($0_1 | 0, 32 | 0, $12_1 | 0, $15_1 | 0, $17_1 ^ 8192 | 0 | 0);
+         $91($0_1 | 0, 32 | 0, $12_1 | 0, $15_1 | 0, $17_1 | 0);
+         $85($0_1 | 0, $24_1 | 0, $16_1 | 0);
+         $91($0_1 | 0, 48 | 0, $12_1 | 0, $15_1 | 0, $17_1 ^ 65536 | 0 | 0);
+         $91($0_1 | 0, 48 | 0, $18_1 | 0, $1_1 | 0, 0 | 0);
+         $85($0_1 | 0, $13_1 | 0, $1_1 | 0);
+         $91($0_1 | 0, 32 | 0, $12_1 | 0, $15_1 | 0, $17_1 ^ 8192 | 0 | 0);
          $1_1 = HEAP32[($7_1 + 60 | 0) >> 2] | 0;
-         continue label$6;
+         continue label1;
         }
-        break label$6;
+        break label1;
        };
-       break label$5;
+       break label4;
       };
       $11_1 = 0;
-      break label$1;
+      break block68;
      }
      $22_1 = 61;
     }
-    HEAP32[($42() | 0) >> 2] = $22_1;
+    HEAP32[($43() | 0) >> 2] = $22_1;
    }
    $11_1 = -1;
   }
@@ -4790,35 +4907,35 @@ function asmFunc(imports) {
   return $11_1 | 0;
  }
  
- function $82($0_1, $1_1, $2_1) {
+ function $85($0_1, $1_1, $2_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
-  label$1 : {
+  block : {
    if ((HEAPU8[$0_1 >> 0] | 0) & 32 | 0) {
-    break label$1
+    break block
    }
-   $51($1_1 | 0, $2_1 | 0, $0_1 | 0) | 0;
+   $54($1_1 | 0, $2_1 | 0, $0_1 | 0) | 0;
   }
  }
  
- function $83($0_1) {
+ function $86($0_1) {
   $0_1 = $0_1 | 0;
   var $3_1 = 0, $1_1 = 0, $2_1 = 0, $4_1 = 0, $5_1 = 0;
   $1_1 = 0;
-  label$1 : {
+  block : {
    $2_1 = HEAP32[$0_1 >> 2] | 0;
    $3_1 = (HEAP8[$2_1 >> 0] | 0) + -48 | 0;
    if ($3_1 >>> 0 <= 9 >>> 0) {
-    break label$1
+    break block
    }
    return 0 | 0;
   }
-  label$2 : while (1) {
+  label : while (1) {
    $4_1 = -1;
-   label$3 : {
+   block1 : {
     if ($1_1 >>> 0 > 214748364 >>> 0) {
-     break label$3
+     break block1
     }
     $1_1 = Math_imul($1_1, 10);
     $4_1 = $3_1 >>> 0 > ($1_1 ^ 2147483647 | 0) >>> 0 ? -1 : $3_1 + $1_1 | 0;
@@ -4830,20 +4947,20 @@ function asmFunc(imports) {
    $2_1 = $3_1;
    $3_1 = $5_1 + -48 | 0;
    if ($3_1 >>> 0 < 10 >>> 0) {
-    continue label$2
+    continue label
    }
-   break label$2;
+   break label;
   };
   return $1_1 | 0;
  }
  
- function $84($0_1, $1_1, $2_1, $3_1) {
+ function $87($0_1, $1_1, $2_1, $3_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
   $3_1 = $3_1 | 0;
-  var i64toi32_i32$0 = 0, i64toi32_i32$1 = 0, $21_1 = 0, $29_1 = 0, $37_1 = 0, $45_1 = 0, $55_1 = 0, $63_1 = 0, $71_1 = 0, $79_1 = 0, $87_1 = 0, $97_1 = 0, $105_1 = 0, $115_1 = 0, $125 = 0, $133 = 0, $141 = 0;
-  label$1 : {
+  var i64toi32_i32$0 = 0, i64toi32_i32$1 = 0, $21_1 = 0, $29_1 = 0, $37_1 = 0, $45_1 = 0, $55_1 = 0, $63_1 = 0, $71_1 = 0, $79_1 = 0, $87_1 = 0, $97_1 = 0, $105_1 = 0, $115_1 = 0, $125_1 = 0, $133 = 0, $141 = 0;
+  block18 : {
    switch ($1_1 + -9 | 0 | 0) {
    case 0:
     $1_1 = HEAP32[$2_1 >> 2] | 0;
@@ -4975,9 +5092,9 @@ function asmFunc(imports) {
     HEAP32[$2_1 >> 2] = $1_1 + 8 | 0;
     i64toi32_i32$0 = HEAP32[$1_1 >> 2] | 0;
     i64toi32_i32$1 = HEAP32[($1_1 + 4 | 0) >> 2] | 0;
-    $125 = i64toi32_i32$0;
+    $125_1 = i64toi32_i32$0;
     i64toi32_i32$0 = $0_1;
-    HEAP32[i64toi32_i32$0 >> 2] = $125;
+    HEAP32[i64toi32_i32$0 >> 2] = $125_1;
     HEAP32[(i64toi32_i32$0 + 4 | 0) >> 2] = i64toi32_i32$1;
     return;
    case 14:
@@ -5009,23 +5126,23 @@ function asmFunc(imports) {
     FUNCTION_TABLE[$3_1 | 0]($0_1, $2_1);
     break;
    default:
-    break label$1;
+    break block18;
    };
   }
  }
  
- function $85($0_1, $0$hi, $1_1, $2_1) {
+ function $88($0_1, $0$hi, $1_1, $2_1) {
   $0_1 = $0_1 | 0;
   $0$hi = $0$hi | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
   var i64toi32_i32$0 = 0, i64toi32_i32$2 = 0, i64toi32_i32$1 = 0, i64toi32_i32$4 = 0, i64toi32_i32$3 = 0, $10_1 = 0, $3_1 = 0;
-  label$1 : {
+  block : {
    i64toi32_i32$0 = $0$hi;
    if (!($0_1 | i64toi32_i32$0 | 0)) {
-    break label$1
+    break block
    }
-   label$2 : while (1) {
+   label : while (1) {
     $1_1 = $1_1 + -1 | 0;
     i64toi32_i32$0 = $0$hi;
     HEAP8[$1_1 >> 0] = HEAPU8[(($0_1 & 15 | 0) + 68336 | 0) >> 0] | 0 | $2_1 | 0;
@@ -5049,25 +5166,25 @@ function asmFunc(imports) {
     $0_1 = $10_1;
     $0$hi = i64toi32_i32$0;
     if ($3_1) {
-     continue label$2
+     continue label
     }
-    break label$2;
+    break label;
    };
   }
   return $1_1 | 0;
  }
  
- function $86($0_1, $0$hi, $1_1) {
+ function $89($0_1, $0$hi, $1_1) {
   $0_1 = $0_1 | 0;
   $0$hi = $0$hi | 0;
   $1_1 = $1_1 | 0;
   var i64toi32_i32$0 = 0, i64toi32_i32$2 = 0, i64toi32_i32$1 = 0, i64toi32_i32$4 = 0, i64toi32_i32$3 = 0, $9_1 = 0, $2_1 = 0;
-  label$1 : {
+  block : {
    i64toi32_i32$0 = $0$hi;
    if (!($0_1 | i64toi32_i32$0 | 0)) {
-    break label$1
+    break block
    }
-   label$2 : while (1) {
+   label : while (1) {
     $1_1 = $1_1 + -1 | 0;
     i64toi32_i32$0 = $0$hi;
     HEAP8[$1_1 >> 0] = $0_1 & 7 | 0 | 48 | 0;
@@ -5091,34 +5208,34 @@ function asmFunc(imports) {
     $0_1 = $9_1;
     $0$hi = i64toi32_i32$0;
     if ($2_1) {
-     continue label$2
+     continue label
     }
-    break label$2;
+    break label;
    };
   }
   return $1_1 | 0;
  }
  
- function $87($0_1, $0$hi, $1_1) {
+ function $90($0_1, $0$hi, $1_1) {
   $0_1 = $0_1 | 0;
   $0$hi = $0$hi | 0;
   $1_1 = $1_1 | 0;
   var i64toi32_i32$2 = 0, i64toi32_i32$0 = 0, i64toi32_i32$1 = 0, i64toi32_i32$5 = 0, $3_1 = 0, i64toi32_i32$3 = 0, $2_1 = 0, $2$hi = 0, $4_1 = 0, $16_1 = 0, $16$hi = 0, $5_1 = 0;
-  label$1 : {
-   label$2 : {
+  block1 : {
+   block : {
     i64toi32_i32$0 = $0$hi;
     i64toi32_i32$2 = $0_1;
     i64toi32_i32$1 = 1;
     i64toi32_i32$3 = 0;
     if (i64toi32_i32$0 >>> 0 > i64toi32_i32$1 >>> 0 | ((i64toi32_i32$0 | 0) == (i64toi32_i32$1 | 0) & i64toi32_i32$2 >>> 0 >= i64toi32_i32$3 >>> 0 | 0) | 0) {
-     break label$2
+     break block
     }
     i64toi32_i32$2 = i64toi32_i32$0;
     $2_1 = $0_1;
     $2$hi = i64toi32_i32$2;
-    break label$1;
+    break block1;
    }
-   label$3 : while (1) {
+   label : while (1) {
     $1_1 = $1_1 + -1 | 0;
     i64toi32_i32$2 = $0$hi;
     i64toi32_i32$0 = 0;
@@ -5148,33 +5265,33 @@ function asmFunc(imports) {
     $0_1 = $2_1;
     $0$hi = i64toi32_i32$2;
     if ($3_1) {
-     continue label$3
+     continue label
     }
-    break label$3;
+    break label;
    };
   }
-  label$4 : {
+  block2 : {
    i64toi32_i32$2 = $2$hi;
    if (!($2_1 | i64toi32_i32$2 | 0)) {
-    break label$4
+    break block2
    }
    $3_1 = $2_1;
-   label$5 : while (1) {
+   label1 : while (1) {
     $1_1 = $1_1 + -1 | 0;
     $4_1 = ($3_1 >>> 0) / (10 >>> 0) | 0;
     HEAP8[$1_1 >> 0] = $3_1 - Math_imul($4_1, 10) | 0 | 48 | 0;
     $5_1 = $3_1 >>> 0 > 9 >>> 0;
     $3_1 = $4_1;
     if ($5_1) {
-     continue label$5
+     continue label1
     }
-    break label$5;
+    break label1;
    };
   }
   return $1_1 | 0;
  }
  
- function $88($0_1, $1_1, $2_1, $3_1, $4_1) {
+ function $91($0_1, $1_1, $2_1, $3_1, $4_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
@@ -5183,56 +5300,56 @@ function asmFunc(imports) {
   var $5_1 = 0;
   $5_1 = global$0 - 256 | 0;
   global$0 = $5_1;
-  label$1 : {
+  block : {
    if (($2_1 | 0) <= ($3_1 | 0)) {
-    break label$1
+    break block
    }
    if ($4_1 & 73728 | 0) {
-    break label$1
+    break block
    }
    $3_1 = $2_1 - $3_1 | 0;
    $2_1 = $3_1 >>> 0 < 256 >>> 0;
-   $61($5_1 | 0, $1_1 | 0, ($2_1 ? $3_1 : 256) | 0) | 0;
-   label$2 : {
+   $82($5_1 | 0, $1_1 | 0, ($2_1 ? $3_1 : 256) | 0) | 0;
+   block1 : {
     if ($2_1) {
-     break label$2
+     break block1
     }
-    label$3 : while (1) {
-     $82($0_1 | 0, $5_1 | 0, 256 | 0);
+    label : while (1) {
+     $85($0_1 | 0, $5_1 | 0, 256 | 0);
      $3_1 = $3_1 + -256 | 0;
      if ($3_1 >>> 0 > 255 >>> 0) {
-      continue label$3
+      continue label
      }
-     break label$3;
+     break label;
     };
    }
-   $82($0_1 | 0, $5_1 | 0, $3_1 | 0);
+   $85($0_1 | 0, $5_1 | 0, $3_1 | 0);
   }
   global$0 = $5_1 + 256 | 0;
  }
  
- function $89($0_1, $1_1, $2_1) {
+ function $92($0_1, $1_1, $2_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
-  return $80($0_1 | 0, $1_1 | 0, $2_1 | 0, 4 | 0, 5 | 0) | 0 | 0;
+  return $83($0_1 | 0, $1_1 | 0, $2_1 | 0, 4 | 0, 5 | 0) | 0 | 0;
  }
  
- function $90($0_1, $1_1, $2_1, $3_1, $4_1, $5_1) {
+ function $93($0_1, $1_1, $2_1, $3_1, $4_1, $5_1) {
   $0_1 = $0_1 | 0;
   $1_1 = +$1_1;
   $2_1 = $2_1 | 0;
   $3_1 = $3_1 | 0;
   $4_1 = $4_1 | 0;
   $5_1 = $5_1 | 0;
-  var $10_1 = 0, $11_1 = 0, $18_1 = 0, $19_1 = 0, $12_1 = 0, i64toi32_i32$1 = 0, $15_1 = 0, $6_1 = 0, i64toi32_i32$4 = 0, i64toi32_i32$0 = 0, i64toi32_i32$5 = 0, i64toi32_i32$3 = 0, $22_1 = 0, i64toi32_i32$2 = 0, $23_1 = 0, $20_1 = 0, $17_1 = 0, $8_1 = 0, $27_1 = 0.0, $13_1 = 0, $24_1 = 0, $14_1 = 0, $16_1 = 0, $24$hi = 0, $9_1 = 0, $21_1 = 0, $7_1 = 0, $44_1 = 0, $45_1 = 0, $46_1 = 0, $25$hi = 0, $47_1 = 0, $25_1 = 0, $168 = 0, $170$hi = 0, $172$hi = 0, $174 = 0, $174$hi = 0, $26$hi = 0, $180 = 0, $180$hi = 0, $388 = 0.0;
+  var $10_1 = 0, $11_1 = 0, $18_1 = 0, $19_1 = 0, $12_1 = 0, $15_1 = 0, $6_1 = 0, i64toi32_i32$1 = 0, i64toi32_i32$2 = 0, i64toi32_i32$4 = 0, i64toi32_i32$5 = 0, $22_1 = 0, i64toi32_i32$3 = 0, i64toi32_i32$0 = 0, $23_1 = 0, $20_1 = 0, $17_1 = 0, $8_1 = 0, $27_1 = 0.0, $13_1 = 0, $24_1 = 0, $24$hi = 0, $14_1 = 0, $16_1 = 0, $9_1 = 0, $21_1 = 0, $7_1 = 0, $46_1 = 0, $47_1 = 0, $48_1 = 0, $142 = 0, $25$hi = 0, $49_1 = 0, $897 = 0, $133 = 0, $25_1 = 0, $172 = 0, $174$hi = 0, $176$hi = 0, $26$hi = 0, $183 = 0, $183$hi = 0, $389 = 0.0, $890 = 0;
   $6_1 = global$0 - 560 | 0;
   global$0 = $6_1;
   $7_1 = 0;
   HEAP32[($6_1 + 44 | 0) >> 2] = 0;
-  label$1 : {
-   label$2 : {
-    i64toi32_i32$0 = $92(+$1_1) | 0;
+  block1 : {
+   block : {
+    i64toi32_i32$0 = $95(+$1_1) | 0;
     i64toi32_i32$1 = i64toi32_i32$HIGH_BITS;
     $24_1 = i64toi32_i32$0;
     $24$hi = i64toi32_i32$1;
@@ -5240,46 +5357,46 @@ function asmFunc(imports) {
     i64toi32_i32$0 = -1;
     i64toi32_i32$3 = -1;
     if ((i64toi32_i32$1 | 0) > (i64toi32_i32$0 | 0)) {
-     $44_1 = 1
+     $46_1 = 1
     } else {
      if ((i64toi32_i32$1 | 0) >= (i64toi32_i32$0 | 0)) {
       if (i64toi32_i32$2 >>> 0 <= i64toi32_i32$3 >>> 0) {
-       $45_1 = 0
+       $47_1 = 0
       } else {
-       $45_1 = 1
+       $47_1 = 1
       }
-      $46_1 = $45_1;
+      $48_1 = $47_1;
      } else {
-      $46_1 = 0
+      $48_1 = 0
      }
-     $44_1 = $46_1;
+     $46_1 = $48_1;
     }
-    if ($44_1) {
-     break label$2
+    if ($46_1) {
+     break block
     }
     $8_1 = 1;
     $9_1 = 65549;
     $1_1 = -$1_1;
-    i64toi32_i32$2 = $92(+$1_1) | 0;
+    i64toi32_i32$2 = $95(+$1_1) | 0;
     i64toi32_i32$1 = i64toi32_i32$HIGH_BITS;
     $24_1 = i64toi32_i32$2;
     $24$hi = i64toi32_i32$1;
-    break label$1;
+    break block1;
    }
-   label$3 : {
+   block2 : {
     if (!($4_1 & 2048 | 0)) {
-     break label$3
+     break block2
     }
     $8_1 = 1;
     $9_1 = 65552;
-    break label$1;
+    break block1;
    }
    $8_1 = $4_1 & 1 | 0;
    $9_1 = $8_1 ? 65555 : 65550;
    $7_1 = !$8_1;
   }
-  label$4 : {
-   label$5 : {
+  block4 : {
+   block3 : {
     i64toi32_i32$1 = $24$hi;
     i64toi32_i32$3 = $24_1;
     i64toi32_i32$2 = 2146435072;
@@ -5289,42 +5406,42 @@ function asmFunc(imports) {
     i64toi32_i32$3 = 2146435072;
     i64toi32_i32$0 = 0;
     if ((i64toi32_i32$1 | 0) != (i64toi32_i32$0 | 0) | (i64toi32_i32$2 | 0) != (i64toi32_i32$3 | 0) | 0) {
-     break label$5
+     break block3
     }
     $10_1 = $8_1 + 3 | 0;
-    $88($0_1 | 0, 32 | 0, $2_1 | 0, $10_1 | 0, $4_1 & -65537 | 0 | 0);
-    $82($0_1 | 0, $9_1 | 0, $8_1 | 0);
+    $91($0_1 | 0, 32 | 0, $2_1 | 0, $10_1 | 0, $4_1 & -65537 | 0 | 0);
+    $85($0_1 | 0, $9_1 | 0, $8_1 | 0);
     $11_1 = $5_1 & 32 | 0;
-    $82($0_1 | 0, ($1_1 != $1_1 ? ($11_1 ? 65568 : 65576) : $11_1 ? 65572 : 65580) | 0, 3 | 0);
-    $88($0_1 | 0, 32 | 0, $2_1 | 0, $10_1 | 0, $4_1 ^ 8192 | 0 | 0);
+    $85($0_1 | 0, ($1_1 != $1_1 ? ($11_1 ? 65568 : 65576) : $11_1 ? 65572 : 65580) | 0, 3 | 0);
+    $91($0_1 | 0, 32 | 0, $2_1 | 0, $10_1 | 0, $4_1 ^ 8192 | 0 | 0);
     $12_1 = ($2_1 | 0) > ($10_1 | 0) ? $2_1 : $10_1;
-    break label$4;
+    break block4;
    }
    $13_1 = $6_1 + 16 | 0;
-   label$6 : {
-    label$7 : {
-     label$8 : {
-      label$9 : {
-       $1_1 = +$79(+$1_1, $6_1 + 44 | 0 | 0);
+   block7 : {
+    block8 : {
+     block6 : {
+      block5 : {
+       $1_1 = +$81(+$1_1, $6_1 + 44 | 0 | 0);
        $1_1 = $1_1 + $1_1;
        if ($1_1 == 0.0) {
-        break label$9
+        break block5
        }
        $10_1 = HEAP32[($6_1 + 44 | 0) >> 2] | 0;
        HEAP32[($6_1 + 44 | 0) >> 2] = $10_1 + -1 | 0;
        $14_1 = $5_1 | 32 | 0;
        if (($14_1 | 0) != (97 | 0)) {
-        break label$8
+        break block6
        }
-       break label$6;
+       break block7;
       }
       $14_1 = $5_1 | 32 | 0;
       if (($14_1 | 0) == (97 | 0)) {
-       break label$6
+       break block7
       }
       $15_1 = ($3_1 | 0) < (0 | 0) ? 6 : $3_1;
       $16_1 = HEAP32[($6_1 + 44 | 0) >> 2] | 0;
-      break label$7;
+      break block8;
      }
      $16_1 = $10_1 + -29 | 0;
      HEAP32[($6_1 + 44 | 0) >> 2] = $16_1;
@@ -5333,43 +5450,40 @@ function asmFunc(imports) {
     }
     $17_1 = ($6_1 + 48 | 0) + (($16_1 | 0) < (0 | 0) ? 0 : 288) | 0;
     $11_1 = $17_1;
-    label$10 : while (1) {
-     label$11 : {
-      label$12 : {
-       if (!($1_1 < 4294967296.0 & $1_1 >= 0.0 | 0)) {
-        break label$12
-       }
-       $10_1 = ~~$1_1 >>> 0;
-       break label$11;
-      }
-      $10_1 = 0;
+    label : while (1) {
+     $133 = $11_1;
+     if ($1_1 < 4294967295.0 & $1_1 >= 0.0 | 0) {
+      $142 = ~~$1_1 >>> 0
+     } else {
+      $142 = 0
      }
-     HEAP32[$11_1 >> 2] = $10_1;
+     $10_1 = $142;
+     HEAP32[$133 >> 2] = $10_1;
      $11_1 = $11_1 + 4 | 0;
      $1_1 = ($1_1 - +($10_1 >>> 0)) * 1.0e9;
      if ($1_1 != 0.0) {
-      continue label$10
+      continue label
      }
-     break label$10;
+     break label;
     };
-    label$13 : {
-     label$14 : {
+    block10 : {
+     block9 : {
       if (($16_1 | 0) >= (1 | 0)) {
-       break label$14
+       break block9
       }
       $18_1 = $16_1;
       $10_1 = $11_1;
       $19_1 = $17_1;
-      break label$13;
+      break block10;
      }
      $19_1 = $17_1;
      $18_1 = $16_1;
-     label$15 : while (1) {
+     label3 : while (1) {
       $18_1 = $18_1 >>> 0 < 29 >>> 0 ? $18_1 : 29;
-      label$16 : {
+      block11 : {
        $10_1 = $11_1 + -4 | 0;
        if ($10_1 >>> 0 < $19_1 >>> 0) {
-        break label$16
+        break block11
        }
        i64toi32_i32$1 = 0;
        $25_1 = $18_1;
@@ -5377,135 +5491,129 @@ function asmFunc(imports) {
        i64toi32_i32$1 = 0;
        $24_1 = 0;
        $24$hi = i64toi32_i32$1;
-       label$17 : while (1) {
-        $168 = $10_1;
+       label1 : while (1) {
+        $172 = $10_1;
         i64toi32_i32$0 = $10_1;
         i64toi32_i32$1 = HEAP32[$10_1 >> 2] | 0;
         i64toi32_i32$2 = 0;
-        $170$hi = i64toi32_i32$2;
+        $174$hi = i64toi32_i32$2;
         i64toi32_i32$2 = $25$hi;
-        i64toi32_i32$2 = $170$hi;
+        i64toi32_i32$2 = $174$hi;
         i64toi32_i32$0 = i64toi32_i32$1;
         i64toi32_i32$1 = $25$hi;
         i64toi32_i32$3 = $25_1;
         i64toi32_i32$4 = i64toi32_i32$3 & 31 | 0;
         if (32 >>> 0 <= (i64toi32_i32$3 & 63 | 0) >>> 0) {
          i64toi32_i32$1 = i64toi32_i32$0 << i64toi32_i32$4 | 0;
-         $47_1 = 0;
+         $49_1 = 0;
         } else {
          i64toi32_i32$1 = ((1 << i64toi32_i32$4 | 0) - 1 | 0) & (i64toi32_i32$0 >>> (32 - i64toi32_i32$4 | 0) | 0) | 0 | (i64toi32_i32$2 << i64toi32_i32$4 | 0) | 0;
-         $47_1 = i64toi32_i32$0 << i64toi32_i32$4 | 0;
+         $49_1 = i64toi32_i32$0 << i64toi32_i32$4 | 0;
         }
-        $172$hi = i64toi32_i32$1;
+        $176$hi = i64toi32_i32$1;
         i64toi32_i32$1 = $24$hi;
-        i64toi32_i32$2 = $24_1;
-        i64toi32_i32$0 = 0;
-        i64toi32_i32$3 = -1;
-        i64toi32_i32$0 = i64toi32_i32$1 & i64toi32_i32$0 | 0;
-        $174 = i64toi32_i32$2 & i64toi32_i32$3 | 0;
-        $174$hi = i64toi32_i32$0;
-        i64toi32_i32$0 = $172$hi;
-        i64toi32_i32$1 = $47_1;
-        i64toi32_i32$2 = $174$hi;
-        i64toi32_i32$3 = $174;
-        i64toi32_i32$4 = i64toi32_i32$1 + i64toi32_i32$3 | 0;
-        i64toi32_i32$5 = i64toi32_i32$0 + i64toi32_i32$2 | 0;
+        i64toi32_i32$1 = $176$hi;
+        i64toi32_i32$2 = $49_1;
+        i64toi32_i32$0 = $24$hi;
+        i64toi32_i32$3 = $24_1;
+        i64toi32_i32$4 = i64toi32_i32$2 + i64toi32_i32$3 | 0;
+        i64toi32_i32$5 = i64toi32_i32$1 + i64toi32_i32$0 | 0;
         if (i64toi32_i32$4 >>> 0 < i64toi32_i32$3 >>> 0) {
          i64toi32_i32$5 = i64toi32_i32$5 + 1 | 0
         }
         $26$hi = i64toi32_i32$5;
-        i64toi32_i32$1 = 0;
-        i64toi32_i32$1 = __wasm_i64_udiv(i64toi32_i32$4 | 0, i64toi32_i32$5 | 0, 1e9 | 0, i64toi32_i32$1 | 0) | 0;
+        i64toi32_i32$2 = 0;
+        i64toi32_i32$2 = __wasm_i64_udiv(i64toi32_i32$4 | 0, i64toi32_i32$5 | 0, 1e9 | 0, i64toi32_i32$2 | 0) | 0;
         i64toi32_i32$5 = i64toi32_i32$HIGH_BITS;
-        $24_1 = i64toi32_i32$1;
+        $24_1 = i64toi32_i32$2;
         $24$hi = i64toi32_i32$5;
-        i64toi32_i32$1 = 0;
-        i64toi32_i32$1 = __wasm_i64_mul($24_1 | 0, i64toi32_i32$5 | 0, 1e9 | 0, i64toi32_i32$1 | 0) | 0;
+        i64toi32_i32$2 = 0;
+        i64toi32_i32$2 = __wasm_i64_mul($24_1 | 0, i64toi32_i32$5 | 0, 1e9 | 0, i64toi32_i32$2 | 0) | 0;
         i64toi32_i32$5 = i64toi32_i32$HIGH_BITS;
-        $180 = i64toi32_i32$1;
-        $180$hi = i64toi32_i32$5;
+        $183 = i64toi32_i32$2;
+        $183$hi = i64toi32_i32$5;
         i64toi32_i32$5 = $26$hi;
-        i64toi32_i32$0 = i64toi32_i32$4;
-        i64toi32_i32$1 = $180$hi;
-        i64toi32_i32$3 = $180;
-        i64toi32_i32$2 = i64toi32_i32$4 - i64toi32_i32$3 | 0;
-        i64toi32_i32$4 = (i64toi32_i32$4 >>> 0 < i64toi32_i32$3 >>> 0) + i64toi32_i32$1 | 0;
+        i64toi32_i32$1 = i64toi32_i32$4;
+        i64toi32_i32$2 = $183$hi;
+        i64toi32_i32$3 = $183;
+        i64toi32_i32$0 = i64toi32_i32$1 - i64toi32_i32$3 | 0;
+        i64toi32_i32$4 = (i64toi32_i32$1 >>> 0 < i64toi32_i32$3 >>> 0) + i64toi32_i32$2 | 0;
         i64toi32_i32$4 = i64toi32_i32$5 - i64toi32_i32$4 | 0;
-        HEAP32[$168 >> 2] = i64toi32_i32$2;
+        HEAP32[$172 >> 2] = i64toi32_i32$0;
         $10_1 = $10_1 + -4 | 0;
         if ($10_1 >>> 0 >= $19_1 >>> 0) {
-         continue label$17
+         continue label1
         }
-        break label$17;
+        break label1;
        };
        i64toi32_i32$4 = i64toi32_i32$5;
        i64toi32_i32$4 = i64toi32_i32$5;
-       i64toi32_i32$5 = i64toi32_i32$0;
-       i64toi32_i32$0 = 0;
+       i64toi32_i32$5 = i64toi32_i32$1;
+       i64toi32_i32$1 = 0;
        i64toi32_i32$3 = 1e9;
-       if (i64toi32_i32$4 >>> 0 < i64toi32_i32$0 >>> 0 | ((i64toi32_i32$4 | 0) == (i64toi32_i32$0 | 0) & i64toi32_i32$5 >>> 0 < i64toi32_i32$3 >>> 0 | 0) | 0) {
-        break label$16
+       if (i64toi32_i32$4 >>> 0 < i64toi32_i32$1 >>> 0 | ((i64toi32_i32$4 | 0) == (i64toi32_i32$1 | 0) & i64toi32_i32$5 >>> 0 < i64toi32_i32$3 >>> 0 | 0) | 0) {
+        break block11
        }
        $19_1 = $19_1 + -4 | 0;
        i64toi32_i32$5 = $24$hi;
        HEAP32[$19_1 >> 2] = $24_1;
       }
-      label$18 : {
-       label$19 : while (1) {
+      block12 : {
+       label2 : while (1) {
         $10_1 = $11_1;
         if ($10_1 >>> 0 <= $19_1 >>> 0) {
-         break label$18
+         break block12
         }
         $11_1 = $10_1 + -4 | 0;
         if (!(HEAP32[$11_1 >> 2] | 0)) {
-         continue label$19
+         continue label2
         }
-        break label$19;
+        break label2;
        };
       }
       $18_1 = (HEAP32[($6_1 + 44 | 0) >> 2] | 0) - $18_1 | 0;
       HEAP32[($6_1 + 44 | 0) >> 2] = $18_1;
       $11_1 = $10_1;
       if (($18_1 | 0) > (0 | 0)) {
-       continue label$15
+       continue label3
       }
-      break label$15;
+      break label3;
      };
     }
-    label$20 : {
+    block13 : {
      if (($18_1 | 0) > (-1 | 0)) {
-      break label$20
+      break block13
      }
      $20_1 = ((($15_1 + 25 | 0) >>> 0) / (9 >>> 0) | 0) + 1 | 0;
      $21_1 = ($14_1 | 0) == (102 | 0);
-     label$21 : while (1) {
+     label5 : while (1) {
       $11_1 = 0 - $18_1 | 0;
       $12_1 = $11_1 >>> 0 < 9 >>> 0 ? $11_1 : 9;
-      label$22 : {
-       label$23 : {
+      block15 : {
+       block14 : {
         if ($19_1 >>> 0 < $10_1 >>> 0) {
-         break label$23
+         break block14
         }
-        $11_1 = !(HEAP32[$19_1 >> 2] | 0) << 2 | 0;
-        break label$22;
+        $11_1 = HEAP32[$19_1 >> 2] | 0 ? 0 : 4;
+        break block15;
        }
        $22_1 = 1e9 >>> $12_1 | 0;
        $23_1 = (-1 << $12_1 | 0) ^ -1 | 0;
        $18_1 = 0;
        $11_1 = $19_1;
-       label$24 : while (1) {
+       label4 : while (1) {
         $3_1 = HEAP32[$11_1 >> 2] | 0;
         HEAP32[$11_1 >> 2] = ($3_1 >>> $12_1 | 0) + $18_1 | 0;
         $18_1 = Math_imul($3_1 & $23_1 | 0, $22_1);
         $11_1 = $11_1 + 4 | 0;
         if ($11_1 >>> 0 < $10_1 >>> 0) {
-         continue label$24
+         continue label4
         }
-        break label$24;
+        break label4;
        };
-       $11_1 = !(HEAP32[$19_1 >> 2] | 0) << 2 | 0;
+       $11_1 = HEAP32[$19_1 >> 2] | 0 ? 0 : 4;
        if (!$18_1) {
-        break label$22
+        break block15
        }
        HEAP32[$10_1 >> 2] = $18_1;
        $10_1 = $10_1 + 4 | 0;
@@ -5516,94 +5624,94 @@ function asmFunc(imports) {
       $11_1 = $21_1 ? $17_1 : $19_1;
       $10_1 = (($10_1 - $11_1 | 0) >> 2 | 0 | 0) > ($20_1 | 0) ? $11_1 + ($20_1 << 2 | 0) | 0 : $10_1;
       if (($18_1 | 0) < (0 | 0)) {
-       continue label$21
+       continue label5
       }
-      break label$21;
+      break label5;
      };
     }
     $18_1 = 0;
-    label$25 : {
+    block16 : {
      if ($19_1 >>> 0 >= $10_1 >>> 0) {
-      break label$25
+      break block16
      }
      $18_1 = Math_imul(($17_1 - $19_1 | 0) >> 2 | 0, 9);
      $11_1 = 10;
      $3_1 = HEAP32[$19_1 >> 2] | 0;
      if ($3_1 >>> 0 < 10 >>> 0) {
-      break label$25
+      break block16
      }
-     label$26 : while (1) {
+     label6 : while (1) {
       $18_1 = $18_1 + 1 | 0;
       $11_1 = Math_imul($11_1, 10);
       if ($3_1 >>> 0 >= $11_1 >>> 0) {
-       continue label$26
+       continue label6
       }
-      break label$26;
+      break label6;
      };
     }
-    label$27 : {
+    block17 : {
      $11_1 = ($15_1 - (($14_1 | 0) == (102 | 0) ? 0 : $18_1) | 0) - (($15_1 | 0) != (0 | 0) & ($14_1 | 0) == (103 | 0) | 0) | 0;
      if (($11_1 | 0) >= (Math_imul(($10_1 - $17_1 | 0) >> 2 | 0, 9) + -9 | 0 | 0)) {
-      break label$27
+      break block17
      }
      $3_1 = $11_1 + 9216 | 0;
      $22_1 = ($3_1 | 0) / (9 | 0) | 0;
      $12_1 = (($6_1 + 48 | 0) + (($16_1 | 0) < (0 | 0) ? -4092 : -3804) | 0) + ($22_1 << 2 | 0) | 0;
      $11_1 = 10;
-     label$28 : {
+     block18 : {
       $3_1 = $3_1 - Math_imul($22_1, 9) | 0;
       if (($3_1 | 0) > (7 | 0)) {
-       break label$28
+       break block18
       }
-      label$29 : while (1) {
+      label7 : while (1) {
        $11_1 = Math_imul($11_1, 10);
        $3_1 = $3_1 + 1 | 0;
        if (($3_1 | 0) != (8 | 0)) {
-        continue label$29
+        continue label7
        }
-       break label$29;
+       break label7;
       };
      }
      $23_1 = $12_1 + 4 | 0;
-     label$30 : {
-      label$31 : {
+     block20 : {
+      block19 : {
        $3_1 = HEAP32[$12_1 >> 2] | 0;
        $20_1 = ($3_1 >>> 0) / ($11_1 >>> 0) | 0;
        $22_1 = $3_1 - Math_imul($20_1, $11_1) | 0;
        if ($22_1) {
-        break label$31
+        break block19
        }
        if (($23_1 | 0) == ($10_1 | 0)) {
-        break label$30
+        break block20
        }
       }
-      label$32 : {
-       label$33 : {
+      block22 : {
+       block21 : {
         if ($20_1 & 1 | 0) {
-         break label$33
+         break block21
         }
         $1_1 = 9007199254740992.0;
         if (($11_1 | 0) != (1e9 | 0)) {
-         break label$32
+         break block22
         }
         if ($12_1 >>> 0 <= $19_1 >>> 0) {
-         break label$32
+         break block22
         }
         if (!((HEAPU8[($12_1 + -4 | 0) >> 0] | 0) & 1 | 0)) {
-         break label$32
+         break block22
         }
        }
        $1_1 = 9007199254740994.0;
       }
-      $388 = ($23_1 | 0) == ($10_1 | 0) ? 1.0 : 1.5;
+      $389 = ($23_1 | 0) == ($10_1 | 0) ? 1.0 : 1.5;
       $23_1 = $11_1 >>> 1 | 0;
-      $27_1 = $22_1 >>> 0 < $23_1 >>> 0 ? .5 : ($22_1 | 0) == ($23_1 | 0) ? $388 : 1.5;
-      label$34 : {
+      $27_1 = $22_1 >>> 0 < $23_1 >>> 0 ? .5 : ($22_1 | 0) == ($23_1 | 0) ? $389 : 1.5;
+      block23 : {
        if ($7_1) {
-        break label$34
+        break block23
        }
        if ((HEAPU8[$9_1 >> 0] | 0 | 0) != (45 | 0)) {
-        break label$34
+        break block23
        }
        $27_1 = -$27_1;
        $1_1 = -$1_1;
@@ -5611,20 +5719,20 @@ function asmFunc(imports) {
       $3_1 = $3_1 - $22_1 | 0;
       HEAP32[$12_1 >> 2] = $3_1;
       if ($1_1 + $27_1 == $1_1) {
-       break label$30
+       break block20
       }
       $11_1 = $3_1 + $11_1 | 0;
       HEAP32[$12_1 >> 2] = $11_1;
-      label$35 : {
+      block24 : {
        if ($11_1 >>> 0 < 1e9 >>> 0) {
-        break label$35
+        break block24
        }
-       label$36 : while (1) {
+       label8 : while (1) {
         HEAP32[$12_1 >> 2] = 0;
-        label$37 : {
+        block25 : {
          $12_1 = $12_1 + -4 | 0;
          if ($12_1 >>> 0 >= $19_1 >>> 0) {
-          break label$37
+          break block25
          }
          $19_1 = $19_1 + -4 | 0;
          HEAP32[$19_1 >> 2] = 0;
@@ -5632,50 +5740,50 @@ function asmFunc(imports) {
         $11_1 = (HEAP32[$12_1 >> 2] | 0) + 1 | 0;
         HEAP32[$12_1 >> 2] = $11_1;
         if ($11_1 >>> 0 > 999999999 >>> 0) {
-         continue label$36
+         continue label8
         }
-        break label$36;
+        break label8;
        };
       }
       $18_1 = Math_imul(($17_1 - $19_1 | 0) >> 2 | 0, 9);
       $11_1 = 10;
       $3_1 = HEAP32[$19_1 >> 2] | 0;
       if ($3_1 >>> 0 < 10 >>> 0) {
-       break label$30
+       break block20
       }
-      label$38 : while (1) {
+      label9 : while (1) {
        $18_1 = $18_1 + 1 | 0;
        $11_1 = Math_imul($11_1, 10);
        if ($3_1 >>> 0 >= $11_1 >>> 0) {
-        continue label$38
+        continue label9
        }
-       break label$38;
+       break label9;
       };
      }
      $11_1 = $12_1 + 4 | 0;
      $10_1 = $10_1 >>> 0 > $11_1 >>> 0 ? $11_1 : $10_1;
     }
-    label$39 : {
-     label$40 : while (1) {
+    block26 : {
+     label10 : while (1) {
       $11_1 = $10_1;
       $3_1 = $10_1 >>> 0 <= $19_1 >>> 0;
       if ($3_1) {
-       break label$39
+       break block26
       }
       $10_1 = $10_1 + -4 | 0;
       if (!(HEAP32[$10_1 >> 2] | 0)) {
-       continue label$40
+       continue label10
       }
-      break label$40;
+      break label10;
      };
     }
-    label$41 : {
-     label$42 : {
+    block28 : {
+     block27 : {
       if (($14_1 | 0) == (103 | 0)) {
-       break label$42
+       break block27
       }
       $22_1 = $4_1 & 8 | 0;
-      break label$41;
+      break block28;
      }
      $10_1 = $15_1 ? $15_1 : 1;
      $12_1 = ($10_1 | 0) > ($18_1 | 0) & ($18_1 | 0) > (-5 | 0) | 0;
@@ -5683,43 +5791,43 @@ function asmFunc(imports) {
      $5_1 = ($12_1 ? -1 : -2) + $5_1 | 0;
      $22_1 = $4_1 & 8 | 0;
      if ($22_1) {
-      break label$41
+      break block28
      }
      $10_1 = -9;
-     label$43 : {
+     block29 : {
       if ($3_1) {
-       break label$43
+       break block29
       }
       $12_1 = HEAP32[($11_1 + -4 | 0) >> 2] | 0;
       if (!$12_1) {
-       break label$43
+       break block29
       }
       $3_1 = 10;
       $10_1 = 0;
       if (($12_1 >>> 0) % (10 >>> 0) | 0) {
-       break label$43
+       break block29
       }
-      label$44 : while (1) {
+      label11 : while (1) {
        $22_1 = $10_1;
        $10_1 = $10_1 + 1 | 0;
        $3_1 = Math_imul($3_1, 10);
        if (!(($12_1 >>> 0) % ($3_1 >>> 0) | 0)) {
-        continue label$44
+        continue label11
        }
-       break label$44;
+       break label11;
       };
       $10_1 = $22_1 ^ -1 | 0;
      }
      $3_1 = Math_imul(($11_1 - $17_1 | 0) >> 2 | 0, 9);
-     label$45 : {
+     block30 : {
       if (($5_1 & -33 | 0 | 0) != (70 | 0)) {
-       break label$45
+       break block30
       }
       $22_1 = 0;
       $10_1 = ($3_1 + $10_1 | 0) + -9 | 0;
       $10_1 = ($10_1 | 0) > (0 | 0) ? $10_1 : 0;
       $15_1 = ($15_1 | 0) < ($10_1 | 0) ? $15_1 : $10_1;
-      break label$41;
+      break block28;
      }
      $22_1 = 0;
      $10_1 = (($18_1 + $3_1 | 0) + $10_1 | 0) + -9 | 0;
@@ -5729,35 +5837,35 @@ function asmFunc(imports) {
     $12_1 = -1;
     $23_1 = $15_1 | $22_1 | 0;
     if (($15_1 | 0) > (($23_1 ? 2147483645 : 2147483646) | 0)) {
-     break label$4
+     break block4
     }
     $3_1 = ($15_1 + (($23_1 | 0) != (0 | 0)) | 0) + 1 | 0;
-    label$46 : {
-     label$47 : {
+    block32 : {
+     block31 : {
       $21_1 = $5_1 & -33 | 0;
       if (($21_1 | 0) != (70 | 0)) {
-       break label$47
+       break block31
       }
       if (($18_1 | 0) > ($3_1 ^ 2147483647 | 0 | 0)) {
-       break label$4
+       break block4
       }
       $10_1 = ($18_1 | 0) > (0 | 0) ? $18_1 : 0;
-      break label$46;
+      break block32;
      }
-     label$48 : {
+     block33 : {
       $10_1 = $18_1 >> 31 | 0;
       i64toi32_i32$5 = 0;
-      $10_1 = $87(($18_1 ^ $10_1 | 0) - $10_1 | 0 | 0, i64toi32_i32$5 | 0, $13_1 | 0) | 0;
+      $10_1 = $90(($18_1 ^ $10_1 | 0) - $10_1 | 0 | 0, i64toi32_i32$5 | 0, $13_1 | 0) | 0;
       if (($13_1 - $10_1 | 0 | 0) > (1 | 0)) {
-       break label$48
+       break block33
       }
-      label$49 : while (1) {
+      label12 : while (1) {
        $10_1 = $10_1 + -1 | 0;
        HEAP8[$10_1 >> 0] = 48;
        if (($13_1 - $10_1 | 0 | 0) < (2 | 0)) {
-        continue label$49
+        continue label12
        }
-       break label$49;
+       break label12;
       };
      }
      $20_1 = $10_1 + -2 | 0;
@@ -5766,206 +5874,206 @@ function asmFunc(imports) {
      HEAP8[($10_1 + -1 | 0) >> 0] = ($18_1 | 0) < (0 | 0) ? 45 : 43;
      $10_1 = $13_1 - $20_1 | 0;
      if (($10_1 | 0) > ($3_1 ^ 2147483647 | 0 | 0)) {
-      break label$4
+      break block4
      }
     }
     $12_1 = -1;
     $10_1 = $10_1 + $3_1 | 0;
     if (($10_1 | 0) > ($8_1 ^ 2147483647 | 0 | 0)) {
-     break label$4
+     break block4
     }
     $5_1 = $10_1 + $8_1 | 0;
-    $88($0_1 | 0, 32 | 0, $2_1 | 0, $5_1 | 0, $4_1 | 0);
-    $82($0_1 | 0, $9_1 | 0, $8_1 | 0);
-    $88($0_1 | 0, 48 | 0, $2_1 | 0, $5_1 | 0, $4_1 ^ 65536 | 0 | 0);
-    label$50 : {
-     label$51 : {
-      label$52 : {
-       label$53 : {
+    $91($0_1 | 0, 32 | 0, $2_1 | 0, $5_1 | 0, $4_1 | 0);
+    $85($0_1 | 0, $9_1 | 0, $8_1 | 0);
+    $91($0_1 | 0, 48 | 0, $2_1 | 0, $5_1 | 0, $4_1 ^ 65536 | 0 | 0);
+    block45 : {
+     block40 : {
+      block38 : {
+       block34 : {
         if (($21_1 | 0) != (70 | 0)) {
-         break label$53
+         break block34
         }
         $18_1 = $6_1 + 16 | 0 | 9 | 0;
         $3_1 = $19_1 >>> 0 > $17_1 >>> 0 ? $17_1 : $19_1;
         $19_1 = $3_1;
-        label$54 : while (1) {
+        label14 : while (1) {
          i64toi32_i32$3 = $19_1;
          i64toi32_i32$5 = HEAP32[$19_1 >> 2] | 0;
          i64toi32_i32$4 = 0;
-         $10_1 = $87(i64toi32_i32$5 | 0, i64toi32_i32$4 | 0, $18_1 | 0) | 0;
-         label$55 : {
-          label$56 : {
+         $10_1 = $90(i64toi32_i32$5 | 0, i64toi32_i32$4 | 0, $18_1 | 0) | 0;
+         block36 : {
+          block35 : {
            if (($19_1 | 0) == ($3_1 | 0)) {
-            break label$56
+            break block35
            }
            if ($10_1 >>> 0 <= ($6_1 + 16 | 0) >>> 0) {
-            break label$55
+            break block36
            }
-           label$57 : while (1) {
+           label13 : while (1) {
             $10_1 = $10_1 + -1 | 0;
             HEAP8[$10_1 >> 0] = 48;
             if ($10_1 >>> 0 > ($6_1 + 16 | 0) >>> 0) {
-             continue label$57
+             continue label13
             }
-            break label$55;
+            break block36;
            };
           }
           if (($10_1 | 0) != ($18_1 | 0)) {
-           break label$55
+           break block36
           }
           $10_1 = $10_1 + -1 | 0;
           HEAP8[$10_1 >> 0] = 48;
          }
-         $82($0_1 | 0, $10_1 | 0, $18_1 - $10_1 | 0 | 0);
+         $85($0_1 | 0, $10_1 | 0, $18_1 - $10_1 | 0 | 0);
          $19_1 = $19_1 + 4 | 0;
          if ($19_1 >>> 0 <= $17_1 >>> 0) {
-          continue label$54
+          continue label14
          }
-         break label$54;
+         break label14;
         };
-        label$58 : {
+        block37 : {
          if (!$23_1) {
-          break label$58
+          break block37
          }
-         $82($0_1 | 0, 65595 | 0, 1 | 0);
+         $85($0_1 | 0, 65595 | 0, 1 | 0);
         }
         if ($19_1 >>> 0 >= $11_1 >>> 0) {
-         break label$52
+         break block38
         }
         if (($15_1 | 0) < (1 | 0)) {
-         break label$52
+         break block38
         }
-        label$59 : while (1) {
-         label$60 : {
+        label16 : while (1) {
+         block39 : {
           i64toi32_i32$3 = $19_1;
           i64toi32_i32$4 = HEAP32[$19_1 >> 2] | 0;
           i64toi32_i32$5 = 0;
-          $10_1 = $87(i64toi32_i32$4 | 0, i64toi32_i32$5 | 0, $18_1 | 0) | 0;
+          $10_1 = $90(i64toi32_i32$4 | 0, i64toi32_i32$5 | 0, $18_1 | 0) | 0;
           if ($10_1 >>> 0 <= ($6_1 + 16 | 0) >>> 0) {
-           break label$60
+           break block39
           }
-          label$61 : while (1) {
+          label15 : while (1) {
            $10_1 = $10_1 + -1 | 0;
            HEAP8[$10_1 >> 0] = 48;
            if ($10_1 >>> 0 > ($6_1 + 16 | 0) >>> 0) {
-            continue label$61
+            continue label15
            }
-           break label$61;
+           break label15;
           };
          }
-         $82($0_1 | 0, $10_1 | 0, (($15_1 | 0) < (9 | 0) ? $15_1 : 9) | 0);
+         $85($0_1 | 0, $10_1 | 0, (($15_1 | 0) < (9 | 0) ? $15_1 : 9) | 0);
          $10_1 = $15_1 + -9 | 0;
          $19_1 = $19_1 + 4 | 0;
          if ($19_1 >>> 0 >= $11_1 >>> 0) {
-          break label$51
+          break block40
          }
          $3_1 = ($15_1 | 0) > (9 | 0);
          $15_1 = $10_1;
          if ($3_1) {
-          continue label$59
+          continue label16
          }
-         break label$51;
+         break block40;
         };
        }
-       label$62 : {
+       block41 : {
         if (($15_1 | 0) < (0 | 0)) {
-         break label$62
+         break block41
         }
         $12_1 = $11_1 >>> 0 > $19_1 >>> 0 ? $11_1 : $19_1 + 4 | 0;
         $18_1 = $6_1 + 16 | 0 | 9 | 0;
         $11_1 = $19_1;
-        label$63 : while (1) {
-         label$64 : {
+        label18 : while (1) {
+         block42 : {
           i64toi32_i32$3 = $11_1;
           i64toi32_i32$5 = HEAP32[$11_1 >> 2] | 0;
           i64toi32_i32$4 = 0;
-          $10_1 = $87(i64toi32_i32$5 | 0, i64toi32_i32$4 | 0, $18_1 | 0) | 0;
+          $10_1 = $90(i64toi32_i32$5 | 0, i64toi32_i32$4 | 0, $18_1 | 0) | 0;
           if (($10_1 | 0) != ($18_1 | 0)) {
-           break label$64
+           break block42
           }
           $10_1 = $10_1 + -1 | 0;
           HEAP8[$10_1 >> 0] = 48;
          }
-         label$65 : {
-          label$66 : {
+         block44 : {
+          block43 : {
            if (($11_1 | 0) == ($19_1 | 0)) {
-            break label$66
+            break block43
            }
            if ($10_1 >>> 0 <= ($6_1 + 16 | 0) >>> 0) {
-            break label$65
+            break block44
            }
-           label$67 : while (1) {
+           label17 : while (1) {
             $10_1 = $10_1 + -1 | 0;
             HEAP8[$10_1 >> 0] = 48;
             if ($10_1 >>> 0 > ($6_1 + 16 | 0) >>> 0) {
-             continue label$67
+             continue label17
             }
-            break label$65;
+            break block44;
            };
           }
-          $82($0_1 | 0, $10_1 | 0, 1 | 0);
+          $85($0_1 | 0, $10_1 | 0, 1 | 0);
           $10_1 = $10_1 + 1 | 0;
           if (!($15_1 | $22_1 | 0)) {
-           break label$65
+           break block44
           }
-          $82($0_1 | 0, 65595 | 0, 1 | 0);
+          $85($0_1 | 0, 65595 | 0, 1 | 0);
          }
          $3_1 = $18_1 - $10_1 | 0;
-         $82($0_1 | 0, $10_1 | 0, (($15_1 | 0) > ($3_1 | 0) ? $3_1 : $15_1) | 0);
+         $85($0_1 | 0, $10_1 | 0, (($15_1 | 0) > ($3_1 | 0) ? $3_1 : $15_1) | 0);
          $15_1 = $15_1 - $3_1 | 0;
          $11_1 = $11_1 + 4 | 0;
          if ($11_1 >>> 0 >= $12_1 >>> 0) {
-          break label$62
+          break block41
          }
          if (($15_1 | 0) > (-1 | 0)) {
-          continue label$63
+          continue label18
          }
-         break label$63;
+         break label18;
         };
        }
-       $88($0_1 | 0, 48 | 0, $15_1 + 18 | 0 | 0, 18 | 0, 0 | 0);
-       $82($0_1 | 0, $20_1 | 0, $13_1 - $20_1 | 0 | 0);
-       break label$50;
+       $91($0_1 | 0, 48 | 0, $15_1 + 18 | 0 | 0, 18 | 0, 0 | 0);
+       $85($0_1 | 0, $20_1 | 0, $13_1 - $20_1 | 0 | 0);
+       break block45;
       }
       $10_1 = $15_1;
      }
-     $88($0_1 | 0, 48 | 0, $10_1 + 9 | 0 | 0, 9 | 0, 0 | 0);
+     $91($0_1 | 0, 48 | 0, $10_1 + 9 | 0 | 0, 9 | 0, 0 | 0);
     }
-    $88($0_1 | 0, 32 | 0, $2_1 | 0, $5_1 | 0, $4_1 ^ 8192 | 0 | 0);
+    $91($0_1 | 0, 32 | 0, $2_1 | 0, $5_1 | 0, $4_1 ^ 8192 | 0 | 0);
     $12_1 = ($2_1 | 0) > ($5_1 | 0) ? $2_1 : $5_1;
-    break label$4;
+    break block4;
    }
    $20_1 = $9_1 + ((($5_1 << 26 | 0) >> 31 | 0) & 9 | 0) | 0;
-   label$68 : {
+   block46 : {
     if ($3_1 >>> 0 > 11 >>> 0) {
-     break label$68
+     break block46
     }
     $10_1 = 12 - $3_1 | 0;
     $27_1 = 16.0;
-    label$69 : while (1) {
+    label19 : while (1) {
      $27_1 = $27_1 * 16.0;
      $10_1 = $10_1 + -1 | 0;
      if ($10_1) {
-      continue label$69
+      continue label19
      }
-     break label$69;
+     break label19;
     };
-    label$70 : {
+    block47 : {
      if ((HEAPU8[$20_1 >> 0] | 0 | 0) != (45 | 0)) {
-      break label$70
+      break block47
      }
      $1_1 = -($27_1 + (-$1_1 - $27_1));
-     break label$68;
+     break block46;
     }
     $1_1 = $1_1 + $27_1 - $27_1;
    }
-   label$71 : {
+   block48 : {
     $11_1 = HEAP32[($6_1 + 44 | 0) >> 2] | 0;
     $10_1 = $11_1 >> 31 | 0;
     i64toi32_i32$4 = 0;
-    $10_1 = $87(($11_1 ^ $10_1 | 0) - $10_1 | 0 | 0, i64toi32_i32$4 | 0, $13_1 | 0) | 0;
+    $10_1 = $90(($11_1 ^ $10_1 | 0) - $10_1 | 0 | 0, i64toi32_i32$4 | 0, $13_1 | 0) | 0;
     if (($10_1 | 0) != ($13_1 | 0)) {
-     break label$71
+     break block48
     }
     $10_1 = $10_1 + -1 | 0;
     HEAP8[$10_1 >> 0] = 48;
@@ -5978,62 +6086,59 @@ function asmFunc(imports) {
    HEAP8[($10_1 + -1 | 0) >> 0] = ($11_1 | 0) < (0 | 0) ? 45 : 43;
    $18_1 = ($3_1 | 0) < (1 | 0) & !($4_1 & 8 | 0) | 0;
    $11_1 = $6_1 + 16 | 0;
-   label$72 : while (1) {
+   label20 : while (1) {
     $10_1 = $11_1;
-    label$73 : {
-     label$74 : {
-      if (!(Math_abs($1_1) < 2147483648.0)) {
-       break label$74
-      }
-      $11_1 = ~~$1_1;
-      break label$73;
-     }
-     $11_1 = -2147483648;
+    $890 = $10_1;
+    if (Math_abs($1_1) < 2147483647.0) {
+     $897 = ~~$1_1
+    } else {
+     $897 = -2147483648
     }
-    HEAP8[$10_1 >> 0] = HEAPU8[($11_1 + 68336 | 0) >> 0] | 0 | $19_1 | 0;
+    $11_1 = $897;
+    HEAP8[$890 >> 0] = HEAPU8[($11_1 + 68336 | 0) >> 0] | 0 | $19_1 | 0;
     $1_1 = ($1_1 - +($11_1 | 0)) * 16.0;
-    label$75 : {
+    block49 : {
      $11_1 = $10_1 + 1 | 0;
      if (($11_1 - ($6_1 + 16 | 0) | 0 | 0) != (1 | 0)) {
-      break label$75
+      break block49
      }
      if ($1_1 == 0.0 & $18_1 | 0) {
-      break label$75
+      break block49
      }
      HEAP8[($10_1 + 1 | 0) >> 0] = 46;
      $11_1 = $10_1 + 2 | 0;
     }
     if ($1_1 != 0.0) {
-     continue label$72
+     continue label20
     }
-    break label$72;
+    break label20;
    };
    $12_1 = -1;
    $19_1 = $13_1 - $23_1 | 0;
    $18_1 = $22_1 + $19_1 | 0;
    if (($3_1 | 0) > (2147483645 - $18_1 | 0 | 0)) {
-    break label$4
+    break block4
    }
    $10_1 = $11_1 - ($6_1 + 16 | 0) | 0;
    $3_1 = $3_1 ? (($10_1 + -2 | 0 | 0) < ($3_1 | 0) ? $3_1 + 2 | 0 : $10_1) : $10_1;
    $11_1 = $18_1 + $3_1 | 0;
-   $88($0_1 | 0, 32 | 0, $2_1 | 0, $11_1 | 0, $4_1 | 0);
-   $82($0_1 | 0, $20_1 | 0, $22_1 | 0);
-   $88($0_1 | 0, 48 | 0, $2_1 | 0, $11_1 | 0, $4_1 ^ 65536 | 0 | 0);
-   $82($0_1 | 0, $6_1 + 16 | 0 | 0, $10_1 | 0);
-   $88($0_1 | 0, 48 | 0, $3_1 - $10_1 | 0 | 0, 0 | 0, 0 | 0);
-   $82($0_1 | 0, $23_1 | 0, $19_1 | 0);
-   $88($0_1 | 0, 32 | 0, $2_1 | 0, $11_1 | 0, $4_1 ^ 8192 | 0 | 0);
+   $91($0_1 | 0, 32 | 0, $2_1 | 0, $11_1 | 0, $4_1 | 0);
+   $85($0_1 | 0, $20_1 | 0, $22_1 | 0);
+   $91($0_1 | 0, 48 | 0, $2_1 | 0, $11_1 | 0, $4_1 ^ 65536 | 0 | 0);
+   $85($0_1 | 0, $6_1 + 16 | 0 | 0, $10_1 | 0);
+   $91($0_1 | 0, 48 | 0, $3_1 - $10_1 | 0 | 0, 0 | 0, 0 | 0);
+   $85($0_1 | 0, $23_1 | 0, $19_1 | 0);
+   $91($0_1 | 0, 32 | 0, $2_1 | 0, $11_1 | 0, $4_1 ^ 8192 | 0 | 0);
    $12_1 = ($2_1 | 0) > ($11_1 | 0) ? $2_1 : $11_1;
   }
   global$0 = $6_1 + 560 | 0;
   return $12_1 | 0;
  }
  
- function $91($0_1, $1_1) {
+ function $94($0_1, $1_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
-  var i64toi32_i32$2 = 0, i64toi32_i32$0 = 0, i64toi32_i32$1 = 0, $2_1 = 0, $12_1 = 0, $12$hi = 0, $15_1 = 0, $15$hi = 0;
+  var i64toi32_i32$0 = 0, i64toi32_i32$1 = 0, i64toi32_i32$2 = 0, $2_1 = 0, $12_1 = 0, $12$hi = 0, $14_1 = 0, $14$hi = 0;
   $2_1 = ((HEAP32[$1_1 >> 2] | 0) + 7 | 0) & -8 | 0;
   HEAP32[$1_1 >> 2] = $2_1 + 16 | 0;
   i64toi32_i32$2 = $2_1;
@@ -6041,17 +6146,16 @@ function asmFunc(imports) {
   i64toi32_i32$1 = HEAP32[(i64toi32_i32$2 + 4 | 0) >> 2] | 0;
   $12_1 = i64toi32_i32$0;
   $12$hi = i64toi32_i32$1;
-  i64toi32_i32$2 = i64toi32_i32$2 + 8 | 0;
-  i64toi32_i32$1 = HEAP32[i64toi32_i32$2 >> 2] | 0;
-  i64toi32_i32$0 = HEAP32[(i64toi32_i32$2 + 4 | 0) >> 2] | 0;
-  $15_1 = i64toi32_i32$1;
-  $15$hi = i64toi32_i32$0;
+  i64toi32_i32$1 = HEAP32[(i64toi32_i32$2 + 8 | 0) >> 2] | 0;
+  i64toi32_i32$0 = HEAP32[(i64toi32_i32$2 + 12 | 0) >> 2] | 0;
+  $14_1 = i64toi32_i32$1;
+  $14$hi = i64toi32_i32$0;
   i64toi32_i32$0 = $12$hi;
-  i64toi32_i32$1 = $15$hi;
-  HEAPF64[$0_1 >> 3] = +$107($12_1 | 0, i64toi32_i32$0 | 0, $15_1 | 0, i64toi32_i32$1 | 0);
+  i64toi32_i32$1 = $14$hi;
+  HEAPF64[$0_1 >> 3] = +$114($12_1 | 0, i64toi32_i32$0 | 0, $14_1 | 0, i64toi32_i32$1 | 0);
  }
  
- function $92($0_1) {
+ function $95($0_1) {
   $0_1 = +$0_1;
   var i64toi32_i32$0 = 0, i64toi32_i32$1 = 0;
   wasm2js_scratch_store_f64(+$0_1);
@@ -6061,7 +6165,7 @@ function asmFunc(imports) {
   return i64toi32_i32$1 | 0;
  }
  
- function $93($0_1, $1_1, $2_1, $3_1) {
+ function $96($0_1, $1_1, $2_1, $3_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
@@ -6073,45 +6177,50 @@ function asmFunc(imports) {
   HEAP32[($4_1 + 148 | 0) >> 2] = $0_1;
   $5_1 = $1_1 + -1 | 0;
   HEAP32[($4_1 + 152 | 0) >> 2] = $5_1 >>> 0 > $1_1 >>> 0 ? 0 : $5_1;
-  $4_1 = $61($4_1 | 0, 0 | 0, 144 | 0) | 0;
+  block : {
+   if (!144) {
+    break block
+   }
+   wasm2js_memory_fill($4_1, 0, 144);
+  }
   HEAP32[($4_1 + 76 | 0) >> 2] = -1;
   HEAP32[($4_1 + 36 | 0) >> 2] = 6;
   HEAP32[($4_1 + 80 | 0) >> 2] = -1;
   HEAP32[($4_1 + 44 | 0) >> 2] = $4_1 + 159 | 0;
   HEAP32[($4_1 + 84 | 0) >> 2] = $4_1 + 148 | 0;
   HEAP8[$0_1 >> 0] = 0;
-  $1_1 = $89($4_1 | 0, $2_1 | 0, $3_1 | 0) | 0;
+  $1_1 = $92($4_1 | 0, $2_1 | 0, $3_1 | 0) | 0;
   global$0 = $4_1 + 160 | 0;
   return $1_1 | 0;
  }
  
- function $94($0_1, $1_1, $2_1) {
+ function $97($0_1, $1_1, $2_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
   var $3_1 = 0, $5_1 = 0, $4_1 = 0, $7_1 = 0, $6_1 = 0;
   $3_1 = HEAP32[($0_1 + 84 | 0) >> 2] | 0;
   $4_1 = HEAP32[$3_1 >> 2] | 0;
-  label$1 : {
+  block : {
    $5_1 = HEAP32[($3_1 + 4 | 0) >> 2] | 0;
    $6_1 = HEAP32[($0_1 + 28 | 0) >> 2] | 0;
    $7_1 = (HEAP32[($0_1 + 20 | 0) >> 2] | 0) - $6_1 | 0;
    $7_1 = $5_1 >>> 0 < $7_1 >>> 0 ? $5_1 : $7_1;
    if (!$7_1) {
-    break label$1
+    break block
    }
-   $41($4_1 | 0, $6_1 | 0, $7_1 | 0) | 0;
+   $53($4_1 | 0, $6_1 | 0, $7_1 | 0) | 0;
    $4_1 = (HEAP32[$3_1 >> 2] | 0) + $7_1 | 0;
    HEAP32[$3_1 >> 2] = $4_1;
    $5_1 = (HEAP32[($3_1 + 4 | 0) >> 2] | 0) - $7_1 | 0;
    HEAP32[($3_1 + 4 | 0) >> 2] = $5_1;
   }
-  label$2 : {
+  block1 : {
    $5_1 = $5_1 >>> 0 < $2_1 >>> 0 ? $5_1 : $2_1;
    if (!$5_1) {
-    break label$2
+    break block1
    }
-   $41($4_1 | 0, $1_1 | 0, $5_1 | 0) | 0;
+   $53($4_1 | 0, $1_1 | 0, $5_1 | 0) | 0;
    $4_1 = (HEAP32[$3_1 >> 2] | 0) + $5_1 | 0;
    HEAP32[$3_1 >> 2] = $4_1;
    HEAP32[($3_1 + 4 | 0) >> 2] = (HEAP32[($3_1 + 4 | 0) >> 2] | 0) - $5_1 | 0;
@@ -6123,65 +6232,65 @@ function asmFunc(imports) {
   return $2_1 | 0;
  }
  
- function $95($0_1, $1_1, $2_1) {
+ function $98($0_1, $1_1, $2_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
-  return $93($0_1 | 0, 2147483647 | 0, $1_1 | 0, $2_1 | 0) | 0 | 0;
+  return $96($0_1 | 0, 2147483647 | 0, $1_1 | 0, $2_1 | 0) | 0 | 0;
  }
  
- function $96($0_1) {
+ function $99($0_1) {
   $0_1 = $0_1 | 0;
-  label$1 : {
+  block : {
    if ($0_1) {
-    break label$1
+    break block
    }
    return 0 | 0;
   }
-  HEAP32[($42() | 0) >> 2] = $0_1;
+  HEAP32[($43() | 0) >> 2] = $0_1;
   return -1 | 0;
  }
  
- function $97($0_1, $1_1, $2_1) {
+ function $100($0_1, $1_1, $2_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
   var $3_1 = 0;
   $3_1 = 1;
-  label$1 : {
-   label$2 : {
+  block1 : {
+   block : {
     if (!$0_1) {
-     break label$2
+     break block
     }
     if ($1_1 >>> 0 <= 127 >>> 0) {
-     break label$1
+     break block1
     }
-    label$3 : {
-     label$4 : {
-      if (HEAP32[(HEAP32[(($64() | 0) + 96 | 0) >> 2] | 0) >> 2] | 0) {
-       break label$4
+    block3 : {
+     block2 : {
+      if (HEAP32[(HEAP32[(($66() | 0) + 96 | 0) >> 2] | 0) >> 2] | 0) {
+       break block2
       }
       if (($1_1 & -128 | 0 | 0) == (57216 | 0)) {
-       break label$1
+       break block1
       }
-      HEAP32[($42() | 0) >> 2] = 25;
-      break label$3;
+      HEAP32[($43() | 0) >> 2] = 25;
+      break block3;
      }
-     label$5 : {
+     block4 : {
       if ($1_1 >>> 0 > 2047 >>> 0) {
-       break label$5
+       break block4
       }
       HEAP8[($0_1 + 1 | 0) >> 0] = $1_1 & 63 | 0 | 128 | 0;
       HEAP8[$0_1 >> 0] = $1_1 >>> 6 | 0 | 192 | 0;
       return 2 | 0;
      }
-     label$6 : {
-      label$7 : {
+     block6 : {
+      block5 : {
        if ($1_1 >>> 0 < 55296 >>> 0) {
-        break label$7
+        break block5
        }
        if (($1_1 & -8192 | 0 | 0) != (57344 | 0)) {
-        break label$6
+        break block6
        }
       }
       HEAP8[($0_1 + 2 | 0) >> 0] = $1_1 & 63 | 0 | 128 | 0;
@@ -6189,9 +6298,9 @@ function asmFunc(imports) {
       HEAP8[($0_1 + 1 | 0) >> 0] = ($1_1 >>> 6 | 0) & 63 | 0 | 128 | 0;
       return 3 | 0;
      }
-     label$8 : {
+     block7 : {
       if (($1_1 + -65536 | 0) >>> 0 > 1048575 >>> 0) {
-       break label$8
+       break block7
       }
       HEAP8[($0_1 + 3 | 0) >> 0] = $1_1 & 63 | 0 | 128 | 0;
       HEAP8[$0_1 >> 0] = $1_1 >>> 18 | 0 | 240 | 0;
@@ -6199,7 +6308,7 @@ function asmFunc(imports) {
       HEAP8[($0_1 + 1 | 0) >> 0] = ($1_1 >>> 12 | 0) & 63 | 0 | 128 | 0;
       return 4 | 0;
      }
-     HEAP32[($42() | 0) >> 2] = 25;
+     HEAP32[($43() | 0) >> 2] = 25;
     }
     $3_1 = -1;
    }
@@ -6209,1743 +6318,2035 @@ function asmFunc(imports) {
   return 1 | 0;
  }
  
- function $98($0_1, $1_1) {
+ function $101($0_1, $1_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
-  label$1 : {
+  block : {
    if ($0_1) {
-    break label$1
+    break block
    }
    return 0 | 0;
   }
-  return $97($0_1 | 0, $1_1 | 0, 0 | 0) | 0 | 0;
+  return $100($0_1 | 0, $1_1 | 0, 0 | 0) | 0 | 0;
  }
  
- function $99($0_1) {
+ function $102($0_1) {
   $0_1 = $0_1 | 0;
-  var $5_1 = 0, $4_1 = 0, $7_1 = 0, $8_1 = 0, $3_1 = 0, $2_1 = 0, $6_1 = 0, $10_1 = 0, $11_1 = 0, i64toi32_i32$0 = 0, i64toi32_i32$1 = 0, i64toi32_i32$2 = 0, $1_1 = 0, $9_1 = 0, $79_1 = 0, $183 = 0, $774 = 0, $776 = 0;
+  var $5_1 = 0, $4_1 = 0, $7_1 = 0, $8_1 = 0, $3_1 = 0, $2_1 = 0, $6_1 = 0, $12_1 = 0, $11_1 = 0, i64toi32_i32$0 = 0, i64toi32_i32$1 = 0, $10_1 = 0, i64toi32_i32$2 = 0, $1_1 = 0, $9_1 = 0, $87_1 = 0, $201 = 0, $1154 = 0, $1156 = 0;
   $1_1 = global$0 - 16 | 0;
   global$0 = $1_1;
-  label$1 : {
-   label$2 : {
-    label$3 : {
-     label$4 : {
-      label$5 : {
-       label$6 : {
-        label$7 : {
-         label$8 : {
-          label$9 : {
-           label$10 : {
-            label$11 : {
-             if ($0_1 >>> 0 > 244 >>> 0) {
-              break label$11
-             }
-             label$12 : {
-              $2_1 = HEAP32[(0 + 68728 | 0) >> 2] | 0;
-              $3_1 = $0_1 >>> 0 < 11 >>> 0 ? 16 : ($0_1 + 11 | 0) & 504 | 0;
-              $4_1 = $3_1 >>> 3 | 0;
-              $0_1 = $2_1 >>> $4_1 | 0;
-              if (!($0_1 & 3 | 0)) {
-               break label$12
-              }
-              label$13 : {
-               label$14 : {
-                $3_1 = (($0_1 ^ -1 | 0) & 1 | 0) + $4_1 | 0;
-                $4_1 = $3_1 << 3 | 0;
-                $0_1 = $4_1 + 68768 | 0;
-                $4_1 = HEAP32[($4_1 + 68776 | 0) >> 2] | 0;
-                $5_1 = HEAP32[($4_1 + 8 | 0) >> 2] | 0;
-                if (($0_1 | 0) != ($5_1 | 0)) {
-                 break label$14
-                }
-                HEAP32[(0 + 68728 | 0) >> 2] = $2_1 & (__wasm_rotl_i32(-2 | 0, $3_1 | 0) | 0) | 0;
-                break label$13;
-               }
-               HEAP32[($5_1 + 12 | 0) >> 2] = $0_1;
-               HEAP32[($0_1 + 8 | 0) >> 2] = $5_1;
-              }
-              $0_1 = $4_1 + 8 | 0;
-              $3_1 = $3_1 << 3 | 0;
-              HEAP32[($4_1 + 4 | 0) >> 2] = $3_1 | 3 | 0;
-              $4_1 = $4_1 + $3_1 | 0;
-              HEAP32[($4_1 + 4 | 0) >> 2] = HEAP32[($4_1 + 4 | 0) >> 2] | 0 | 1 | 0;
-              break label$1;
-             }
-             $6_1 = HEAP32[(0 + 68736 | 0) >> 2] | 0;
-             if ($3_1 >>> 0 <= $6_1 >>> 0) {
-              break label$10
-             }
-             label$15 : {
-              if (!$0_1) {
-               break label$15
-              }
-              label$16 : {
-               label$17 : {
-                $79_1 = $0_1 << $4_1 | 0;
-                $0_1 = 2 << $4_1 | 0;
-                $4_1 = __wasm_ctz_i32($79_1 & ($0_1 | (0 - $0_1 | 0) | 0) | 0 | 0) | 0;
-                $0_1 = $4_1 << 3 | 0;
-                $5_1 = $0_1 + 68768 | 0;
-                $0_1 = HEAP32[($0_1 + 68776 | 0) >> 2] | 0;
-                $7_1 = HEAP32[($0_1 + 8 | 0) >> 2] | 0;
-                if (($5_1 | 0) != ($7_1 | 0)) {
-                 break label$17
-                }
-                $2_1 = $2_1 & (__wasm_rotl_i32(-2 | 0, $4_1 | 0) | 0) | 0;
-                HEAP32[(0 + 68728 | 0) >> 2] = $2_1;
-                break label$16;
-               }
-               HEAP32[($7_1 + 12 | 0) >> 2] = $5_1;
-               HEAP32[($5_1 + 8 | 0) >> 2] = $7_1;
-              }
-              HEAP32[($0_1 + 4 | 0) >> 2] = $3_1 | 3 | 0;
-              $7_1 = $0_1 + $3_1 | 0;
-              $4_1 = $4_1 << 3 | 0;
-              $3_1 = $4_1 - $3_1 | 0;
-              HEAP32[($7_1 + 4 | 0) >> 2] = $3_1 | 1 | 0;
-              HEAP32[($0_1 + $4_1 | 0) >> 2] = $3_1;
-              label$18 : {
-               if (!$6_1) {
-                break label$18
-               }
-               $5_1 = ($6_1 & -8 | 0) + 68768 | 0;
-               $4_1 = HEAP32[(0 + 68748 | 0) >> 2] | 0;
-               label$19 : {
-                label$20 : {
-                 $8_1 = 1 << ($6_1 >>> 3 | 0) | 0;
-                 if ($2_1 & $8_1 | 0) {
-                  break label$20
-                 }
-                 HEAP32[(0 + 68728 | 0) >> 2] = $2_1 | $8_1 | 0;
-                 $8_1 = $5_1;
-                 break label$19;
-                }
-                $8_1 = HEAP32[($5_1 + 8 | 0) >> 2] | 0;
-               }
-               HEAP32[($5_1 + 8 | 0) >> 2] = $4_1;
-               HEAP32[($8_1 + 12 | 0) >> 2] = $4_1;
-               HEAP32[($4_1 + 12 | 0) >> 2] = $5_1;
-               HEAP32[($4_1 + 8 | 0) >> 2] = $8_1;
-              }
-              $0_1 = $0_1 + 8 | 0;
-              HEAP32[(0 + 68748 | 0) >> 2] = $7_1;
-              HEAP32[(0 + 68736 | 0) >> 2] = $3_1;
-              break label$1;
-             }
-             $9_1 = HEAP32[(0 + 68732 | 0) >> 2] | 0;
-             if (!$9_1) {
-              break label$10
-             }
-             $7_1 = HEAP32[(((__wasm_ctz_i32($9_1 | 0) | 0) << 2 | 0) + 69032 | 0) >> 2] | 0;
-             $4_1 = ((HEAP32[($7_1 + 4 | 0) >> 2] | 0) & -8 | 0) - $3_1 | 0;
-             $5_1 = $7_1;
-             label$21 : {
-              label$22 : while (1) {
-               label$23 : {
-                $0_1 = HEAP32[($5_1 + 16 | 0) >> 2] | 0;
-                if ($0_1) {
-                 break label$23
-                }
-                $0_1 = HEAP32[($5_1 + 20 | 0) >> 2] | 0;
-                if (!$0_1) {
-                 break label$21
-                }
-               }
-               $5_1 = ((HEAP32[($0_1 + 4 | 0) >> 2] | 0) & -8 | 0) - $3_1 | 0;
-               $183 = $5_1;
-               $5_1 = $5_1 >>> 0 < $4_1 >>> 0;
-               $4_1 = $5_1 ? $183 : $4_1;
-               $7_1 = $5_1 ? $0_1 : $7_1;
-               $5_1 = $0_1;
-               continue label$22;
-              };
-             }
-             $10_1 = HEAP32[($7_1 + 24 | 0) >> 2] | 0;
-             label$24 : {
-              $0_1 = HEAP32[($7_1 + 12 | 0) >> 2] | 0;
-              if (($0_1 | 0) == ($7_1 | 0)) {
-               break label$24
-              }
-              $5_1 = HEAP32[($7_1 + 8 | 0) >> 2] | 0;
-              HEAP32[($5_1 + 12 | 0) >> 2] = $0_1;
-              HEAP32[($0_1 + 8 | 0) >> 2] = $5_1;
-              break label$2;
-             }
-             label$25 : {
-              label$26 : {
-               $5_1 = HEAP32[($7_1 + 20 | 0) >> 2] | 0;
-               if (!$5_1) {
-                break label$26
-               }
-               $8_1 = $7_1 + 20 | 0;
-               break label$25;
-              }
-              $5_1 = HEAP32[($7_1 + 16 | 0) >> 2] | 0;
-              if (!$5_1) {
-               break label$9
-              }
-              $8_1 = $7_1 + 16 | 0;
-             }
-             label$27 : while (1) {
-              $11_1 = $8_1;
-              $0_1 = $5_1;
-              $8_1 = $0_1 + 20 | 0;
-              $5_1 = HEAP32[($0_1 + 20 | 0) >> 2] | 0;
-              if ($5_1) {
-               continue label$27
-              }
-              $8_1 = $0_1 + 16 | 0;
-              $5_1 = HEAP32[($0_1 + 16 | 0) >> 2] | 0;
-              if ($5_1) {
-               continue label$27
-              }
-              break label$27;
-             };
-             HEAP32[$11_1 >> 2] = 0;
-             break label$2;
-            }
-            $3_1 = -1;
-            if ($0_1 >>> 0 > -65 >>> 0) {
-             break label$10
-            }
-            $4_1 = $0_1 + 11 | 0;
-            $3_1 = $4_1 & -8 | 0;
-            $10_1 = HEAP32[(0 + 68732 | 0) >> 2] | 0;
-            if (!$10_1) {
-             break label$10
-            }
-            $6_1 = 31;
-            label$28 : {
-             if ($0_1 >>> 0 > 16777204 >>> 0) {
-              break label$28
-             }
-             $0_1 = Math_clz32($4_1 >>> 8 | 0);
-             $6_1 = ((($3_1 >>> (38 - $0_1 | 0) | 0) & 1 | 0) - ($0_1 << 1 | 0) | 0) + 62 | 0;
-            }
-            $4_1 = 0 - $3_1 | 0;
-            label$29 : {
-             label$30 : {
-              label$31 : {
-               label$32 : {
-                $5_1 = HEAP32[(($6_1 << 2 | 0) + 69032 | 0) >> 2] | 0;
-                if ($5_1) {
-                 break label$32
-                }
-                $0_1 = 0;
-                $8_1 = 0;
-                break label$31;
-               }
-               $0_1 = 0;
-               $7_1 = $3_1 << (($6_1 | 0) == (31 | 0) ? 0 : 25 - ($6_1 >>> 1 | 0) | 0) | 0;
-               $8_1 = 0;
-               label$33 : while (1) {
-                label$34 : {
-                 $2_1 = ((HEAP32[($5_1 + 4 | 0) >> 2] | 0) & -8 | 0) - $3_1 | 0;
-                 if ($2_1 >>> 0 >= $4_1 >>> 0) {
-                  break label$34
-                 }
-                 $4_1 = $2_1;
-                 $8_1 = $5_1;
-                 if ($4_1) {
-                  break label$34
-                 }
-                 $4_1 = 0;
-                 $8_1 = $5_1;
-                 $0_1 = $5_1;
-                 break label$30;
-                }
-                $2_1 = HEAP32[($5_1 + 20 | 0) >> 2] | 0;
-                $11_1 = HEAP32[(($5_1 + (($7_1 >>> 29 | 0) & 4 | 0) | 0) + 16 | 0) >> 2] | 0;
-                $0_1 = $2_1 ? (($2_1 | 0) == ($11_1 | 0) ? $0_1 : $2_1) : $0_1;
-                $7_1 = $7_1 << 1 | 0;
-                $5_1 = $11_1;
-                if ($5_1) {
-                 continue label$33
-                }
-                break label$33;
-               };
-              }
-              label$35 : {
-               if ($0_1 | $8_1 | 0) {
-                break label$35
-               }
-               $8_1 = 0;
-               $0_1 = 2 << $6_1 | 0;
-               $0_1 = ($0_1 | (0 - $0_1 | 0) | 0) & $10_1 | 0;
-               if (!$0_1) {
-                break label$10
-               }
-               $0_1 = HEAP32[(((__wasm_ctz_i32($0_1 | 0) | 0) << 2 | 0) + 69032 | 0) >> 2] | 0;
-              }
-              if (!$0_1) {
-               break label$29
-              }
-             }
-             label$36 : while (1) {
-              $2_1 = ((HEAP32[($0_1 + 4 | 0) >> 2] | 0) & -8 | 0) - $3_1 | 0;
-              $7_1 = $2_1 >>> 0 < $4_1 >>> 0;
-              label$37 : {
-               $5_1 = HEAP32[($0_1 + 16 | 0) >> 2] | 0;
-               if ($5_1) {
-                break label$37
-               }
-               $5_1 = HEAP32[($0_1 + 20 | 0) >> 2] | 0;
-              }
-              $4_1 = $7_1 ? $2_1 : $4_1;
-              $8_1 = $7_1 ? $0_1 : $8_1;
-              $0_1 = $5_1;
-              if ($0_1) {
-               continue label$36
-              }
-              break label$36;
-             };
-            }
-            if (!$8_1) {
-             break label$10
-            }
-            if ($4_1 >>> 0 >= ((HEAP32[(0 + 68736 | 0) >> 2] | 0) - $3_1 | 0) >>> 0) {
-             break label$10
-            }
-            $11_1 = HEAP32[($8_1 + 24 | 0) >> 2] | 0;
-            label$38 : {
-             $0_1 = HEAP32[($8_1 + 12 | 0) >> 2] | 0;
-             if (($0_1 | 0) == ($8_1 | 0)) {
-              break label$38
-             }
-             $5_1 = HEAP32[($8_1 + 8 | 0) >> 2] | 0;
-             HEAP32[($5_1 + 12 | 0) >> 2] = $0_1;
-             HEAP32[($0_1 + 8 | 0) >> 2] = $5_1;
-             break label$3;
-            }
-            label$39 : {
-             label$40 : {
-              $5_1 = HEAP32[($8_1 + 20 | 0) >> 2] | 0;
-              if (!$5_1) {
-               break label$40
-              }
-              $7_1 = $8_1 + 20 | 0;
-              break label$39;
-             }
-             $5_1 = HEAP32[($8_1 + 16 | 0) >> 2] | 0;
-             if (!$5_1) {
-              break label$8
-             }
-             $7_1 = $8_1 + 16 | 0;
-            }
-            label$41 : while (1) {
-             $2_1 = $7_1;
-             $0_1 = $5_1;
-             $7_1 = $0_1 + 20 | 0;
-             $5_1 = HEAP32[($0_1 + 20 | 0) >> 2] | 0;
-             if ($5_1) {
-              continue label$41
-             }
-             $7_1 = $0_1 + 16 | 0;
-             $5_1 = HEAP32[($0_1 + 16 | 0) >> 2] | 0;
-             if ($5_1) {
-              continue label$41
-             }
-             break label$41;
-            };
-            HEAP32[$2_1 >> 2] = 0;
-            break label$3;
+  block5 : {
+   block88 : {
+    block4 : {
+     block6 : {
+      block : {
+       if ($0_1 >>> 0 > 244 >>> 0) {
+        break block
+       }
+       block1 : {
+        $2_1 = HEAP32[(0 + 68736 | 0) >> 2] | 0;
+        $3_1 = $0_1 >>> 0 < 11 >>> 0 ? 16 : ($0_1 + 11 | 0) & 504 | 0;
+        $4_1 = $3_1 >>> 3 | 0;
+        $0_1 = $2_1 >>> $4_1 | 0;
+        if (!($0_1 & 3 | 0)) {
+         break block1
+        }
+        block3 : {
+         block2 : {
+          $3_1 = (($0_1 ^ -1 | 0) & 1 | 0) + $4_1 | 0;
+          $0_1 = $3_1 << 3 | 0;
+          $5_1 = $0_1 + 68776 | 0;
+          $4_1 = HEAP32[($0_1 + 68784 | 0) >> 2] | 0;
+          $0_1 = HEAP32[($4_1 + 8 | 0) >> 2] | 0;
+          if (($5_1 | 0) != ($0_1 | 0)) {
+           break block2
+          }
+          HEAP32[(0 + 68736 | 0) >> 2] = $2_1 & (__wasm_rotl_i32(-2 | 0, $3_1 | 0) | 0) | 0;
+          break block3;
+         }
+         if ($0_1 >>> 0 < (HEAP32[(0 + 68752 | 0) >> 2] | 0) >>> 0) {
+          break block4
+         }
+         if ((HEAP32[($0_1 + 12 | 0) >> 2] | 0 | 0) != ($4_1 | 0)) {
+          break block4
+         }
+         HEAP32[($0_1 + 12 | 0) >> 2] = $5_1;
+         HEAP32[($5_1 + 8 | 0) >> 2] = $0_1;
+        }
+        $0_1 = $4_1 + 8 | 0;
+        $3_1 = $3_1 << 3 | 0;
+        HEAP32[($4_1 + 4 | 0) >> 2] = $3_1 | 3 | 0;
+        $4_1 = $4_1 + $3_1 | 0;
+        HEAP32[($4_1 + 4 | 0) >> 2] = HEAP32[($4_1 + 4 | 0) >> 2] | 0 | 1 | 0;
+        break block5;
+       }
+       $6_1 = HEAP32[(0 + 68744 | 0) >> 2] | 0;
+       if ($3_1 >>> 0 <= $6_1 >>> 0) {
+        break block6
+       }
+       block7 : {
+        if (!$0_1) {
+         break block7
+        }
+        block9 : {
+         block8 : {
+          $87_1 = $0_1 << $4_1 | 0;
+          $0_1 = 2 << $4_1 | 0;
+          $5_1 = __wasm_ctz_i32($87_1 & ($0_1 | (0 - $0_1 | 0) | 0) | 0 | 0) | 0;
+          $0_1 = $5_1 << 3 | 0;
+          $7_1 = $0_1 + 68776 | 0;
+          $0_1 = HEAP32[($0_1 + 68784 | 0) >> 2] | 0;
+          $4_1 = HEAP32[($0_1 + 8 | 0) >> 2] | 0;
+          if (($7_1 | 0) != ($4_1 | 0)) {
+           break block8
+          }
+          $2_1 = $2_1 & (__wasm_rotl_i32(-2 | 0, $5_1 | 0) | 0) | 0;
+          HEAP32[(0 + 68736 | 0) >> 2] = $2_1;
+          break block9;
+         }
+         if ($4_1 >>> 0 < (HEAP32[(0 + 68752 | 0) >> 2] | 0) >>> 0) {
+          break block4
+         }
+         if ((HEAP32[($4_1 + 12 | 0) >> 2] | 0 | 0) != ($0_1 | 0)) {
+          break block4
+         }
+         HEAP32[($4_1 + 12 | 0) >> 2] = $7_1;
+         HEAP32[($7_1 + 8 | 0) >> 2] = $4_1;
+        }
+        HEAP32[($0_1 + 4 | 0) >> 2] = $3_1 | 3 | 0;
+        $7_1 = $0_1 + $3_1 | 0;
+        $4_1 = $5_1 << 3 | 0;
+        $3_1 = $4_1 - $3_1 | 0;
+        HEAP32[($7_1 + 4 | 0) >> 2] = $3_1 | 1 | 0;
+        HEAP32[($0_1 + $4_1 | 0) >> 2] = $3_1;
+        block10 : {
+         if (!$6_1) {
+          break block10
+         }
+         $5_1 = ($6_1 & -8 | 0) + 68776 | 0;
+         $4_1 = HEAP32[(0 + 68756 | 0) >> 2] | 0;
+         block12 : {
+          block11 : {
+           $8_1 = 1 << ($6_1 >>> 3 | 0) | 0;
+           if ($2_1 & $8_1 | 0) {
+            break block11
            }
-           label$42 : {
-            $0_1 = HEAP32[(0 + 68736 | 0) >> 2] | 0;
-            if ($0_1 >>> 0 < $3_1 >>> 0) {
-             break label$42
-            }
-            $4_1 = HEAP32[(0 + 68748 | 0) >> 2] | 0;
-            label$43 : {
-             label$44 : {
-              $5_1 = $0_1 - $3_1 | 0;
-              if ($5_1 >>> 0 < 16 >>> 0) {
-               break label$44
-              }
-              $7_1 = $4_1 + $3_1 | 0;
-              HEAP32[($7_1 + 4 | 0) >> 2] = $5_1 | 1 | 0;
-              HEAP32[($4_1 + $0_1 | 0) >> 2] = $5_1;
-              HEAP32[($4_1 + 4 | 0) >> 2] = $3_1 | 3 | 0;
-              break label$43;
-             }
-             HEAP32[($4_1 + 4 | 0) >> 2] = $0_1 | 3 | 0;
-             $0_1 = $4_1 + $0_1 | 0;
-             HEAP32[($0_1 + 4 | 0) >> 2] = HEAP32[($0_1 + 4 | 0) >> 2] | 0 | 1 | 0;
-             $7_1 = 0;
-             $5_1 = 0;
-            }
-            HEAP32[(0 + 68736 | 0) >> 2] = $5_1;
-            HEAP32[(0 + 68748 | 0) >> 2] = $7_1;
-            $0_1 = $4_1 + 8 | 0;
-            break label$1;
+           HEAP32[(0 + 68736 | 0) >> 2] = $2_1 | $8_1 | 0;
+           $8_1 = $5_1;
+           break block12;
+          }
+          $8_1 = HEAP32[($5_1 + 8 | 0) >> 2] | 0;
+          if ($8_1 >>> 0 < (HEAP32[(0 + 68752 | 0) >> 2] | 0) >>> 0) {
+           break block4
+          }
+         }
+         HEAP32[($5_1 + 8 | 0) >> 2] = $4_1;
+         HEAP32[($8_1 + 12 | 0) >> 2] = $4_1;
+         HEAP32[($4_1 + 12 | 0) >> 2] = $5_1;
+         HEAP32[($4_1 + 8 | 0) >> 2] = $8_1;
+        }
+        $0_1 = $0_1 + 8 | 0;
+        HEAP32[(0 + 68756 | 0) >> 2] = $7_1;
+        HEAP32[(0 + 68744 | 0) >> 2] = $3_1;
+        break block5;
+       }
+       $9_1 = HEAP32[(0 + 68740 | 0) >> 2] | 0;
+       if (!$9_1) {
+        break block6
+       }
+       $7_1 = HEAP32[(((__wasm_ctz_i32($9_1 | 0) | 0) << 2 | 0) + 69040 | 0) >> 2] | 0;
+       $4_1 = ((HEAP32[($7_1 + 4 | 0) >> 2] | 0) & -8 | 0) - $3_1 | 0;
+       $5_1 = $7_1;
+       block14 : {
+        label : while (1) {
+         block13 : {
+          $0_1 = HEAP32[($5_1 + 16 | 0) >> 2] | 0;
+          if ($0_1) {
+           break block13
+          }
+          $0_1 = HEAP32[($5_1 + 20 | 0) >> 2] | 0;
+          if (!$0_1) {
+           break block14
+          }
+         }
+         $5_1 = ((HEAP32[($0_1 + 4 | 0) >> 2] | 0) & -8 | 0) - $3_1 | 0;
+         $201 = $5_1;
+         $5_1 = $5_1 >>> 0 < $4_1 >>> 0;
+         $4_1 = $5_1 ? $201 : $4_1;
+         $7_1 = $5_1 ? $0_1 : $7_1;
+         $5_1 = $0_1;
+         continue label;
+        };
+       }
+       $10_1 = HEAP32[(0 + 68752 | 0) >> 2] | 0;
+       if ($7_1 >>> 0 < $10_1 >>> 0) {
+        break block4
+       }
+       $11_1 = HEAP32[($7_1 + 24 | 0) >> 2] | 0;
+       block16 : {
+        block15 : {
+         $0_1 = HEAP32[($7_1 + 12 | 0) >> 2] | 0;
+         if (($0_1 | 0) == ($7_1 | 0)) {
+          break block15
+         }
+         $5_1 = HEAP32[($7_1 + 8 | 0) >> 2] | 0;
+         if ($5_1 >>> 0 < $10_1 >>> 0) {
+          break block4
+         }
+         if ((HEAP32[($5_1 + 12 | 0) >> 2] | 0 | 0) != ($7_1 | 0)) {
+          break block4
+         }
+         if ((HEAP32[($0_1 + 8 | 0) >> 2] | 0 | 0) != ($7_1 | 0)) {
+          break block4
+         }
+         HEAP32[($5_1 + 12 | 0) >> 2] = $0_1;
+         HEAP32[($0_1 + 8 | 0) >> 2] = $5_1;
+         break block16;
+        }
+        block19 : {
+         block18 : {
+          block17 : {
+           $5_1 = HEAP32[($7_1 + 20 | 0) >> 2] | 0;
+           if (!$5_1) {
+            break block17
            }
-           label$45 : {
-            $7_1 = HEAP32[(0 + 68740 | 0) >> 2] | 0;
-            if ($7_1 >>> 0 <= $3_1 >>> 0) {
-             break label$45
-            }
-            $4_1 = $7_1 - $3_1 | 0;
-            HEAP32[(0 + 68740 | 0) >> 2] = $4_1;
-            $0_1 = HEAP32[(0 + 68752 | 0) >> 2] | 0;
-            $5_1 = $0_1 + $3_1 | 0;
-            HEAP32[(0 + 68752 | 0) >> 2] = $5_1;
-            HEAP32[($5_1 + 4 | 0) >> 2] = $4_1 | 1 | 0;
-            HEAP32[($0_1 + 4 | 0) >> 2] = $3_1 | 3 | 0;
-            $0_1 = $0_1 + 8 | 0;
-            break label$1;
+           $8_1 = $7_1 + 20 | 0;
+           break block18;
+          }
+          $5_1 = HEAP32[($7_1 + 16 | 0) >> 2] | 0;
+          if (!$5_1) {
+           break block19
+          }
+          $8_1 = $7_1 + 16 | 0;
+         }
+         label1 : while (1) {
+          $12_1 = $8_1;
+          $0_1 = $5_1;
+          $8_1 = $0_1 + 20 | 0;
+          $5_1 = HEAP32[($0_1 + 20 | 0) >> 2] | 0;
+          if ($5_1) {
+           continue label1
+          }
+          $8_1 = $0_1 + 16 | 0;
+          $5_1 = HEAP32[($0_1 + 16 | 0) >> 2] | 0;
+          if ($5_1) {
+           continue label1
+          }
+          break label1;
+         };
+         if ($12_1 >>> 0 < $10_1 >>> 0) {
+          break block4
+         }
+         HEAP32[$12_1 >> 2] = 0;
+         break block16;
+        }
+        $0_1 = 0;
+       }
+       block20 : {
+        if (!$11_1) {
+         break block20
+        }
+        block22 : {
+         block21 : {
+          $8_1 = HEAP32[($7_1 + 28 | 0) >> 2] | 0;
+          $5_1 = ($8_1 << 2 | 0) + 69040 | 0;
+          if (($7_1 | 0) != (HEAP32[$5_1 >> 2] | 0 | 0)) {
+           break block21
+          }
+          HEAP32[$5_1 >> 2] = $0_1;
+          if ($0_1) {
+           break block22
+          }
+          HEAP32[(0 + 68740 | 0) >> 2] = $9_1 & (__wasm_rotl_i32(-2 | 0, $8_1 | 0) | 0) | 0;
+          break block20;
+         }
+         if ($11_1 >>> 0 < $10_1 >>> 0) {
+          break block4
+         }
+         block24 : {
+          block23 : {
+           if ((HEAP32[($11_1 + 16 | 0) >> 2] | 0 | 0) != ($7_1 | 0)) {
+            break block23
            }
-           label$46 : {
-            label$47 : {
-             if (!(HEAP32[(0 + 69200 | 0) >> 2] | 0)) {
-              break label$47
-             }
-             $4_1 = HEAP32[(0 + 69208 | 0) >> 2] | 0;
-             break label$46;
-            }
-            i64toi32_i32$1 = 0;
-            i64toi32_i32$0 = -1;
-            HEAP32[(i64toi32_i32$1 + 69212 | 0) >> 2] = -1;
-            HEAP32[(i64toi32_i32$1 + 69216 | 0) >> 2] = i64toi32_i32$0;
-            i64toi32_i32$1 = 0;
-            i64toi32_i32$0 = 4096;
-            HEAP32[(i64toi32_i32$1 + 69204 | 0) >> 2] = 4096;
-            HEAP32[(i64toi32_i32$1 + 69208 | 0) >> 2] = i64toi32_i32$0;
-            HEAP32[(0 + 69200 | 0) >> 2] = (($1_1 + 12 | 0) & -16 | 0) ^ 1431655768 | 0;
-            HEAP32[(0 + 69220 | 0) >> 2] = 0;
-            HEAP32[(0 + 69172 | 0) >> 2] = 0;
-            $4_1 = 4096;
+           HEAP32[($11_1 + 16 | 0) >> 2] = $0_1;
+           break block24;
+          }
+          HEAP32[($11_1 + 20 | 0) >> 2] = $0_1;
+         }
+         if (!$0_1) {
+          break block20
+         }
+        }
+        if ($0_1 >>> 0 < $10_1 >>> 0) {
+         break block4
+        }
+        HEAP32[($0_1 + 24 | 0) >> 2] = $11_1;
+        block25 : {
+         $5_1 = HEAP32[($7_1 + 16 | 0) >> 2] | 0;
+         if (!$5_1) {
+          break block25
+         }
+         if ($5_1 >>> 0 < $10_1 >>> 0) {
+          break block4
+         }
+         HEAP32[($0_1 + 16 | 0) >> 2] = $5_1;
+         HEAP32[($5_1 + 24 | 0) >> 2] = $0_1;
+        }
+        $5_1 = HEAP32[($7_1 + 20 | 0) >> 2] | 0;
+        if (!$5_1) {
+         break block20
+        }
+        if ($5_1 >>> 0 < $10_1 >>> 0) {
+         break block4
+        }
+        HEAP32[($0_1 + 20 | 0) >> 2] = $5_1;
+        HEAP32[($5_1 + 24 | 0) >> 2] = $0_1;
+       }
+       block27 : {
+        block26 : {
+         if ($4_1 >>> 0 > 15 >>> 0) {
+          break block26
+         }
+         $0_1 = $4_1 + $3_1 | 0;
+         HEAP32[($7_1 + 4 | 0) >> 2] = $0_1 | 3 | 0;
+         $0_1 = $7_1 + $0_1 | 0;
+         HEAP32[($0_1 + 4 | 0) >> 2] = HEAP32[($0_1 + 4 | 0) >> 2] | 0 | 1 | 0;
+         break block27;
+        }
+        HEAP32[($7_1 + 4 | 0) >> 2] = $3_1 | 3 | 0;
+        $3_1 = $7_1 + $3_1 | 0;
+        HEAP32[($3_1 + 4 | 0) >> 2] = $4_1 | 1 | 0;
+        HEAP32[($3_1 + $4_1 | 0) >> 2] = $4_1;
+        block28 : {
+         if (!$6_1) {
+          break block28
+         }
+         $5_1 = ($6_1 & -8 | 0) + 68776 | 0;
+         $0_1 = HEAP32[(0 + 68756 | 0) >> 2] | 0;
+         block30 : {
+          block29 : {
+           $8_1 = 1 << ($6_1 >>> 3 | 0) | 0;
+           if ($8_1 & $2_1 | 0) {
+            break block29
            }
-           $0_1 = 0;
-           $6_1 = $3_1 + 47 | 0;
-           $2_1 = $4_1 + $6_1 | 0;
-           $11_1 = 0 - $4_1 | 0;
-           $8_1 = $2_1 & $11_1 | 0;
-           if ($8_1 >>> 0 <= $3_1 >>> 0) {
-            break label$1
+           HEAP32[(0 + 68736 | 0) >> 2] = $8_1 | $2_1 | 0;
+           $8_1 = $5_1;
+           break block30;
+          }
+          $8_1 = HEAP32[($5_1 + 8 | 0) >> 2] | 0;
+          if ($8_1 >>> 0 < $10_1 >>> 0) {
+           break block4
+          }
+         }
+         HEAP32[($5_1 + 8 | 0) >> 2] = $0_1;
+         HEAP32[($8_1 + 12 | 0) >> 2] = $0_1;
+         HEAP32[($0_1 + 12 | 0) >> 2] = $5_1;
+         HEAP32[($0_1 + 8 | 0) >> 2] = $8_1;
+        }
+        HEAP32[(0 + 68756 | 0) >> 2] = $3_1;
+        HEAP32[(0 + 68744 | 0) >> 2] = $4_1;
+       }
+       $0_1 = $7_1 + 8 | 0;
+       break block5;
+      }
+      $3_1 = -1;
+      if ($0_1 >>> 0 > -65 >>> 0) {
+       break block6
+      }
+      $4_1 = $0_1 + 11 | 0;
+      $3_1 = $4_1 & -8 | 0;
+      $11_1 = HEAP32[(0 + 68740 | 0) >> 2] | 0;
+      if (!$11_1) {
+       break block6
+      }
+      $6_1 = 31;
+      block31 : {
+       if ($0_1 >>> 0 > 16777204 >>> 0) {
+        break block31
+       }
+       $0_1 = Math_clz32($4_1 >>> 8 | 0);
+       $6_1 = ((($3_1 >>> (38 - $0_1 | 0) | 0) & 1 | 0) - ($0_1 << 1 | 0) | 0) + 62 | 0;
+      }
+      $4_1 = 0 - $3_1 | 0;
+      block37 : {
+       block35 : {
+        block33 : {
+         block32 : {
+          $5_1 = HEAP32[(($6_1 << 2 | 0) + 69040 | 0) >> 2] | 0;
+          if ($5_1) {
+           break block32
+          }
+          $0_1 = 0;
+          $8_1 = 0;
+          break block33;
+         }
+         $0_1 = 0;
+         $7_1 = $3_1 << (($6_1 | 0) == (31 | 0) ? 0 : 25 - ($6_1 >>> 1 | 0) | 0) | 0;
+         $8_1 = 0;
+         label2 : while (1) {
+          block34 : {
+           $2_1 = ((HEAP32[($5_1 + 4 | 0) >> 2] | 0) & -8 | 0) - $3_1 | 0;
+           if ($2_1 >>> 0 >= $4_1 >>> 0) {
+            break block34
            }
-           $0_1 = 0;
-           label$48 : {
-            $4_1 = HEAP32[(0 + 69168 | 0) >> 2] | 0;
-            if (!$4_1) {
-             break label$48
-            }
-            $5_1 = HEAP32[(0 + 69160 | 0) >> 2] | 0;
-            $10_1 = $5_1 + $8_1 | 0;
-            if ($10_1 >>> 0 <= $5_1 >>> 0) {
-             break label$1
-            }
-            if ($10_1 >>> 0 > $4_1 >>> 0) {
-             break label$1
-            }
+           $4_1 = $2_1;
+           $8_1 = $5_1;
+           if ($4_1) {
+            break block34
            }
-           label$49 : {
-            label$50 : {
-             if ((HEAPU8[(0 + 69172 | 0) >> 0] | 0) & 4 | 0) {
-              break label$50
-             }
-             label$51 : {
-              label$52 : {
-               label$53 : {
-                label$54 : {
-                 label$55 : {
-                  $4_1 = HEAP32[(0 + 68752 | 0) >> 2] | 0;
-                  if (!$4_1) {
-                   break label$55
-                  }
-                  $0_1 = 69176;
-                  label$56 : while (1) {
-                   label$57 : {
-                    $5_1 = HEAP32[$0_1 >> 2] | 0;
-                    if ($4_1 >>> 0 < $5_1 >>> 0) {
-                     break label$57
-                    }
-                    if ($4_1 >>> 0 < ($5_1 + (HEAP32[($0_1 + 4 | 0) >> 2] | 0) | 0) >>> 0) {
-                     break label$54
-                    }
-                   }
-                   $0_1 = HEAP32[($0_1 + 8 | 0) >> 2] | 0;
-                   if ($0_1) {
-                    continue label$56
-                   }
-                   break label$56;
-                  };
-                 }
-                 $7_1 = $104(0 | 0) | 0;
-                 if (($7_1 | 0) == (-1 | 0)) {
-                  break label$51
-                 }
-                 $2_1 = $8_1;
-                 label$58 : {
-                  $0_1 = HEAP32[(0 + 69204 | 0) >> 2] | 0;
-                  $4_1 = $0_1 + -1 | 0;
-                  if (!($4_1 & $7_1 | 0)) {
-                   break label$58
-                  }
-                  $2_1 = ($8_1 - $7_1 | 0) + (($4_1 + $7_1 | 0) & (0 - $0_1 | 0) | 0) | 0;
-                 }
-                 if ($2_1 >>> 0 <= $3_1 >>> 0) {
-                  break label$51
-                 }
-                 label$59 : {
-                  $0_1 = HEAP32[(0 + 69168 | 0) >> 2] | 0;
-                  if (!$0_1) {
-                   break label$59
-                  }
-                  $4_1 = HEAP32[(0 + 69160 | 0) >> 2] | 0;
-                  $5_1 = $4_1 + $2_1 | 0;
-                  if ($5_1 >>> 0 <= $4_1 >>> 0) {
-                   break label$51
-                  }
-                  if ($5_1 >>> 0 > $0_1 >>> 0) {
-                   break label$51
-                  }
-                 }
-                 $0_1 = $104($2_1 | 0) | 0;
-                 if (($0_1 | 0) != ($7_1 | 0)) {
-                  break label$53
-                 }
-                 break label$49;
-                }
-                $2_1 = ($2_1 - $7_1 | 0) & $11_1 | 0;
-                $7_1 = $104($2_1 | 0) | 0;
-                if (($7_1 | 0) == ((HEAP32[$0_1 >> 2] | 0) + (HEAP32[($0_1 + 4 | 0) >> 2] | 0) | 0 | 0)) {
-                 break label$52
-                }
-                $0_1 = $7_1;
-               }
-               if (($0_1 | 0) == (-1 | 0)) {
-                break label$51
-               }
-               label$60 : {
-                if ($2_1 >>> 0 < ($3_1 + 48 | 0) >>> 0) {
-                 break label$60
-                }
-                $7_1 = $0_1;
-                break label$49;
-               }
-               $4_1 = HEAP32[(0 + 69208 | 0) >> 2] | 0;
-               $4_1 = (($6_1 - $2_1 | 0) + $4_1 | 0) & (0 - $4_1 | 0) | 0;
-               if (($104($4_1 | 0) | 0 | 0) == (-1 | 0)) {
-                break label$51
-               }
-               $2_1 = $4_1 + $2_1 | 0;
-               $7_1 = $0_1;
-               break label$49;
-              }
-              if (($7_1 | 0) != (-1 | 0)) {
-               break label$49
-              }
-             }
-             HEAP32[(0 + 69172 | 0) >> 2] = HEAP32[(0 + 69172 | 0) >> 2] | 0 | 4 | 0;
-            }
-            $7_1 = $104($8_1 | 0) | 0;
-            $0_1 = $104(0 | 0) | 0;
-            if (($7_1 | 0) == (-1 | 0)) {
-             break label$5
-            }
-            if (($0_1 | 0) == (-1 | 0)) {
-             break label$5
-            }
-            if ($7_1 >>> 0 >= $0_1 >>> 0) {
-             break label$5
-            }
-            $2_1 = $0_1 - $7_1 | 0;
-            if ($2_1 >>> 0 <= ($3_1 + 40 | 0) >>> 0) {
-             break label$5
-            }
-           }
-           $0_1 = (HEAP32[(0 + 69160 | 0) >> 2] | 0) + $2_1 | 0;
-           HEAP32[(0 + 69160 | 0) >> 2] = $0_1;
-           label$61 : {
-            if ($0_1 >>> 0 <= (HEAP32[(0 + 69164 | 0) >> 2] | 0) >>> 0) {
-             break label$61
-            }
-            HEAP32[(0 + 69164 | 0) >> 2] = $0_1;
-           }
-           label$62 : {
-            label$63 : {
-             $4_1 = HEAP32[(0 + 68752 | 0) >> 2] | 0;
+           $4_1 = 0;
+           $8_1 = $5_1;
+           $0_1 = $5_1;
+           break block35;
+          }
+          $2_1 = HEAP32[($5_1 + 20 | 0) >> 2] | 0;
+          $12_1 = HEAP32[(($5_1 + (($7_1 >>> 29 | 0) & 4 | 0) | 0) + 16 | 0) >> 2] | 0;
+          $0_1 = $2_1 ? (($2_1 | 0) == ($12_1 | 0) ? $0_1 : $2_1) : $0_1;
+          $7_1 = $7_1 << 1 | 0;
+          $5_1 = $12_1;
+          if ($5_1) {
+           continue label2
+          }
+          break label2;
+         };
+        }
+        block36 : {
+         if ($0_1 | $8_1 | 0) {
+          break block36
+         }
+         $8_1 = 0;
+         $0_1 = 2 << $6_1 | 0;
+         $0_1 = ($0_1 | (0 - $0_1 | 0) | 0) & $11_1 | 0;
+         if (!$0_1) {
+          break block6
+         }
+         $0_1 = HEAP32[(((__wasm_ctz_i32($0_1 | 0) | 0) << 2 | 0) + 69040 | 0) >> 2] | 0;
+        }
+        if (!$0_1) {
+         break block37
+        }
+       }
+       label3 : while (1) {
+        $2_1 = ((HEAP32[($0_1 + 4 | 0) >> 2] | 0) & -8 | 0) - $3_1 | 0;
+        $7_1 = $2_1 >>> 0 < $4_1 >>> 0;
+        block38 : {
+         $5_1 = HEAP32[($0_1 + 16 | 0) >> 2] | 0;
+         if ($5_1) {
+          break block38
+         }
+         $5_1 = HEAP32[($0_1 + 20 | 0) >> 2] | 0;
+        }
+        $4_1 = $7_1 ? $2_1 : $4_1;
+        $8_1 = $7_1 ? $0_1 : $8_1;
+        $0_1 = $5_1;
+        if ($0_1) {
+         continue label3
+        }
+        break label3;
+       };
+      }
+      if (!$8_1) {
+       break block6
+      }
+      if ($4_1 >>> 0 >= ((HEAP32[(0 + 68744 | 0) >> 2] | 0) - $3_1 | 0) >>> 0) {
+       break block6
+      }
+      $12_1 = HEAP32[(0 + 68752 | 0) >> 2] | 0;
+      if ($8_1 >>> 0 < $12_1 >>> 0) {
+       break block4
+      }
+      $6_1 = HEAP32[($8_1 + 24 | 0) >> 2] | 0;
+      block40 : {
+       block39 : {
+        $0_1 = HEAP32[($8_1 + 12 | 0) >> 2] | 0;
+        if (($0_1 | 0) == ($8_1 | 0)) {
+         break block39
+        }
+        $5_1 = HEAP32[($8_1 + 8 | 0) >> 2] | 0;
+        if ($5_1 >>> 0 < $12_1 >>> 0) {
+         break block4
+        }
+        if ((HEAP32[($5_1 + 12 | 0) >> 2] | 0 | 0) != ($8_1 | 0)) {
+         break block4
+        }
+        if ((HEAP32[($0_1 + 8 | 0) >> 2] | 0 | 0) != ($8_1 | 0)) {
+         break block4
+        }
+        HEAP32[($5_1 + 12 | 0) >> 2] = $0_1;
+        HEAP32[($0_1 + 8 | 0) >> 2] = $5_1;
+        break block40;
+       }
+       block43 : {
+        block42 : {
+         block41 : {
+          $5_1 = HEAP32[($8_1 + 20 | 0) >> 2] | 0;
+          if (!$5_1) {
+           break block41
+          }
+          $7_1 = $8_1 + 20 | 0;
+          break block42;
+         }
+         $5_1 = HEAP32[($8_1 + 16 | 0) >> 2] | 0;
+         if (!$5_1) {
+          break block43
+         }
+         $7_1 = $8_1 + 16 | 0;
+        }
+        label4 : while (1) {
+         $2_1 = $7_1;
+         $0_1 = $5_1;
+         $7_1 = $0_1 + 20 | 0;
+         $5_1 = HEAP32[($0_1 + 20 | 0) >> 2] | 0;
+         if ($5_1) {
+          continue label4
+         }
+         $7_1 = $0_1 + 16 | 0;
+         $5_1 = HEAP32[($0_1 + 16 | 0) >> 2] | 0;
+         if ($5_1) {
+          continue label4
+         }
+         break label4;
+        };
+        if ($2_1 >>> 0 < $12_1 >>> 0) {
+         break block4
+        }
+        HEAP32[$2_1 >> 2] = 0;
+        break block40;
+       }
+       $0_1 = 0;
+      }
+      block44 : {
+       if (!$6_1) {
+        break block44
+       }
+       block46 : {
+        block45 : {
+         $7_1 = HEAP32[($8_1 + 28 | 0) >> 2] | 0;
+         $5_1 = ($7_1 << 2 | 0) + 69040 | 0;
+         if (($8_1 | 0) != (HEAP32[$5_1 >> 2] | 0 | 0)) {
+          break block45
+         }
+         HEAP32[$5_1 >> 2] = $0_1;
+         if ($0_1) {
+          break block46
+         }
+         $11_1 = $11_1 & (__wasm_rotl_i32(-2 | 0, $7_1 | 0) | 0) | 0;
+         HEAP32[(0 + 68740 | 0) >> 2] = $11_1;
+         break block44;
+        }
+        if ($6_1 >>> 0 < $12_1 >>> 0) {
+         break block4
+        }
+        block48 : {
+         block47 : {
+          if ((HEAP32[($6_1 + 16 | 0) >> 2] | 0 | 0) != ($8_1 | 0)) {
+           break block47
+          }
+          HEAP32[($6_1 + 16 | 0) >> 2] = $0_1;
+          break block48;
+         }
+         HEAP32[($6_1 + 20 | 0) >> 2] = $0_1;
+        }
+        if (!$0_1) {
+         break block44
+        }
+       }
+       if ($0_1 >>> 0 < $12_1 >>> 0) {
+        break block4
+       }
+       HEAP32[($0_1 + 24 | 0) >> 2] = $6_1;
+       block49 : {
+        $5_1 = HEAP32[($8_1 + 16 | 0) >> 2] | 0;
+        if (!$5_1) {
+         break block49
+        }
+        if ($5_1 >>> 0 < $12_1 >>> 0) {
+         break block4
+        }
+        HEAP32[($0_1 + 16 | 0) >> 2] = $5_1;
+        HEAP32[($5_1 + 24 | 0) >> 2] = $0_1;
+       }
+       $5_1 = HEAP32[($8_1 + 20 | 0) >> 2] | 0;
+       if (!$5_1) {
+        break block44
+       }
+       if ($5_1 >>> 0 < $12_1 >>> 0) {
+        break block4
+       }
+       HEAP32[($0_1 + 20 | 0) >> 2] = $5_1;
+       HEAP32[($5_1 + 24 | 0) >> 2] = $0_1;
+      }
+      block51 : {
+       block50 : {
+        if ($4_1 >>> 0 > 15 >>> 0) {
+         break block50
+        }
+        $0_1 = $4_1 + $3_1 | 0;
+        HEAP32[($8_1 + 4 | 0) >> 2] = $0_1 | 3 | 0;
+        $0_1 = $8_1 + $0_1 | 0;
+        HEAP32[($0_1 + 4 | 0) >> 2] = HEAP32[($0_1 + 4 | 0) >> 2] | 0 | 1 | 0;
+        break block51;
+       }
+       HEAP32[($8_1 + 4 | 0) >> 2] = $3_1 | 3 | 0;
+       $7_1 = $8_1 + $3_1 | 0;
+       HEAP32[($7_1 + 4 | 0) >> 2] = $4_1 | 1 | 0;
+       HEAP32[($7_1 + $4_1 | 0) >> 2] = $4_1;
+       block52 : {
+        if ($4_1 >>> 0 > 255 >>> 0) {
+         break block52
+        }
+        $0_1 = ($4_1 & -8 | 0) + 68776 | 0;
+        block54 : {
+         block53 : {
+          $3_1 = HEAP32[(0 + 68736 | 0) >> 2] | 0;
+          $4_1 = 1 << ($4_1 >>> 3 | 0) | 0;
+          if ($3_1 & $4_1 | 0) {
+           break block53
+          }
+          HEAP32[(0 + 68736 | 0) >> 2] = $3_1 | $4_1 | 0;
+          $4_1 = $0_1;
+          break block54;
+         }
+         $4_1 = HEAP32[($0_1 + 8 | 0) >> 2] | 0;
+         if ($4_1 >>> 0 < $12_1 >>> 0) {
+          break block4
+         }
+        }
+        HEAP32[($0_1 + 8 | 0) >> 2] = $7_1;
+        HEAP32[($4_1 + 12 | 0) >> 2] = $7_1;
+        HEAP32[($7_1 + 12 | 0) >> 2] = $0_1;
+        HEAP32[($7_1 + 8 | 0) >> 2] = $4_1;
+        break block51;
+       }
+       $0_1 = 31;
+       block55 : {
+        if ($4_1 >>> 0 > 16777215 >>> 0) {
+         break block55
+        }
+        $0_1 = Math_clz32($4_1 >>> 8 | 0);
+        $0_1 = ((($4_1 >>> (38 - $0_1 | 0) | 0) & 1 | 0) - ($0_1 << 1 | 0) | 0) + 62 | 0;
+       }
+       HEAP32[($7_1 + 28 | 0) >> 2] = $0_1;
+       i64toi32_i32$1 = $7_1;
+       i64toi32_i32$0 = 0;
+       HEAP32[($7_1 + 16 | 0) >> 2] = 0;
+       HEAP32[($7_1 + 20 | 0) >> 2] = i64toi32_i32$0;
+       $3_1 = ($0_1 << 2 | 0) + 69040 | 0;
+       block58 : {
+        block57 : {
+         block56 : {
+          $5_1 = 1 << $0_1 | 0;
+          if ($11_1 & $5_1 | 0) {
+           break block56
+          }
+          HEAP32[(0 + 68740 | 0) >> 2] = $11_1 | $5_1 | 0;
+          HEAP32[$3_1 >> 2] = $7_1;
+          HEAP32[($7_1 + 24 | 0) >> 2] = $3_1;
+          break block57;
+         }
+         $0_1 = $4_1 << (($0_1 | 0) == (31 | 0) ? 0 : 25 - ($0_1 >>> 1 | 0) | 0) | 0;
+         $5_1 = HEAP32[$3_1 >> 2] | 0;
+         label5 : while (1) {
+          $3_1 = $5_1;
+          if (((HEAP32[($5_1 + 4 | 0) >> 2] | 0) & -8 | 0 | 0) == ($4_1 | 0)) {
+           break block58
+          }
+          $5_1 = $0_1 >>> 29 | 0;
+          $0_1 = $0_1 << 1 | 0;
+          $2_1 = $3_1 + ($5_1 & 4 | 0) | 0;
+          $5_1 = HEAP32[($2_1 + 16 | 0) >> 2] | 0;
+          if ($5_1) {
+           continue label5
+          }
+          break label5;
+         };
+         $0_1 = $2_1 + 16 | 0;
+         if ($0_1 >>> 0 < $12_1 >>> 0) {
+          break block4
+         }
+         HEAP32[$0_1 >> 2] = $7_1;
+         HEAP32[($7_1 + 24 | 0) >> 2] = $3_1;
+        }
+        HEAP32[($7_1 + 12 | 0) >> 2] = $7_1;
+        HEAP32[($7_1 + 8 | 0) >> 2] = $7_1;
+        break block51;
+       }
+       if ($3_1 >>> 0 < $12_1 >>> 0) {
+        break block4
+       }
+       $0_1 = HEAP32[($3_1 + 8 | 0) >> 2] | 0;
+       if ($0_1 >>> 0 < $12_1 >>> 0) {
+        break block4
+       }
+       HEAP32[($0_1 + 12 | 0) >> 2] = $7_1;
+       HEAP32[($3_1 + 8 | 0) >> 2] = $7_1;
+       HEAP32[($7_1 + 24 | 0) >> 2] = 0;
+       HEAP32[($7_1 + 12 | 0) >> 2] = $3_1;
+       HEAP32[($7_1 + 8 | 0) >> 2] = $0_1;
+      }
+      $0_1 = $8_1 + 8 | 0;
+      break block5;
+     }
+     block59 : {
+      $0_1 = HEAP32[(0 + 68744 | 0) >> 2] | 0;
+      if ($0_1 >>> 0 < $3_1 >>> 0) {
+       break block59
+      }
+      $4_1 = HEAP32[(0 + 68756 | 0) >> 2] | 0;
+      block61 : {
+       block60 : {
+        $5_1 = $0_1 - $3_1 | 0;
+        if ($5_1 >>> 0 < 16 >>> 0) {
+         break block60
+        }
+        $7_1 = $4_1 + $3_1 | 0;
+        HEAP32[($7_1 + 4 | 0) >> 2] = $5_1 | 1 | 0;
+        HEAP32[($4_1 + $0_1 | 0) >> 2] = $5_1;
+        HEAP32[($4_1 + 4 | 0) >> 2] = $3_1 | 3 | 0;
+        break block61;
+       }
+       HEAP32[($4_1 + 4 | 0) >> 2] = $0_1 | 3 | 0;
+       $0_1 = $4_1 + $0_1 | 0;
+       HEAP32[($0_1 + 4 | 0) >> 2] = HEAP32[($0_1 + 4 | 0) >> 2] | 0 | 1 | 0;
+       $7_1 = 0;
+       $5_1 = 0;
+      }
+      HEAP32[(0 + 68744 | 0) >> 2] = $5_1;
+      HEAP32[(0 + 68756 | 0) >> 2] = $7_1;
+      $0_1 = $4_1 + 8 | 0;
+      break block5;
+     }
+     block62 : {
+      $7_1 = HEAP32[(0 + 68748 | 0) >> 2] | 0;
+      if ($7_1 >>> 0 <= $3_1 >>> 0) {
+       break block62
+      }
+      $4_1 = $7_1 - $3_1 | 0;
+      HEAP32[(0 + 68748 | 0) >> 2] = $4_1;
+      $0_1 = HEAP32[(0 + 68760 | 0) >> 2] | 0;
+      $5_1 = $0_1 + $3_1 | 0;
+      HEAP32[(0 + 68760 | 0) >> 2] = $5_1;
+      HEAP32[($5_1 + 4 | 0) >> 2] = $4_1 | 1 | 0;
+      HEAP32[($0_1 + 4 | 0) >> 2] = $3_1 | 3 | 0;
+      $0_1 = $0_1 + 8 | 0;
+      break block5;
+     }
+     block64 : {
+      block63 : {
+       if (!(HEAP32[(0 + 69208 | 0) >> 2] | 0)) {
+        break block63
+       }
+       $4_1 = HEAP32[(0 + 69216 | 0) >> 2] | 0;
+       break block64;
+      }
+      i64toi32_i32$1 = 0;
+      i64toi32_i32$0 = -1;
+      HEAP32[(i64toi32_i32$1 + 69220 | 0) >> 2] = -1;
+      HEAP32[(i64toi32_i32$1 + 69224 | 0) >> 2] = i64toi32_i32$0;
+      i64toi32_i32$1 = 0;
+      i64toi32_i32$0 = 4096;
+      HEAP32[(i64toi32_i32$1 + 69212 | 0) >> 2] = 4096;
+      HEAP32[(i64toi32_i32$1 + 69216 | 0) >> 2] = i64toi32_i32$0;
+      HEAP32[(0 + 69208 | 0) >> 2] = (($1_1 + 12 | 0) & -16 | 0) ^ 1431655768 | 0;
+      HEAP32[(0 + 69228 | 0) >> 2] = 0;
+      HEAP32[(0 + 69180 | 0) >> 2] = 0;
+      $4_1 = 4096;
+     }
+     $0_1 = 0;
+     $6_1 = $3_1 + 47 | 0;
+     $2_1 = $4_1 + $6_1 | 0;
+     $12_1 = 0 - $4_1 | 0;
+     $8_1 = $2_1 & $12_1 | 0;
+     if ($8_1 >>> 0 <= $3_1 >>> 0) {
+      break block5
+     }
+     $0_1 = 0;
+     block65 : {
+      $4_1 = HEAP32[(0 + 69176 | 0) >> 2] | 0;
+      if (!$4_1) {
+       break block65
+      }
+      $5_1 = HEAP32[(0 + 69168 | 0) >> 2] | 0;
+      $11_1 = $5_1 + $8_1 | 0;
+      if ($11_1 >>> 0 <= $5_1 >>> 0) {
+       break block5
+      }
+      if ($11_1 >>> 0 > $4_1 >>> 0) {
+       break block5
+      }
+     }
+     block77 : {
+      block74 : {
+       block66 : {
+        if ((HEAPU8[(0 + 69180 | 0) >> 0] | 0) & 4 | 0) {
+         break block66
+        }
+        block70 : {
+         block75 : {
+          block73 : {
+           block69 : {
+            block67 : {
+             $4_1 = HEAP32[(0 + 68760 | 0) >> 2] | 0;
              if (!$4_1) {
-              break label$63
+              break block67
              }
-             $0_1 = 69176;
-             label$64 : while (1) {
-              $5_1 = HEAP32[$0_1 >> 2] | 0;
-              $8_1 = HEAP32[($0_1 + 4 | 0) >> 2] | 0;
-              if (($7_1 | 0) == ($5_1 + $8_1 | 0 | 0)) {
-               break label$62
+             $0_1 = 69184;
+             label6 : while (1) {
+              block68 : {
+               $5_1 = HEAP32[$0_1 >> 2] | 0;
+               if ($4_1 >>> 0 < $5_1 >>> 0) {
+                break block68
+               }
+               if ($4_1 >>> 0 < ($5_1 + (HEAP32[($0_1 + 4 | 0) >> 2] | 0) | 0) >>> 0) {
+                break block69
+               }
               }
               $0_1 = HEAP32[($0_1 + 8 | 0) >> 2] | 0;
               if ($0_1) {
-               continue label$64
+               continue label6
               }
-              break label$7;
+              break label6;
              };
             }
-            label$65 : {
-             label$66 : {
-              $0_1 = HEAP32[(0 + 68744 | 0) >> 2] | 0;
-              if (!$0_1) {
-               break label$66
-              }
-              if ($7_1 >>> 0 >= $0_1 >>> 0) {
-               break label$65
-              }
-             }
-             HEAP32[(0 + 68744 | 0) >> 2] = $7_1;
+            $7_1 = $107(0 | 0) | 0;
+            if (($7_1 | 0) == (-1 | 0)) {
+             break block70
             }
-            $0_1 = 0;
-            HEAP32[(0 + 69180 | 0) >> 2] = $2_1;
-            HEAP32[(0 + 69176 | 0) >> 2] = $7_1;
-            HEAP32[(0 + 68760 | 0) >> 2] = -1;
-            HEAP32[(0 + 68764 | 0) >> 2] = HEAP32[(0 + 69200 | 0) >> 2] | 0;
-            HEAP32[(0 + 69188 | 0) >> 2] = 0;
-            label$67 : while (1) {
-             $4_1 = $0_1 << 3 | 0;
-             $5_1 = $4_1 + 68768 | 0;
-             HEAP32[($4_1 + 68776 | 0) >> 2] = $5_1;
-             HEAP32[($4_1 + 68780 | 0) >> 2] = $5_1;
-             $0_1 = $0_1 + 1 | 0;
-             if (($0_1 | 0) != (32 | 0)) {
-              continue label$67
+            $2_1 = $8_1;
+            block71 : {
+             $0_1 = HEAP32[(0 + 69212 | 0) >> 2] | 0;
+             $4_1 = $0_1 + -1 | 0;
+             if (!($4_1 & $7_1 | 0)) {
+              break block71
              }
-             break label$67;
-            };
-            $0_1 = $2_1 + -40 | 0;
-            $4_1 = (-8 - $7_1 | 0) & 7 | 0;
-            $5_1 = $0_1 - $4_1 | 0;
-            HEAP32[(0 + 68740 | 0) >> 2] = $5_1;
-            $4_1 = $7_1 + $4_1 | 0;
-            HEAP32[(0 + 68752 | 0) >> 2] = $4_1;
-            HEAP32[($4_1 + 4 | 0) >> 2] = $5_1 | 1 | 0;
-            HEAP32[(($7_1 + $0_1 | 0) + 4 | 0) >> 2] = 40;
-            HEAP32[(0 + 68756 | 0) >> 2] = HEAP32[(0 + 69216 | 0) >> 2] | 0;
-            break label$6;
+             $2_1 = ($8_1 - $7_1 | 0) + (($4_1 + $7_1 | 0) & (0 - $0_1 | 0) | 0) | 0;
+            }
+            if ($2_1 >>> 0 <= $3_1 >>> 0) {
+             break block70
+            }
+            block72 : {
+             $0_1 = HEAP32[(0 + 69176 | 0) >> 2] | 0;
+             if (!$0_1) {
+              break block72
+             }
+             $4_1 = HEAP32[(0 + 69168 | 0) >> 2] | 0;
+             $5_1 = $4_1 + $2_1 | 0;
+             if ($5_1 >>> 0 <= $4_1 >>> 0) {
+              break block70
+             }
+             if ($5_1 >>> 0 > $0_1 >>> 0) {
+              break block70
+             }
+            }
+            $0_1 = $107($2_1 | 0) | 0;
+            if (($0_1 | 0) != ($7_1 | 0)) {
+             break block73
+            }
+            break block74;
            }
-           if ($4_1 >>> 0 >= $7_1 >>> 0) {
-            break label$7
+           $2_1 = ($2_1 - $7_1 | 0) & $12_1 | 0;
+           $7_1 = $107($2_1 | 0) | 0;
+           if (($7_1 | 0) == ((HEAP32[$0_1 >> 2] | 0) + (HEAP32[($0_1 + 4 | 0) >> 2] | 0) | 0 | 0)) {
+            break block75
            }
-           if ($4_1 >>> 0 < $5_1 >>> 0) {
-            break label$7
-           }
-           if ((HEAP32[($0_1 + 12 | 0) >> 2] | 0) & 8 | 0) {
-            break label$7
-           }
-           HEAP32[($0_1 + 4 | 0) >> 2] = $8_1 + $2_1 | 0;
-           $0_1 = (-8 - $4_1 | 0) & 7 | 0;
-           $5_1 = $4_1 + $0_1 | 0;
-           HEAP32[(0 + 68752 | 0) >> 2] = $5_1;
-           $7_1 = (HEAP32[(0 + 68740 | 0) >> 2] | 0) + $2_1 | 0;
-           $0_1 = $7_1 - $0_1 | 0;
-           HEAP32[(0 + 68740 | 0) >> 2] = $0_1;
-           HEAP32[($5_1 + 4 | 0) >> 2] = $0_1 | 1 | 0;
-           HEAP32[(($4_1 + $7_1 | 0) + 4 | 0) >> 2] = 40;
-           HEAP32[(0 + 68756 | 0) >> 2] = HEAP32[(0 + 69216 | 0) >> 2] | 0;
-           break label$6;
+           $0_1 = $7_1;
           }
-          $0_1 = 0;
-          break label$2;
+          if (($0_1 | 0) == (-1 | 0)) {
+           break block70
+          }
+          block76 : {
+           if ($2_1 >>> 0 < ($3_1 + 48 | 0) >>> 0) {
+            break block76
+           }
+           $7_1 = $0_1;
+           break block74;
+          }
+          $4_1 = HEAP32[(0 + 69216 | 0) >> 2] | 0;
+          $4_1 = (($6_1 - $2_1 | 0) + $4_1 | 0) & (0 - $4_1 | 0) | 0;
+          if (($107($4_1 | 0) | 0 | 0) == (-1 | 0)) {
+           break block70
+          }
+          $2_1 = $4_1 + $2_1 | 0;
+          $7_1 = $0_1;
+          break block74;
          }
-         $0_1 = 0;
-         break label$3;
-        }
-        label$68 : {
-         if ($7_1 >>> 0 >= (HEAP32[(0 + 68744 | 0) >> 2] | 0) >>> 0) {
-          break label$68
+         if (($7_1 | 0) != (-1 | 0)) {
+          break block74
          }
-         HEAP32[(0 + 68744 | 0) >> 2] = $7_1;
         }
-        $5_1 = $7_1 + $2_1 | 0;
-        $0_1 = 69176;
-        label$69 : {
-         label$70 : {
-          label$71 : while (1) {
-           $8_1 = HEAP32[$0_1 >> 2] | 0;
-           if (($8_1 | 0) == ($5_1 | 0)) {
-            break label$70
+        HEAP32[(0 + 69180 | 0) >> 2] = HEAP32[(0 + 69180 | 0) >> 2] | 0 | 4 | 0;
+       }
+       $7_1 = $107($8_1 | 0) | 0;
+       $0_1 = $107(0 | 0) | 0;
+       if (($7_1 | 0) == (-1 | 0)) {
+        break block77
+       }
+       if (($0_1 | 0) == (-1 | 0)) {
+        break block77
+       }
+       if ($7_1 >>> 0 >= $0_1 >>> 0) {
+        break block77
+       }
+       $2_1 = $0_1 - $7_1 | 0;
+       if ($2_1 >>> 0 <= ($3_1 + 40 | 0) >>> 0) {
+        break block77
+       }
+      }
+      $0_1 = (HEAP32[(0 + 69168 | 0) >> 2] | 0) + $2_1 | 0;
+      HEAP32[(0 + 69168 | 0) >> 2] = $0_1;
+      block78 : {
+       if ($0_1 >>> 0 <= (HEAP32[(0 + 69172 | 0) >> 2] | 0) >>> 0) {
+        break block78
+       }
+       HEAP32[(0 + 69172 | 0) >> 2] = $0_1;
+      }
+      block84 : {
+       block81 : {
+        block80 : {
+         block79 : {
+          $4_1 = HEAP32[(0 + 68760 | 0) >> 2] | 0;
+          if (!$4_1) {
+           break block79
+          }
+          $0_1 = 69184;
+          label7 : while (1) {
+           $5_1 = HEAP32[$0_1 >> 2] | 0;
+           $8_1 = HEAP32[($0_1 + 4 | 0) >> 2] | 0;
+           if (($7_1 | 0) == ($5_1 + $8_1 | 0 | 0)) {
+            break block80
            }
            $0_1 = HEAP32[($0_1 + 8 | 0) >> 2] | 0;
            if ($0_1) {
-            continue label$71
+            continue label7
            }
-           break label$69;
+           break block81;
           };
          }
-         if (!((HEAPU8[($0_1 + 12 | 0) >> 0] | 0) & 8 | 0)) {
-          break label$4
+         block83 : {
+          block82 : {
+           $0_1 = HEAP32[(0 + 68752 | 0) >> 2] | 0;
+           if (!$0_1) {
+            break block82
+           }
+           if ($7_1 >>> 0 >= $0_1 >>> 0) {
+            break block83
+           }
+          }
+          HEAP32[(0 + 68752 | 0) >> 2] = $7_1;
          }
+         $0_1 = 0;
+         HEAP32[(0 + 69188 | 0) >> 2] = $2_1;
+         HEAP32[(0 + 69184 | 0) >> 2] = $7_1;
+         HEAP32[(0 + 68768 | 0) >> 2] = -1;
+         HEAP32[(0 + 68772 | 0) >> 2] = HEAP32[(0 + 69208 | 0) >> 2] | 0;
+         HEAP32[(0 + 69196 | 0) >> 2] = 0;
+         label8 : while (1) {
+          $4_1 = $0_1 << 3 | 0;
+          $5_1 = $4_1 + 68776 | 0;
+          HEAP32[($4_1 + 68784 | 0) >> 2] = $5_1;
+          HEAP32[($4_1 + 68788 | 0) >> 2] = $5_1;
+          $0_1 = $0_1 + 1 | 0;
+          if (($0_1 | 0) != (32 | 0)) {
+           continue label8
+          }
+          break label8;
+         };
+         $0_1 = $2_1 + -40 | 0;
+         $4_1 = (-8 - $7_1 | 0) & 7 | 0;
+         $5_1 = $0_1 - $4_1 | 0;
+         HEAP32[(0 + 68748 | 0) >> 2] = $5_1;
+         $4_1 = $7_1 + $4_1 | 0;
+         HEAP32[(0 + 68760 | 0) >> 2] = $4_1;
+         HEAP32[($4_1 + 4 | 0) >> 2] = $5_1 | 1 | 0;
+         HEAP32[(($7_1 + $0_1 | 0) + 4 | 0) >> 2] = 40;
+         HEAP32[(0 + 68764 | 0) >> 2] = HEAP32[(0 + 69224 | 0) >> 2] | 0;
+         break block84;
         }
-        $0_1 = 69176;
-        label$72 : {
-         label$73 : while (1) {
-          label$74 : {
-           $5_1 = HEAP32[$0_1 >> 2] | 0;
-           if ($4_1 >>> 0 < $5_1 >>> 0) {
-            break label$74
-           }
-           $5_1 = $5_1 + (HEAP32[($0_1 + 4 | 0) >> 2] | 0) | 0;
-           if ($4_1 >>> 0 < $5_1 >>> 0) {
-            break label$72
-           }
+        if ($4_1 >>> 0 >= $7_1 >>> 0) {
+         break block81
+        }
+        if ($4_1 >>> 0 < $5_1 >>> 0) {
+         break block81
+        }
+        if ((HEAP32[($0_1 + 12 | 0) >> 2] | 0) & 8 | 0) {
+         break block81
+        }
+        HEAP32[($0_1 + 4 | 0) >> 2] = $8_1 + $2_1 | 0;
+        $0_1 = (-8 - $4_1 | 0) & 7 | 0;
+        $5_1 = $4_1 + $0_1 | 0;
+        HEAP32[(0 + 68760 | 0) >> 2] = $5_1;
+        $7_1 = (HEAP32[(0 + 68748 | 0) >> 2] | 0) + $2_1 | 0;
+        $0_1 = $7_1 - $0_1 | 0;
+        HEAP32[(0 + 68748 | 0) >> 2] = $0_1;
+        HEAP32[($5_1 + 4 | 0) >> 2] = $0_1 | 1 | 0;
+        HEAP32[(($4_1 + $7_1 | 0) + 4 | 0) >> 2] = 40;
+        HEAP32[(0 + 68764 | 0) >> 2] = HEAP32[(0 + 69224 | 0) >> 2] | 0;
+        break block84;
+       }
+       block85 : {
+        if ($7_1 >>> 0 >= (HEAP32[(0 + 68752 | 0) >> 2] | 0) >>> 0) {
+         break block85
+        }
+        HEAP32[(0 + 68752 | 0) >> 2] = $7_1;
+       }
+       $5_1 = $7_1 + $2_1 | 0;
+       $0_1 = 69184;
+       block87 : {
+        block86 : {
+         label9 : while (1) {
+          $8_1 = HEAP32[$0_1 >> 2] | 0;
+          if (($8_1 | 0) == ($5_1 | 0)) {
+           break block86
           }
           $0_1 = HEAP32[($0_1 + 8 | 0) >> 2] | 0;
-          continue label$73;
+          if ($0_1) {
+           continue label9
+          }
+          break block87;
          };
         }
-        $0_1 = $2_1 + -40 | 0;
-        $8_1 = (-8 - $7_1 | 0) & 7 | 0;
-        $11_1 = $0_1 - $8_1 | 0;
-        HEAP32[(0 + 68740 | 0) >> 2] = $11_1;
-        $8_1 = $7_1 + $8_1 | 0;
-        HEAP32[(0 + 68752 | 0) >> 2] = $8_1;
-        HEAP32[($8_1 + 4 | 0) >> 2] = $11_1 | 1 | 0;
-        HEAP32[(($7_1 + $0_1 | 0) + 4 | 0) >> 2] = 40;
-        HEAP32[(0 + 68756 | 0) >> 2] = HEAP32[(0 + 69216 | 0) >> 2] | 0;
-        $0_1 = ($5_1 + ((39 - $5_1 | 0) & 7 | 0) | 0) + -47 | 0;
-        $8_1 = $0_1 >>> 0 < ($4_1 + 16 | 0) >>> 0 ? $4_1 : $0_1;
-        HEAP32[($8_1 + 4 | 0) >> 2] = 27;
-        i64toi32_i32$2 = 0;
-        i64toi32_i32$0 = HEAP32[(i64toi32_i32$2 + 69184 | 0) >> 2] | 0;
-        i64toi32_i32$1 = HEAP32[(i64toi32_i32$2 + 69188 | 0) >> 2] | 0;
-        $774 = i64toi32_i32$0;
-        i64toi32_i32$0 = $8_1 + 16 | 0;
-        HEAP32[i64toi32_i32$0 >> 2] = $774;
-        HEAP32[(i64toi32_i32$0 + 4 | 0) >> 2] = i64toi32_i32$1;
-        i64toi32_i32$2 = 0;
-        i64toi32_i32$1 = HEAP32[(i64toi32_i32$2 + 69176 | 0) >> 2] | 0;
-        i64toi32_i32$0 = HEAP32[(i64toi32_i32$2 + 69180 | 0) >> 2] | 0;
-        $776 = i64toi32_i32$1;
-        i64toi32_i32$1 = $8_1;
-        HEAP32[($8_1 + 8 | 0) >> 2] = $776;
-        HEAP32[($8_1 + 12 | 0) >> 2] = i64toi32_i32$0;
-        HEAP32[(0 + 69184 | 0) >> 2] = $8_1 + 8 | 0;
-        HEAP32[(0 + 69180 | 0) >> 2] = $2_1;
-        HEAP32[(0 + 69176 | 0) >> 2] = $7_1;
-        HEAP32[(0 + 69188 | 0) >> 2] = 0;
-        $0_1 = $8_1 + 24 | 0;
-        label$75 : while (1) {
-         HEAP32[($0_1 + 4 | 0) >> 2] = 7;
-         $7_1 = $0_1 + 8 | 0;
-         $0_1 = $0_1 + 4 | 0;
-         if ($7_1 >>> 0 < $5_1 >>> 0) {
-          continue label$75
+        if (!((HEAPU8[($0_1 + 12 | 0) >> 0] | 0) & 8 | 0)) {
+         break block88
+        }
+       }
+       $0_1 = 69184;
+       block90 : {
+        label10 : while (1) {
+         block89 : {
+          $5_1 = HEAP32[$0_1 >> 2] | 0;
+          if ($4_1 >>> 0 < $5_1 >>> 0) {
+           break block89
+          }
+          $5_1 = $5_1 + (HEAP32[($0_1 + 4 | 0) >> 2] | 0) | 0;
+          if ($4_1 >>> 0 < $5_1 >>> 0) {
+           break block90
+          }
          }
-         break label$75;
+         $0_1 = HEAP32[($0_1 + 8 | 0) >> 2] | 0;
+         continue label10;
         };
-        if (($8_1 | 0) == ($4_1 | 0)) {
-         break label$6
-        }
-        HEAP32[($8_1 + 4 | 0) >> 2] = (HEAP32[($8_1 + 4 | 0) >> 2] | 0) & -2 | 0;
-        $7_1 = $8_1 - $4_1 | 0;
-        HEAP32[($4_1 + 4 | 0) >> 2] = $7_1 | 1 | 0;
-        HEAP32[$8_1 >> 2] = $7_1;
-        label$76 : {
-         label$77 : {
-          if ($7_1 >>> 0 > 255 >>> 0) {
-           break label$77
-          }
-          $0_1 = ($7_1 & -8 | 0) + 68768 | 0;
-          label$78 : {
-           label$79 : {
-            $5_1 = HEAP32[(0 + 68728 | 0) >> 2] | 0;
-            $7_1 = 1 << ($7_1 >>> 3 | 0) | 0;
-            if ($5_1 & $7_1 | 0) {
-             break label$79
-            }
-            HEAP32[(0 + 68728 | 0) >> 2] = $5_1 | $7_1 | 0;
-            $5_1 = $0_1;
-            break label$78;
-           }
-           $5_1 = HEAP32[($0_1 + 8 | 0) >> 2] | 0;
-          }
-          HEAP32[($0_1 + 8 | 0) >> 2] = $4_1;
-          HEAP32[($5_1 + 12 | 0) >> 2] = $4_1;
-          $7_1 = 12;
-          $8_1 = 8;
-          break label$76;
-         }
-         $0_1 = 31;
-         label$80 : {
-          if ($7_1 >>> 0 > 16777215 >>> 0) {
-           break label$80
-          }
-          $0_1 = Math_clz32($7_1 >>> 8 | 0);
-          $0_1 = ((($7_1 >>> (38 - $0_1 | 0) | 0) & 1 | 0) - ($0_1 << 1 | 0) | 0) + 62 | 0;
-         }
-         HEAP32[($4_1 + 28 | 0) >> 2] = $0_1;
-         i64toi32_i32$1 = $4_1;
-         i64toi32_i32$0 = 0;
-         HEAP32[($4_1 + 16 | 0) >> 2] = 0;
-         HEAP32[($4_1 + 20 | 0) >> 2] = i64toi32_i32$0;
-         $5_1 = ($0_1 << 2 | 0) + 69032 | 0;
-         label$81 : {
-          label$82 : {
-           label$83 : {
-            $8_1 = HEAP32[(0 + 68732 | 0) >> 2] | 0;
-            $2_1 = 1 << $0_1 | 0;
-            if ($8_1 & $2_1 | 0) {
-             break label$83
-            }
-            HEAP32[(0 + 68732 | 0) >> 2] = $8_1 | $2_1 | 0;
-            HEAP32[$5_1 >> 2] = $4_1;
-            HEAP32[($4_1 + 24 | 0) >> 2] = $5_1;
-            break label$82;
-           }
-           $0_1 = $7_1 << (($0_1 | 0) == (31 | 0) ? 0 : 25 - ($0_1 >>> 1 | 0) | 0) | 0;
-           $8_1 = HEAP32[$5_1 >> 2] | 0;
-           label$84 : while (1) {
-            $5_1 = $8_1;
-            if (((HEAP32[($5_1 + 4 | 0) >> 2] | 0) & -8 | 0 | 0) == ($7_1 | 0)) {
-             break label$81
-            }
-            $8_1 = $0_1 >>> 29 | 0;
-            $0_1 = $0_1 << 1 | 0;
-            $2_1 = $5_1 + ($8_1 & 4 | 0) | 0;
-            $8_1 = HEAP32[($2_1 + 16 | 0) >> 2] | 0;
-            if ($8_1) {
-             continue label$84
-            }
-            break label$84;
-           };
-           HEAP32[($2_1 + 16 | 0) >> 2] = $4_1;
-           HEAP32[($4_1 + 24 | 0) >> 2] = $5_1;
-          }
-          $7_1 = 8;
-          $8_1 = 12;
-          $5_1 = $4_1;
-          $0_1 = $4_1;
-          break label$76;
-         }
-         $0_1 = HEAP32[($5_1 + 8 | 0) >> 2] | 0;
-         HEAP32[($0_1 + 12 | 0) >> 2] = $4_1;
-         HEAP32[($5_1 + 8 | 0) >> 2] = $4_1;
-         HEAP32[($4_1 + 8 | 0) >> 2] = $0_1;
-         $0_1 = 0;
-         $7_1 = 24;
-         $8_1 = 12;
-        }
-        HEAP32[($4_1 + $8_1 | 0) >> 2] = $5_1;
-        HEAP32[($4_1 + $7_1 | 0) >> 2] = $0_1;
        }
-       $0_1 = HEAP32[(0 + 68740 | 0) >> 2] | 0;
-       if ($0_1 >>> 0 <= $3_1 >>> 0) {
-        break label$5
-       }
-       $4_1 = $0_1 - $3_1 | 0;
-       HEAP32[(0 + 68740 | 0) >> 2] = $4_1;
-       $0_1 = HEAP32[(0 + 68752 | 0) >> 2] | 0;
-       $5_1 = $0_1 + $3_1 | 0;
-       HEAP32[(0 + 68752 | 0) >> 2] = $5_1;
-       HEAP32[($5_1 + 4 | 0) >> 2] = $4_1 | 1 | 0;
-       HEAP32[($0_1 + 4 | 0) >> 2] = $3_1 | 3 | 0;
-       $0_1 = $0_1 + 8 | 0;
-       break label$1;
-      }
-      HEAP32[($42() | 0) >> 2] = 48;
-      $0_1 = 0;
-      break label$1;
-     }
-     HEAP32[$0_1 >> 2] = $7_1;
-     HEAP32[($0_1 + 4 | 0) >> 2] = (HEAP32[($0_1 + 4 | 0) >> 2] | 0) + $2_1 | 0;
-     $0_1 = $100($7_1 | 0, $8_1 | 0, $3_1 | 0) | 0;
-     break label$1;
-    }
-    label$85 : {
-     if (!$11_1) {
-      break label$85
-     }
-     label$86 : {
-      label$87 : {
-       $7_1 = HEAP32[($8_1 + 28 | 0) >> 2] | 0;
-       $5_1 = ($7_1 << 2 | 0) + 69032 | 0;
-       if (($8_1 | 0) != (HEAP32[$5_1 >> 2] | 0 | 0)) {
-        break label$87
-       }
-       HEAP32[$5_1 >> 2] = $0_1;
-       if ($0_1) {
-        break label$86
-       }
-       $10_1 = $10_1 & (__wasm_rotl_i32(-2 | 0, $7_1 | 0) | 0) | 0;
-       HEAP32[(0 + 68732 | 0) >> 2] = $10_1;
-       break label$85;
-      }
-      label$88 : {
-       label$89 : {
-        if ((HEAP32[($11_1 + 16 | 0) >> 2] | 0 | 0) != ($8_1 | 0)) {
-         break label$89
+       $0_1 = $2_1 + -40 | 0;
+       $8_1 = (-8 - $7_1 | 0) & 7 | 0;
+       $12_1 = $0_1 - $8_1 | 0;
+       HEAP32[(0 + 68748 | 0) >> 2] = $12_1;
+       $8_1 = $7_1 + $8_1 | 0;
+       HEAP32[(0 + 68760 | 0) >> 2] = $8_1;
+       HEAP32[($8_1 + 4 | 0) >> 2] = $12_1 | 1 | 0;
+       HEAP32[(($7_1 + $0_1 | 0) + 4 | 0) >> 2] = 40;
+       HEAP32[(0 + 68764 | 0) >> 2] = HEAP32[(0 + 69224 | 0) >> 2] | 0;
+       $0_1 = ($5_1 + ((39 - $5_1 | 0) & 7 | 0) | 0) + -47 | 0;
+       $8_1 = $0_1 >>> 0 < ($4_1 + 16 | 0) >>> 0 ? $4_1 : $0_1;
+       HEAP32[($8_1 + 4 | 0) >> 2] = 27;
+       i64toi32_i32$2 = 0;
+       i64toi32_i32$0 = HEAP32[(i64toi32_i32$2 + 69192 | 0) >> 2] | 0;
+       i64toi32_i32$1 = HEAP32[(i64toi32_i32$2 + 69196 | 0) >> 2] | 0;
+       $1154 = i64toi32_i32$0;
+       i64toi32_i32$0 = $8_1 + 16 | 0;
+       HEAP32[i64toi32_i32$0 >> 2] = $1154;
+       HEAP32[(i64toi32_i32$0 + 4 | 0) >> 2] = i64toi32_i32$1;
+       i64toi32_i32$2 = 0;
+       i64toi32_i32$1 = HEAP32[(i64toi32_i32$2 + 69184 | 0) >> 2] | 0;
+       i64toi32_i32$0 = HEAP32[(i64toi32_i32$2 + 69188 | 0) >> 2] | 0;
+       $1156 = i64toi32_i32$1;
+       i64toi32_i32$1 = $8_1;
+       HEAP32[($8_1 + 8 | 0) >> 2] = $1156;
+       HEAP32[($8_1 + 12 | 0) >> 2] = i64toi32_i32$0;
+       HEAP32[(0 + 69192 | 0) >> 2] = $8_1 + 8 | 0;
+       HEAP32[(0 + 69188 | 0) >> 2] = $2_1;
+       HEAP32[(0 + 69184 | 0) >> 2] = $7_1;
+       HEAP32[(0 + 69196 | 0) >> 2] = 0;
+       $0_1 = $8_1 + 24 | 0;
+       label11 : while (1) {
+        HEAP32[($0_1 + 4 | 0) >> 2] = 7;
+        $7_1 = $0_1 + 8 | 0;
+        $0_1 = $0_1 + 4 | 0;
+        if ($7_1 >>> 0 < $5_1 >>> 0) {
+         continue label11
         }
-        HEAP32[($11_1 + 16 | 0) >> 2] = $0_1;
-        break label$88;
-       }
-       HEAP32[($11_1 + 20 | 0) >> 2] = $0_1;
-      }
-      if (!$0_1) {
-       break label$85
-      }
-     }
-     HEAP32[($0_1 + 24 | 0) >> 2] = $11_1;
-     label$90 : {
-      $5_1 = HEAP32[($8_1 + 16 | 0) >> 2] | 0;
-      if (!$5_1) {
-       break label$90
-      }
-      HEAP32[($0_1 + 16 | 0) >> 2] = $5_1;
-      HEAP32[($5_1 + 24 | 0) >> 2] = $0_1;
-     }
-     $5_1 = HEAP32[($8_1 + 20 | 0) >> 2] | 0;
-     if (!$5_1) {
-      break label$85
-     }
-     HEAP32[($0_1 + 20 | 0) >> 2] = $5_1;
-     HEAP32[($5_1 + 24 | 0) >> 2] = $0_1;
-    }
-    label$91 : {
-     label$92 : {
-      if ($4_1 >>> 0 > 15 >>> 0) {
-       break label$92
-      }
-      $0_1 = $4_1 + $3_1 | 0;
-      HEAP32[($8_1 + 4 | 0) >> 2] = $0_1 | 3 | 0;
-      $0_1 = $8_1 + $0_1 | 0;
-      HEAP32[($0_1 + 4 | 0) >> 2] = HEAP32[($0_1 + 4 | 0) >> 2] | 0 | 1 | 0;
-      break label$91;
-     }
-     HEAP32[($8_1 + 4 | 0) >> 2] = $3_1 | 3 | 0;
-     $7_1 = $8_1 + $3_1 | 0;
-     HEAP32[($7_1 + 4 | 0) >> 2] = $4_1 | 1 | 0;
-     HEAP32[($7_1 + $4_1 | 0) >> 2] = $4_1;
-     label$93 : {
-      if ($4_1 >>> 0 > 255 >>> 0) {
-       break label$93
-      }
-      $0_1 = ($4_1 & -8 | 0) + 68768 | 0;
-      label$94 : {
-       label$95 : {
-        $3_1 = HEAP32[(0 + 68728 | 0) >> 2] | 0;
-        $4_1 = 1 << ($4_1 >>> 3 | 0) | 0;
-        if ($3_1 & $4_1 | 0) {
-         break label$95
-        }
-        HEAP32[(0 + 68728 | 0) >> 2] = $3_1 | $4_1 | 0;
-        $4_1 = $0_1;
-        break label$94;
-       }
-       $4_1 = HEAP32[($0_1 + 8 | 0) >> 2] | 0;
-      }
-      HEAP32[($0_1 + 8 | 0) >> 2] = $7_1;
-      HEAP32[($4_1 + 12 | 0) >> 2] = $7_1;
-      HEAP32[($7_1 + 12 | 0) >> 2] = $0_1;
-      HEAP32[($7_1 + 8 | 0) >> 2] = $4_1;
-      break label$91;
-     }
-     $0_1 = 31;
-     label$96 : {
-      if ($4_1 >>> 0 > 16777215 >>> 0) {
-       break label$96
-      }
-      $0_1 = Math_clz32($4_1 >>> 8 | 0);
-      $0_1 = ((($4_1 >>> (38 - $0_1 | 0) | 0) & 1 | 0) - ($0_1 << 1 | 0) | 0) + 62 | 0;
-     }
-     HEAP32[($7_1 + 28 | 0) >> 2] = $0_1;
-     i64toi32_i32$1 = $7_1;
-     i64toi32_i32$0 = 0;
-     HEAP32[($7_1 + 16 | 0) >> 2] = 0;
-     HEAP32[($7_1 + 20 | 0) >> 2] = i64toi32_i32$0;
-     $3_1 = ($0_1 << 2 | 0) + 69032 | 0;
-     label$97 : {
-      label$98 : {
-       label$99 : {
-        $5_1 = 1 << $0_1 | 0;
-        if ($10_1 & $5_1 | 0) {
-         break label$99
-        }
-        HEAP32[(0 + 68732 | 0) >> 2] = $10_1 | $5_1 | 0;
-        HEAP32[$3_1 >> 2] = $7_1;
-        HEAP32[($7_1 + 24 | 0) >> 2] = $3_1;
-        break label$98;
-       }
-       $0_1 = $4_1 << (($0_1 | 0) == (31 | 0) ? 0 : 25 - ($0_1 >>> 1 | 0) | 0) | 0;
-       $5_1 = HEAP32[$3_1 >> 2] | 0;
-       label$100 : while (1) {
-        $3_1 = $5_1;
-        if (((HEAP32[($5_1 + 4 | 0) >> 2] | 0) & -8 | 0 | 0) == ($4_1 | 0)) {
-         break label$97
-        }
-        $5_1 = $0_1 >>> 29 | 0;
-        $0_1 = $0_1 << 1 | 0;
-        $2_1 = $3_1 + ($5_1 & 4 | 0) | 0;
-        $5_1 = HEAP32[($2_1 + 16 | 0) >> 2] | 0;
-        if ($5_1) {
-         continue label$100
-        }
-        break label$100;
+        break label11;
        };
-       HEAP32[($2_1 + 16 | 0) >> 2] = $7_1;
-       HEAP32[($7_1 + 24 | 0) >> 2] = $3_1;
-      }
-      HEAP32[($7_1 + 12 | 0) >> 2] = $7_1;
-      HEAP32[($7_1 + 8 | 0) >> 2] = $7_1;
-      break label$91;
-     }
-     $0_1 = HEAP32[($3_1 + 8 | 0) >> 2] | 0;
-     HEAP32[($0_1 + 12 | 0) >> 2] = $7_1;
-     HEAP32[($3_1 + 8 | 0) >> 2] = $7_1;
-     HEAP32[($7_1 + 24 | 0) >> 2] = 0;
-     HEAP32[($7_1 + 12 | 0) >> 2] = $3_1;
-     HEAP32[($7_1 + 8 | 0) >> 2] = $0_1;
-    }
-    $0_1 = $8_1 + 8 | 0;
-    break label$1;
-   }
-   label$101 : {
-    if (!$10_1) {
-     break label$101
-    }
-    label$102 : {
-     label$103 : {
-      $8_1 = HEAP32[($7_1 + 28 | 0) >> 2] | 0;
-      $5_1 = ($8_1 << 2 | 0) + 69032 | 0;
-      if (($7_1 | 0) != (HEAP32[$5_1 >> 2] | 0 | 0)) {
-       break label$103
-      }
-      HEAP32[$5_1 >> 2] = $0_1;
-      if ($0_1) {
-       break label$102
-      }
-      HEAP32[(0 + 68732 | 0) >> 2] = $9_1 & (__wasm_rotl_i32(-2 | 0, $8_1 | 0) | 0) | 0;
-      break label$101;
-     }
-     label$104 : {
-      label$105 : {
-       if ((HEAP32[($10_1 + 16 | 0) >> 2] | 0 | 0) != ($7_1 | 0)) {
-        break label$105
+       if (($8_1 | 0) == ($4_1 | 0)) {
+        break block84
        }
-       HEAP32[($10_1 + 16 | 0) >> 2] = $0_1;
-       break label$104;
-      }
-      HEAP32[($10_1 + 20 | 0) >> 2] = $0_1;
-     }
-     if (!$0_1) {
-      break label$101
-     }
-    }
-    HEAP32[($0_1 + 24 | 0) >> 2] = $10_1;
-    label$106 : {
-     $5_1 = HEAP32[($7_1 + 16 | 0) >> 2] | 0;
-     if (!$5_1) {
-      break label$106
-     }
-     HEAP32[($0_1 + 16 | 0) >> 2] = $5_1;
-     HEAP32[($5_1 + 24 | 0) >> 2] = $0_1;
-    }
-    $5_1 = HEAP32[($7_1 + 20 | 0) >> 2] | 0;
-    if (!$5_1) {
-     break label$101
-    }
-    HEAP32[($0_1 + 20 | 0) >> 2] = $5_1;
-    HEAP32[($5_1 + 24 | 0) >> 2] = $0_1;
-   }
-   label$107 : {
-    label$108 : {
-     if ($4_1 >>> 0 > 15 >>> 0) {
-      break label$108
-     }
-     $0_1 = $4_1 + $3_1 | 0;
-     HEAP32[($7_1 + 4 | 0) >> 2] = $0_1 | 3 | 0;
-     $0_1 = $7_1 + $0_1 | 0;
-     HEAP32[($0_1 + 4 | 0) >> 2] = HEAP32[($0_1 + 4 | 0) >> 2] | 0 | 1 | 0;
-     break label$107;
-    }
-    HEAP32[($7_1 + 4 | 0) >> 2] = $3_1 | 3 | 0;
-    $3_1 = $7_1 + $3_1 | 0;
-    HEAP32[($3_1 + 4 | 0) >> 2] = $4_1 | 1 | 0;
-    HEAP32[($3_1 + $4_1 | 0) >> 2] = $4_1;
-    label$109 : {
-     if (!$6_1) {
-      break label$109
-     }
-     $5_1 = ($6_1 & -8 | 0) + 68768 | 0;
-     $0_1 = HEAP32[(0 + 68748 | 0) >> 2] | 0;
-     label$110 : {
-      label$111 : {
-       $8_1 = 1 << ($6_1 >>> 3 | 0) | 0;
-       if ($8_1 & $2_1 | 0) {
-        break label$111
+       HEAP32[($8_1 + 4 | 0) >> 2] = (HEAP32[($8_1 + 4 | 0) >> 2] | 0) & -2 | 0;
+       $7_1 = $8_1 - $4_1 | 0;
+       HEAP32[($4_1 + 4 | 0) >> 2] = $7_1 | 1 | 0;
+       HEAP32[$8_1 >> 2] = $7_1;
+       block94 : {
+        block91 : {
+         if ($7_1 >>> 0 > 255 >>> 0) {
+          break block91
+         }
+         $0_1 = ($7_1 & -8 | 0) + 68776 | 0;
+         block93 : {
+          block92 : {
+           $5_1 = HEAP32[(0 + 68736 | 0) >> 2] | 0;
+           $7_1 = 1 << ($7_1 >>> 3 | 0) | 0;
+           if ($5_1 & $7_1 | 0) {
+            break block92
+           }
+           HEAP32[(0 + 68736 | 0) >> 2] = $5_1 | $7_1 | 0;
+           $5_1 = $0_1;
+           break block93;
+          }
+          $5_1 = HEAP32[($0_1 + 8 | 0) >> 2] | 0;
+          if ($5_1 >>> 0 < (HEAP32[(0 + 68752 | 0) >> 2] | 0) >>> 0) {
+           break block4
+          }
+         }
+         HEAP32[($0_1 + 8 | 0) >> 2] = $4_1;
+         HEAP32[($5_1 + 12 | 0) >> 2] = $4_1;
+         $7_1 = 12;
+         $8_1 = 8;
+         break block94;
+        }
+        $0_1 = 31;
+        block95 : {
+         if ($7_1 >>> 0 > 16777215 >>> 0) {
+          break block95
+         }
+         $0_1 = Math_clz32($7_1 >>> 8 | 0);
+         $0_1 = ((($7_1 >>> (38 - $0_1 | 0) | 0) & 1 | 0) - ($0_1 << 1 | 0) | 0) + 62 | 0;
+        }
+        HEAP32[($4_1 + 28 | 0) >> 2] = $0_1;
+        i64toi32_i32$1 = $4_1;
+        i64toi32_i32$0 = 0;
+        HEAP32[($4_1 + 16 | 0) >> 2] = 0;
+        HEAP32[($4_1 + 20 | 0) >> 2] = i64toi32_i32$0;
+        $5_1 = ($0_1 << 2 | 0) + 69040 | 0;
+        block98 : {
+         block97 : {
+          block96 : {
+           $8_1 = HEAP32[(0 + 68740 | 0) >> 2] | 0;
+           $2_1 = 1 << $0_1 | 0;
+           if ($8_1 & $2_1 | 0) {
+            break block96
+           }
+           HEAP32[(0 + 68740 | 0) >> 2] = $8_1 | $2_1 | 0;
+           HEAP32[$5_1 >> 2] = $4_1;
+           HEAP32[($4_1 + 24 | 0) >> 2] = $5_1;
+           break block97;
+          }
+          $0_1 = $7_1 << (($0_1 | 0) == (31 | 0) ? 0 : 25 - ($0_1 >>> 1 | 0) | 0) | 0;
+          $8_1 = HEAP32[$5_1 >> 2] | 0;
+          label12 : while (1) {
+           $5_1 = $8_1;
+           if (((HEAP32[($5_1 + 4 | 0) >> 2] | 0) & -8 | 0 | 0) == ($7_1 | 0)) {
+            break block98
+           }
+           $8_1 = $0_1 >>> 29 | 0;
+           $0_1 = $0_1 << 1 | 0;
+           $2_1 = $5_1 + ($8_1 & 4 | 0) | 0;
+           $8_1 = HEAP32[($2_1 + 16 | 0) >> 2] | 0;
+           if ($8_1) {
+            continue label12
+           }
+           break label12;
+          };
+          $0_1 = $2_1 + 16 | 0;
+          if ($0_1 >>> 0 < (HEAP32[(0 + 68752 | 0) >> 2] | 0) >>> 0) {
+           break block4
+          }
+          HEAP32[$0_1 >> 2] = $4_1;
+          HEAP32[($4_1 + 24 | 0) >> 2] = $5_1;
+         }
+         $7_1 = 8;
+         $8_1 = 12;
+         $5_1 = $4_1;
+         $0_1 = $5_1;
+         break block94;
+        }
+        $7_1 = HEAP32[(0 + 68752 | 0) >> 2] | 0;
+        if ($5_1 >>> 0 < $7_1 >>> 0) {
+         break block4
+        }
+        $0_1 = HEAP32[($5_1 + 8 | 0) >> 2] | 0;
+        if ($0_1 >>> 0 < $7_1 >>> 0) {
+         break block4
+        }
+        HEAP32[($0_1 + 12 | 0) >> 2] = $4_1;
+        HEAP32[($5_1 + 8 | 0) >> 2] = $4_1;
+        HEAP32[($4_1 + 8 | 0) >> 2] = $0_1;
+        $0_1 = 0;
+        $7_1 = 24;
+        $8_1 = 12;
        }
-       HEAP32[(0 + 68728 | 0) >> 2] = $8_1 | $2_1 | 0;
-       $8_1 = $5_1;
-       break label$110;
+       HEAP32[($4_1 + $8_1 | 0) >> 2] = $5_1;
+       HEAP32[($4_1 + $7_1 | 0) >> 2] = $0_1;
       }
-      $8_1 = HEAP32[($5_1 + 8 | 0) >> 2] | 0;
+      $0_1 = HEAP32[(0 + 68748 | 0) >> 2] | 0;
+      if ($0_1 >>> 0 <= $3_1 >>> 0) {
+       break block77
+      }
+      $4_1 = $0_1 - $3_1 | 0;
+      HEAP32[(0 + 68748 | 0) >> 2] = $4_1;
+      $0_1 = HEAP32[(0 + 68760 | 0) >> 2] | 0;
+      $5_1 = $0_1 + $3_1 | 0;
+      HEAP32[(0 + 68760 | 0) >> 2] = $5_1;
+      HEAP32[($5_1 + 4 | 0) >> 2] = $4_1 | 1 | 0;
+      HEAP32[($0_1 + 4 | 0) >> 2] = $3_1 | 3 | 0;
+      $0_1 = $0_1 + 8 | 0;
+      break block5;
      }
-     HEAP32[($5_1 + 8 | 0) >> 2] = $0_1;
-     HEAP32[($8_1 + 12 | 0) >> 2] = $0_1;
-     HEAP32[($0_1 + 12 | 0) >> 2] = $5_1;
-     HEAP32[($0_1 + 8 | 0) >> 2] = $8_1;
+     HEAP32[($43() | 0) >> 2] = 48;
+     $0_1 = 0;
+     break block5;
     }
-    HEAP32[(0 + 68748 | 0) >> 2] = $3_1;
-    HEAP32[(0 + 68736 | 0) >> 2] = $4_1;
+    $42();
+    wasm2js_trap();
    }
-   $0_1 = $7_1 + 8 | 0;
+   HEAP32[$0_1 >> 2] = $7_1;
+   HEAP32[($0_1 + 4 | 0) >> 2] = (HEAP32[($0_1 + 4 | 0) >> 2] | 0) + $2_1 | 0;
+   $0_1 = $103($7_1 | 0, $8_1 | 0, $3_1 | 0) | 0;
   }
   global$0 = $1_1 + 16 | 0;
   return $0_1 | 0;
  }
  
- function $100($0_1, $1_1, $2_1) {
+ function $103($0_1, $1_1, $2_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
-  var $4_1 = 0, $5_1 = 0, $7_1 = 0, $8_1 = 0, $3_1 = 0, $6_1 = 0, $9_1 = 0;
+  var $4_1 = 0, $5_1 = 0, $8_1 = 0, $6_1 = 0, $9_1 = 0, $7_1 = 0, $3_1 = 0, $353 = 0;
   $3_1 = $0_1 + ((-8 - $0_1 | 0) & 7 | 0) | 0;
   HEAP32[($3_1 + 4 | 0) >> 2] = $2_1 | 3 | 0;
   $4_1 = $1_1 + ((-8 - $1_1 | 0) & 7 | 0) | 0;
   $5_1 = $3_1 + $2_1 | 0;
   $0_1 = $4_1 - $5_1 | 0;
-  label$1 : {
-   label$2 : {
-    if (($4_1 | 0) != (HEAP32[(0 + 68752 | 0) >> 2] | 0 | 0)) {
-     break label$2
-    }
-    HEAP32[(0 + 68752 | 0) >> 2] = $5_1;
-    $2_1 = (HEAP32[(0 + 68740 | 0) >> 2] | 0) + $0_1 | 0;
-    HEAP32[(0 + 68740 | 0) >> 2] = $2_1;
-    HEAP32[($5_1 + 4 | 0) >> 2] = $2_1 | 1 | 0;
-    break label$1;
-   }
-   label$3 : {
-    if (($4_1 | 0) != (HEAP32[(0 + 68748 | 0) >> 2] | 0 | 0)) {
-     break label$3
-    }
-    HEAP32[(0 + 68748 | 0) >> 2] = $5_1;
-    $2_1 = (HEAP32[(0 + 68736 | 0) >> 2] | 0) + $0_1 | 0;
-    HEAP32[(0 + 68736 | 0) >> 2] = $2_1;
-    HEAP32[($5_1 + 4 | 0) >> 2] = $2_1 | 1 | 0;
-    HEAP32[($5_1 + $2_1 | 0) >> 2] = $2_1;
-    break label$1;
-   }
-   label$4 : {
-    $1_1 = HEAP32[($4_1 + 4 | 0) >> 2] | 0;
-    if (($1_1 & 3 | 0 | 0) != (1 | 0)) {
-     break label$4
-    }
-    $6_1 = $1_1 & -8 | 0;
-    $2_1 = HEAP32[($4_1 + 12 | 0) >> 2] | 0;
-    label$5 : {
-     label$6 : {
-      if ($1_1 >>> 0 > 255 >>> 0) {
-       break label$6
-      }
-      label$7 : {
-       $7_1 = HEAP32[($4_1 + 8 | 0) >> 2] | 0;
-       if (($2_1 | 0) != ($7_1 | 0)) {
-        break label$7
-       }
-       HEAP32[(0 + 68728 | 0) >> 2] = (HEAP32[(0 + 68728 | 0) >> 2] | 0) & (__wasm_rotl_i32(-2 | 0, $1_1 >>> 3 | 0 | 0) | 0) | 0;
-       break label$5;
-      }
-      HEAP32[($7_1 + 12 | 0) >> 2] = $2_1;
-      HEAP32[($2_1 + 8 | 0) >> 2] = $7_1;
-      break label$5;
+  block6 : {
+   block1 : {
+    block : {
+     if (($4_1 | 0) != (HEAP32[(0 + 68760 | 0) >> 2] | 0 | 0)) {
+      break block
      }
-     $8_1 = HEAP32[($4_1 + 24 | 0) >> 2] | 0;
-     label$8 : {
-      label$9 : {
-       if (($2_1 | 0) == ($4_1 | 0)) {
-        break label$9
+     HEAP32[(0 + 68760 | 0) >> 2] = $5_1;
+     $2_1 = (HEAP32[(0 + 68748 | 0) >> 2] | 0) + $0_1 | 0;
+     HEAP32[(0 + 68748 | 0) >> 2] = $2_1;
+     HEAP32[($5_1 + 4 | 0) >> 2] = $2_1 | 1 | 0;
+     break block1;
+    }
+    block2 : {
+     if (($4_1 | 0) != (HEAP32[(0 + 68756 | 0) >> 2] | 0 | 0)) {
+      break block2
+     }
+     HEAP32[(0 + 68756 | 0) >> 2] = $5_1;
+     $2_1 = (HEAP32[(0 + 68744 | 0) >> 2] | 0) + $0_1 | 0;
+     HEAP32[(0 + 68744 | 0) >> 2] = $2_1;
+     HEAP32[($5_1 + 4 | 0) >> 2] = $2_1 | 1 | 0;
+     HEAP32[($5_1 + $2_1 | 0) >> 2] = $2_1;
+     break block1;
+    }
+    block3 : {
+     $6_1 = HEAP32[($4_1 + 4 | 0) >> 2] | 0;
+     if (($6_1 & 3 | 0 | 0) != (1 | 0)) {
+      break block3
+     }
+     $2_1 = HEAP32[($4_1 + 12 | 0) >> 2] | 0;
+     block8 : {
+      block4 : {
+       if ($6_1 >>> 0 > 255 >>> 0) {
+        break block4
        }
-       $1_1 = HEAP32[($4_1 + 8 | 0) >> 2] | 0;
+       block5 : {
+        $1_1 = HEAP32[($4_1 + 8 | 0) >> 2] | 0;
+        $7_1 = $6_1 >>> 3 | 0;
+        $8_1 = ($7_1 << 3 | 0) + 68776 | 0;
+        if (($1_1 | 0) == ($8_1 | 0)) {
+         break block5
+        }
+        if ($1_1 >>> 0 < (HEAP32[(0 + 68752 | 0) >> 2] | 0) >>> 0) {
+         break block6
+        }
+        if ((HEAP32[($1_1 + 12 | 0) >> 2] | 0 | 0) != ($4_1 | 0)) {
+         break block6
+        }
+       }
+       block7 : {
+        if (($2_1 | 0) != ($1_1 | 0)) {
+         break block7
+        }
+        HEAP32[(0 + 68736 | 0) >> 2] = (HEAP32[(0 + 68736 | 0) >> 2] | 0) & (__wasm_rotl_i32(-2 | 0, $7_1 | 0) | 0) | 0;
+        break block8;
+       }
+       block9 : {
+        if (($2_1 | 0) == ($8_1 | 0)) {
+         break block9
+        }
+        if ($2_1 >>> 0 < (HEAP32[(0 + 68752 | 0) >> 2] | 0) >>> 0) {
+         break block6
+        }
+        if ((HEAP32[($2_1 + 8 | 0) >> 2] | 0 | 0) != ($4_1 | 0)) {
+         break block6
+        }
+       }
        HEAP32[($1_1 + 12 | 0) >> 2] = $2_1;
        HEAP32[($2_1 + 8 | 0) >> 2] = $1_1;
-       break label$8;
+       break block8;
       }
-      label$10 : {
-       label$11 : {
-        label$12 : {
-         $1_1 = HEAP32[($4_1 + 20 | 0) >> 2] | 0;
-         if (!$1_1) {
-          break label$12
+      $9_1 = HEAP32[($4_1 + 24 | 0) >> 2] | 0;
+      block11 : {
+       block10 : {
+        if (($2_1 | 0) == ($4_1 | 0)) {
+         break block10
+        }
+        $1_1 = HEAP32[($4_1 + 8 | 0) >> 2] | 0;
+        if ($1_1 >>> 0 < (HEAP32[(0 + 68752 | 0) >> 2] | 0) >>> 0) {
+         break block6
+        }
+        if ((HEAP32[($1_1 + 12 | 0) >> 2] | 0 | 0) != ($4_1 | 0)) {
+         break block6
+        }
+        if ((HEAP32[($2_1 + 8 | 0) >> 2] | 0 | 0) != ($4_1 | 0)) {
+         break block6
+        }
+        HEAP32[($1_1 + 12 | 0) >> 2] = $2_1;
+        HEAP32[($2_1 + 8 | 0) >> 2] = $1_1;
+        break block11;
+       }
+       block14 : {
+        block13 : {
+         block12 : {
+          $1_1 = HEAP32[($4_1 + 20 | 0) >> 2] | 0;
+          if (!$1_1) {
+           break block12
+          }
+          $8_1 = $4_1 + 20 | 0;
+          break block13;
          }
-         $7_1 = $4_1 + 20 | 0;
-         break label$11;
+         $1_1 = HEAP32[($4_1 + 16 | 0) >> 2] | 0;
+         if (!$1_1) {
+          break block14
+         }
+         $8_1 = $4_1 + 16 | 0;
         }
-        $1_1 = HEAP32[($4_1 + 16 | 0) >> 2] | 0;
-        if (!$1_1) {
-         break label$10
+        label : while (1) {
+         $7_1 = $8_1;
+         $2_1 = $1_1;
+         $8_1 = $2_1 + 20 | 0;
+         $1_1 = HEAP32[($2_1 + 20 | 0) >> 2] | 0;
+         if ($1_1) {
+          continue label
+         }
+         $8_1 = $2_1 + 16 | 0;
+         $1_1 = HEAP32[($2_1 + 16 | 0) >> 2] | 0;
+         if ($1_1) {
+          continue label
+         }
+         break label;
+        };
+        if ($7_1 >>> 0 < (HEAP32[(0 + 68752 | 0) >> 2] | 0) >>> 0) {
+         break block6
         }
-        $7_1 = $4_1 + 16 | 0;
+        HEAP32[$7_1 >> 2] = 0;
+        break block11;
        }
-       label$13 : while (1) {
-        $9_1 = $7_1;
-        $2_1 = $1_1;
-        $7_1 = $2_1 + 20 | 0;
-        $1_1 = HEAP32[($2_1 + 20 | 0) >> 2] | 0;
-        if ($1_1) {
-         continue label$13
+       $2_1 = 0;
+      }
+      if (!$9_1) {
+       break block8
+      }
+      block16 : {
+       block15 : {
+        $8_1 = HEAP32[($4_1 + 28 | 0) >> 2] | 0;
+        $1_1 = ($8_1 << 2 | 0) + 69040 | 0;
+        if (($4_1 | 0) != (HEAP32[$1_1 >> 2] | 0 | 0)) {
+         break block15
         }
-        $7_1 = $2_1 + 16 | 0;
-        $1_1 = HEAP32[($2_1 + 16 | 0) >> 2] | 0;
-        if ($1_1) {
-         continue label$13
+        HEAP32[$1_1 >> 2] = $2_1;
+        if ($2_1) {
+         break block16
         }
-        break label$13;
-       };
-       HEAP32[$9_1 >> 2] = 0;
-       break label$8;
-      }
-      $2_1 = 0;
-     }
-     if (!$8_1) {
-      break label$5
-     }
-     label$14 : {
-      label$15 : {
-       $7_1 = HEAP32[($4_1 + 28 | 0) >> 2] | 0;
-       $1_1 = ($7_1 << 2 | 0) + 69032 | 0;
-       if (($4_1 | 0) != (HEAP32[$1_1 >> 2] | 0 | 0)) {
-        break label$15
+        HEAP32[(0 + 68740 | 0) >> 2] = (HEAP32[(0 + 68740 | 0) >> 2] | 0) & (__wasm_rotl_i32(-2 | 0, $8_1 | 0) | 0) | 0;
+        break block8;
        }
-       HEAP32[$1_1 >> 2] = $2_1;
-       if ($2_1) {
-        break label$14
+       if ($9_1 >>> 0 < (HEAP32[(0 + 68752 | 0) >> 2] | 0) >>> 0) {
+        break block6
        }
-       HEAP32[(0 + 68732 | 0) >> 2] = (HEAP32[(0 + 68732 | 0) >> 2] | 0) & (__wasm_rotl_i32(-2 | 0, $7_1 | 0) | 0) | 0;
-       break label$5;
-      }
-      label$16 : {
-       label$17 : {
-        if ((HEAP32[($8_1 + 16 | 0) >> 2] | 0 | 0) != ($4_1 | 0)) {
-         break label$17
+       block18 : {
+        block17 : {
+         if ((HEAP32[($9_1 + 16 | 0) >> 2] | 0 | 0) != ($4_1 | 0)) {
+          break block17
+         }
+         HEAP32[($9_1 + 16 | 0) >> 2] = $2_1;
+         break block18;
         }
-        HEAP32[($8_1 + 16 | 0) >> 2] = $2_1;
-        break label$16;
+        HEAP32[($9_1 + 20 | 0) >> 2] = $2_1;
        }
-       HEAP32[($8_1 + 20 | 0) >> 2] = $2_1;
+       if (!$2_1) {
+        break block8
+       }
       }
-      if (!$2_1) {
-       break label$5
+      $8_1 = HEAP32[(0 + 68752 | 0) >> 2] | 0;
+      if ($2_1 >>> 0 < $8_1 >>> 0) {
+       break block6
       }
-     }
-     HEAP32[($2_1 + 24 | 0) >> 2] = $8_1;
-     label$18 : {
-      $1_1 = HEAP32[($4_1 + 16 | 0) >> 2] | 0;
+      HEAP32[($2_1 + 24 | 0) >> 2] = $9_1;
+      block19 : {
+       $1_1 = HEAP32[($4_1 + 16 | 0) >> 2] | 0;
+       if (!$1_1) {
+        break block19
+       }
+       if ($1_1 >>> 0 < $8_1 >>> 0) {
+        break block6
+       }
+       HEAP32[($2_1 + 16 | 0) >> 2] = $1_1;
+       HEAP32[($1_1 + 24 | 0) >> 2] = $2_1;
+      }
+      $1_1 = HEAP32[($4_1 + 20 | 0) >> 2] | 0;
       if (!$1_1) {
-       break label$18
+       break block8
       }
-      HEAP32[($2_1 + 16 | 0) >> 2] = $1_1;
+      if ($1_1 >>> 0 < $8_1 >>> 0) {
+       break block6
+      }
+      HEAP32[($2_1 + 20 | 0) >> 2] = $1_1;
       HEAP32[($1_1 + 24 | 0) >> 2] = $2_1;
      }
-     $1_1 = HEAP32[($4_1 + 20 | 0) >> 2] | 0;
-     if (!$1_1) {
-      break label$5
+     $2_1 = $6_1 & -8 | 0;
+     $0_1 = $2_1 + $0_1 | 0;
+     $4_1 = $4_1 + $2_1 | 0;
+     $6_1 = HEAP32[($4_1 + 4 | 0) >> 2] | 0;
+    }
+    HEAP32[($4_1 + 4 | 0) >> 2] = $6_1 & -2 | 0;
+    HEAP32[($5_1 + 4 | 0) >> 2] = $0_1 | 1 | 0;
+    HEAP32[($5_1 + $0_1 | 0) >> 2] = $0_1;
+    block20 : {
+     if ($0_1 >>> 0 > 255 >>> 0) {
+      break block20
      }
-     HEAP32[($2_1 + 20 | 0) >> 2] = $1_1;
-     HEAP32[($1_1 + 24 | 0) >> 2] = $2_1;
-    }
-    $0_1 = $6_1 + $0_1 | 0;
-    $4_1 = $4_1 + $6_1 | 0;
-    $1_1 = HEAP32[($4_1 + 4 | 0) >> 2] | 0;
-   }
-   HEAP32[($4_1 + 4 | 0) >> 2] = $1_1 & -2 | 0;
-   HEAP32[($5_1 + 4 | 0) >> 2] = $0_1 | 1 | 0;
-   HEAP32[($5_1 + $0_1 | 0) >> 2] = $0_1;
-   label$19 : {
-    if ($0_1 >>> 0 > 255 >>> 0) {
-     break label$19
-    }
-    $2_1 = ($0_1 & -8 | 0) + 68768 | 0;
-    label$20 : {
-     label$21 : {
-      $1_1 = HEAP32[(0 + 68728 | 0) >> 2] | 0;
-      $0_1 = 1 << ($0_1 >>> 3 | 0) | 0;
-      if ($1_1 & $0_1 | 0) {
-       break label$21
-      }
-      HEAP32[(0 + 68728 | 0) >> 2] = $1_1 | $0_1 | 0;
-      $0_1 = $2_1;
-      break label$20;
-     }
-     $0_1 = HEAP32[($2_1 + 8 | 0) >> 2] | 0;
-    }
-    HEAP32[($2_1 + 8 | 0) >> 2] = $5_1;
-    HEAP32[($0_1 + 12 | 0) >> 2] = $5_1;
-    HEAP32[($5_1 + 12 | 0) >> 2] = $2_1;
-    HEAP32[($5_1 + 8 | 0) >> 2] = $0_1;
-    break label$1;
-   }
-   $2_1 = 31;
-   label$22 : {
-    if ($0_1 >>> 0 > 16777215 >>> 0) {
-     break label$22
-    }
-    $2_1 = Math_clz32($0_1 >>> 8 | 0);
-    $2_1 = ((($0_1 >>> (38 - $2_1 | 0) | 0) & 1 | 0) - ($2_1 << 1 | 0) | 0) + 62 | 0;
-   }
-   HEAP32[($5_1 + 28 | 0) >> 2] = $2_1;
-   HEAP32[($5_1 + 16 | 0) >> 2] = 0;
-   HEAP32[($5_1 + 20 | 0) >> 2] = 0;
-   $1_1 = ($2_1 << 2 | 0) + 69032 | 0;
-   label$23 : {
-    label$24 : {
-     label$25 : {
-      $7_1 = HEAP32[(0 + 68732 | 0) >> 2] | 0;
-      $4_1 = 1 << $2_1 | 0;
-      if ($7_1 & $4_1 | 0) {
-       break label$25
-      }
-      HEAP32[(0 + 68732 | 0) >> 2] = $7_1 | $4_1 | 0;
-      HEAP32[$1_1 >> 2] = $5_1;
-      HEAP32[($5_1 + 24 | 0) >> 2] = $1_1;
-      break label$24;
-     }
-     $2_1 = $0_1 << (($2_1 | 0) == (31 | 0) ? 0 : 25 - ($2_1 >>> 1 | 0) | 0) | 0;
-     $7_1 = HEAP32[$1_1 >> 2] | 0;
-     label$26 : while (1) {
-      $1_1 = $7_1;
-      if (((HEAP32[($1_1 + 4 | 0) >> 2] | 0) & -8 | 0 | 0) == ($0_1 | 0)) {
-       break label$23
-      }
-      $7_1 = $2_1 >>> 29 | 0;
-      $2_1 = $2_1 << 1 | 0;
-      $4_1 = $1_1 + ($7_1 & 4 | 0) | 0;
-      $7_1 = HEAP32[($4_1 + 16 | 0) >> 2] | 0;
-      if ($7_1) {
-       continue label$26
-      }
-      break label$26;
-     };
-     HEAP32[($4_1 + 16 | 0) >> 2] = $5_1;
-     HEAP32[($5_1 + 24 | 0) >> 2] = $1_1;
-    }
-    HEAP32[($5_1 + 12 | 0) >> 2] = $5_1;
-    HEAP32[($5_1 + 8 | 0) >> 2] = $5_1;
-    break label$1;
-   }
-   $2_1 = HEAP32[($1_1 + 8 | 0) >> 2] | 0;
-   HEAP32[($2_1 + 12 | 0) >> 2] = $5_1;
-   HEAP32[($1_1 + 8 | 0) >> 2] = $5_1;
-   HEAP32[($5_1 + 24 | 0) >> 2] = 0;
-   HEAP32[($5_1 + 12 | 0) >> 2] = $1_1;
-   HEAP32[($5_1 + 8 | 0) >> 2] = $2_1;
-  }
-  return $3_1 + 8 | 0 | 0;
- }
- 
- function $101($0_1) {
-  $0_1 = $0_1 | 0;
-  var $2_1 = 0, $4_1 = 0, $1_1 = 0, $5_1 = 0, $3_1 = 0, $6_1 = 0, $7_1 = 0;
-  label$1 : {
-   if (!$0_1) {
-    break label$1
-   }
-   $1_1 = $0_1 + -8 | 0;
-   $2_1 = HEAP32[($0_1 + -4 | 0) >> 2] | 0;
-   $0_1 = $2_1 & -8 | 0;
-   $3_1 = $1_1 + $0_1 | 0;
-   label$2 : {
-    if ($2_1 & 1 | 0) {
-     break label$2
-    }
-    if (!($2_1 & 2 | 0)) {
-     break label$1
-    }
-    $4_1 = HEAP32[$1_1 >> 2] | 0;
-    $1_1 = $1_1 - $4_1 | 0;
-    if ($1_1 >>> 0 < (HEAP32[(0 + 68744 | 0) >> 2] | 0) >>> 0) {
-     break label$1
-    }
-    $0_1 = $4_1 + $0_1 | 0;
-    label$3 : {
-     label$4 : {
-      label$5 : {
-       label$6 : {
-        if (($1_1 | 0) == (HEAP32[(0 + 68748 | 0) >> 2] | 0 | 0)) {
-         break label$6
-        }
-        $2_1 = HEAP32[($1_1 + 12 | 0) >> 2] | 0;
-        label$7 : {
-         if ($4_1 >>> 0 > 255 >>> 0) {
-          break label$7
-         }
-         $5_1 = HEAP32[($1_1 + 8 | 0) >> 2] | 0;
-         if (($2_1 | 0) != ($5_1 | 0)) {
-          break label$5
-         }
-         HEAP32[(0 + 68728 | 0) >> 2] = (HEAP32[(0 + 68728 | 0) >> 2] | 0) & (__wasm_rotl_i32(-2 | 0, $4_1 >>> 3 | 0 | 0) | 0) | 0;
-         break label$2;
-        }
-        $6_1 = HEAP32[($1_1 + 24 | 0) >> 2] | 0;
-        label$8 : {
-         if (($2_1 | 0) == ($1_1 | 0)) {
-          break label$8
-         }
-         $4_1 = HEAP32[($1_1 + 8 | 0) >> 2] | 0;
-         HEAP32[($4_1 + 12 | 0) >> 2] = $2_1;
-         HEAP32[($2_1 + 8 | 0) >> 2] = $4_1;
-         break label$3;
-        }
-        label$9 : {
-         label$10 : {
-          $4_1 = HEAP32[($1_1 + 20 | 0) >> 2] | 0;
-          if (!$4_1) {
-           break label$10
-          }
-          $5_1 = $1_1 + 20 | 0;
-          break label$9;
-         }
-         $4_1 = HEAP32[($1_1 + 16 | 0) >> 2] | 0;
-         if (!$4_1) {
-          break label$4
-         }
-         $5_1 = $1_1 + 16 | 0;
-        }
-        label$11 : while (1) {
-         $7_1 = $5_1;
-         $2_1 = $4_1;
-         $5_1 = $2_1 + 20 | 0;
-         $4_1 = HEAP32[($2_1 + 20 | 0) >> 2] | 0;
-         if ($4_1) {
-          continue label$11
-         }
-         $5_1 = $2_1 + 16 | 0;
-         $4_1 = HEAP32[($2_1 + 16 | 0) >> 2] | 0;
-         if ($4_1) {
-          continue label$11
-         }
-         break label$11;
-        };
-        HEAP32[$7_1 >> 2] = 0;
-        break label$3;
+     $2_1 = ($0_1 & -8 | 0) + 68776 | 0;
+     block22 : {
+      block21 : {
+       $1_1 = HEAP32[(0 + 68736 | 0) >> 2] | 0;
+       $0_1 = 1 << ($0_1 >>> 3 | 0) | 0;
+       if ($1_1 & $0_1 | 0) {
+        break block21
        }
-       $2_1 = HEAP32[($3_1 + 4 | 0) >> 2] | 0;
-       if (($2_1 & 3 | 0 | 0) != (3 | 0)) {
-        break label$2
+       HEAP32[(0 + 68736 | 0) >> 2] = $1_1 | $0_1 | 0;
+       $0_1 = $2_1;
+       break block22;
+      }
+      $0_1 = HEAP32[($2_1 + 8 | 0) >> 2] | 0;
+      if ($0_1 >>> 0 < (HEAP32[(0 + 68752 | 0) >> 2] | 0) >>> 0) {
+       break block6
+      }
+     }
+     HEAP32[($2_1 + 8 | 0) >> 2] = $5_1;
+     HEAP32[($0_1 + 12 | 0) >> 2] = $5_1;
+     HEAP32[($5_1 + 12 | 0) >> 2] = $2_1;
+     HEAP32[($5_1 + 8 | 0) >> 2] = $0_1;
+     break block1;
+    }
+    $2_1 = 31;
+    block23 : {
+     if ($0_1 >>> 0 > 16777215 >>> 0) {
+      break block23
+     }
+     $2_1 = Math_clz32($0_1 >>> 8 | 0);
+     $2_1 = ((($0_1 >>> (38 - $2_1 | 0) | 0) & 1 | 0) - ($2_1 << 1 | 0) | 0) + 62 | 0;
+    }
+    HEAP32[($5_1 + 28 | 0) >> 2] = $2_1;
+    HEAP32[($5_1 + 16 | 0) >> 2] = 0;
+    HEAP32[($5_1 + 20 | 0) >> 2] = 0;
+    $1_1 = ($2_1 << 2 | 0) + 69040 | 0;
+    block26 : {
+     block25 : {
+      block24 : {
+       $8_1 = HEAP32[(0 + 68740 | 0) >> 2] | 0;
+       $4_1 = 1 << $2_1 | 0;
+       if ($8_1 & $4_1 | 0) {
+        break block24
        }
-       HEAP32[(0 + 68736 | 0) >> 2] = $0_1;
-       HEAP32[($3_1 + 4 | 0) >> 2] = $2_1 & -2 | 0;
-       HEAP32[($1_1 + 4 | 0) >> 2] = $0_1 | 1 | 0;
-       HEAP32[$3_1 >> 2] = $0_1;
-       return;
-      }
-      HEAP32[($5_1 + 12 | 0) >> 2] = $2_1;
-      HEAP32[($2_1 + 8 | 0) >> 2] = $5_1;
-      break label$2;
-     }
-     $2_1 = 0;
-    }
-    if (!$6_1) {
-     break label$2
-    }
-    label$12 : {
-     label$13 : {
-      $5_1 = HEAP32[($1_1 + 28 | 0) >> 2] | 0;
-      $4_1 = ($5_1 << 2 | 0) + 69032 | 0;
-      if (($1_1 | 0) != (HEAP32[$4_1 >> 2] | 0 | 0)) {
-       break label$13
-      }
-      HEAP32[$4_1 >> 2] = $2_1;
-      if ($2_1) {
-       break label$12
-      }
-      HEAP32[(0 + 68732 | 0) >> 2] = (HEAP32[(0 + 68732 | 0) >> 2] | 0) & (__wasm_rotl_i32(-2 | 0, $5_1 | 0) | 0) | 0;
-      break label$2;
-     }
-     label$14 : {
-      label$15 : {
-       if ((HEAP32[($6_1 + 16 | 0) >> 2] | 0 | 0) != ($1_1 | 0)) {
-        break label$15
-       }
-       HEAP32[($6_1 + 16 | 0) >> 2] = $2_1;
-       break label$14;
-      }
-      HEAP32[($6_1 + 20 | 0) >> 2] = $2_1;
-     }
-     if (!$2_1) {
-      break label$2
-     }
-    }
-    HEAP32[($2_1 + 24 | 0) >> 2] = $6_1;
-    label$16 : {
-     $4_1 = HEAP32[($1_1 + 16 | 0) >> 2] | 0;
-     if (!$4_1) {
-      break label$16
-     }
-     HEAP32[($2_1 + 16 | 0) >> 2] = $4_1;
-     HEAP32[($4_1 + 24 | 0) >> 2] = $2_1;
-    }
-    $4_1 = HEAP32[($1_1 + 20 | 0) >> 2] | 0;
-    if (!$4_1) {
-     break label$2
-    }
-    HEAP32[($2_1 + 20 | 0) >> 2] = $4_1;
-    HEAP32[($4_1 + 24 | 0) >> 2] = $2_1;
-   }
-   if ($1_1 >>> 0 >= $3_1 >>> 0) {
-    break label$1
-   }
-   $4_1 = HEAP32[($3_1 + 4 | 0) >> 2] | 0;
-   if (!($4_1 & 1 | 0)) {
-    break label$1
-   }
-   label$17 : {
-    label$18 : {
-     label$19 : {
-      label$20 : {
-       label$21 : {
-        if ($4_1 & 2 | 0) {
-         break label$21
-        }
-        label$22 : {
-         if (($3_1 | 0) != (HEAP32[(0 + 68752 | 0) >> 2] | 0 | 0)) {
-          break label$22
-         }
-         HEAP32[(0 + 68752 | 0) >> 2] = $1_1;
-         $0_1 = (HEAP32[(0 + 68740 | 0) >> 2] | 0) + $0_1 | 0;
-         HEAP32[(0 + 68740 | 0) >> 2] = $0_1;
-         HEAP32[($1_1 + 4 | 0) >> 2] = $0_1 | 1 | 0;
-         if (($1_1 | 0) != (HEAP32[(0 + 68748 | 0) >> 2] | 0 | 0)) {
-          break label$1
-         }
-         HEAP32[(0 + 68736 | 0) >> 2] = 0;
-         HEAP32[(0 + 68748 | 0) >> 2] = 0;
-         return;
-        }
-        label$23 : {
-         if (($3_1 | 0) != (HEAP32[(0 + 68748 | 0) >> 2] | 0 | 0)) {
-          break label$23
-         }
-         HEAP32[(0 + 68748 | 0) >> 2] = $1_1;
-         $0_1 = (HEAP32[(0 + 68736 | 0) >> 2] | 0) + $0_1 | 0;
-         HEAP32[(0 + 68736 | 0) >> 2] = $0_1;
-         HEAP32[($1_1 + 4 | 0) >> 2] = $0_1 | 1 | 0;
-         HEAP32[($1_1 + $0_1 | 0) >> 2] = $0_1;
-         return;
-        }
-        $0_1 = ($4_1 & -8 | 0) + $0_1 | 0;
-        $2_1 = HEAP32[($3_1 + 12 | 0) >> 2] | 0;
-        label$24 : {
-         if ($4_1 >>> 0 > 255 >>> 0) {
-          break label$24
-         }
-         label$25 : {
-          $5_1 = HEAP32[($3_1 + 8 | 0) >> 2] | 0;
-          if (($2_1 | 0) != ($5_1 | 0)) {
-           break label$25
-          }
-          HEAP32[(0 + 68728 | 0) >> 2] = (HEAP32[(0 + 68728 | 0) >> 2] | 0) & (__wasm_rotl_i32(-2 | 0, $4_1 >>> 3 | 0 | 0) | 0) | 0;
-          break label$18;
-         }
-         HEAP32[($5_1 + 12 | 0) >> 2] = $2_1;
-         HEAP32[($2_1 + 8 | 0) >> 2] = $5_1;
-         break label$18;
-        }
-        $6_1 = HEAP32[($3_1 + 24 | 0) >> 2] | 0;
-        label$26 : {
-         if (($2_1 | 0) == ($3_1 | 0)) {
-          break label$26
-         }
-         $4_1 = HEAP32[($3_1 + 8 | 0) >> 2] | 0;
-         HEAP32[($4_1 + 12 | 0) >> 2] = $2_1;
-         HEAP32[($2_1 + 8 | 0) >> 2] = $4_1;
-         break label$19;
-        }
-        label$27 : {
-         label$28 : {
-          $4_1 = HEAP32[($3_1 + 20 | 0) >> 2] | 0;
-          if (!$4_1) {
-           break label$28
-          }
-          $5_1 = $3_1 + 20 | 0;
-          break label$27;
-         }
-         $4_1 = HEAP32[($3_1 + 16 | 0) >> 2] | 0;
-         if (!$4_1) {
-          break label$20
-         }
-         $5_1 = $3_1 + 16 | 0;
-        }
-        label$29 : while (1) {
-         $7_1 = $5_1;
-         $2_1 = $4_1;
-         $5_1 = $2_1 + 20 | 0;
-         $4_1 = HEAP32[($2_1 + 20 | 0) >> 2] | 0;
-         if ($4_1) {
-          continue label$29
-         }
-         $5_1 = $2_1 + 16 | 0;
-         $4_1 = HEAP32[($2_1 + 16 | 0) >> 2] | 0;
-         if ($4_1) {
-          continue label$29
-         }
-         break label$29;
-        };
-        HEAP32[$7_1 >> 2] = 0;
-        break label$19;
-       }
-       HEAP32[($3_1 + 4 | 0) >> 2] = $4_1 & -2 | 0;
-       HEAP32[($1_1 + 4 | 0) >> 2] = $0_1 | 1 | 0;
-       HEAP32[($1_1 + $0_1 | 0) >> 2] = $0_1;
-       break label$17;
-      }
-      $2_1 = 0;
-     }
-     if (!$6_1) {
-      break label$18
-     }
-     label$30 : {
-      label$31 : {
-       $5_1 = HEAP32[($3_1 + 28 | 0) >> 2] | 0;
-       $4_1 = ($5_1 << 2 | 0) + 69032 | 0;
-       if (($3_1 | 0) != (HEAP32[$4_1 >> 2] | 0 | 0)) {
-        break label$31
-       }
-       HEAP32[$4_1 >> 2] = $2_1;
-       if ($2_1) {
-        break label$30
-       }
-       HEAP32[(0 + 68732 | 0) >> 2] = (HEAP32[(0 + 68732 | 0) >> 2] | 0) & (__wasm_rotl_i32(-2 | 0, $5_1 | 0) | 0) | 0;
-       break label$18;
-      }
-      label$32 : {
-       label$33 : {
-        if ((HEAP32[($6_1 + 16 | 0) >> 2] | 0 | 0) != ($3_1 | 0)) {
-         break label$33
-        }
-        HEAP32[($6_1 + 16 | 0) >> 2] = $2_1;
-        break label$32;
-       }
-       HEAP32[($6_1 + 20 | 0) >> 2] = $2_1;
-      }
-      if (!$2_1) {
-       break label$18
-      }
-     }
-     HEAP32[($2_1 + 24 | 0) >> 2] = $6_1;
-     label$34 : {
-      $4_1 = HEAP32[($3_1 + 16 | 0) >> 2] | 0;
-      if (!$4_1) {
-       break label$34
-      }
-      HEAP32[($2_1 + 16 | 0) >> 2] = $4_1;
-      HEAP32[($4_1 + 24 | 0) >> 2] = $2_1;
-     }
-     $4_1 = HEAP32[($3_1 + 20 | 0) >> 2] | 0;
-     if (!$4_1) {
-      break label$18
-     }
-     HEAP32[($2_1 + 20 | 0) >> 2] = $4_1;
-     HEAP32[($4_1 + 24 | 0) >> 2] = $2_1;
-    }
-    HEAP32[($1_1 + 4 | 0) >> 2] = $0_1 | 1 | 0;
-    HEAP32[($1_1 + $0_1 | 0) >> 2] = $0_1;
-    if (($1_1 | 0) != (HEAP32[(0 + 68748 | 0) >> 2] | 0 | 0)) {
-     break label$17
-    }
-    HEAP32[(0 + 68736 | 0) >> 2] = $0_1;
-    return;
-   }
-   label$35 : {
-    if ($0_1 >>> 0 > 255 >>> 0) {
-     break label$35
-    }
-    $2_1 = ($0_1 & -8 | 0) + 68768 | 0;
-    label$36 : {
-     label$37 : {
-      $4_1 = HEAP32[(0 + 68728 | 0) >> 2] | 0;
-      $0_1 = 1 << ($0_1 >>> 3 | 0) | 0;
-      if ($4_1 & $0_1 | 0) {
-       break label$37
-      }
-      HEAP32[(0 + 68728 | 0) >> 2] = $4_1 | $0_1 | 0;
-      $0_1 = $2_1;
-      break label$36;
-     }
-     $0_1 = HEAP32[($2_1 + 8 | 0) >> 2] | 0;
-    }
-    HEAP32[($2_1 + 8 | 0) >> 2] = $1_1;
-    HEAP32[($0_1 + 12 | 0) >> 2] = $1_1;
-    HEAP32[($1_1 + 12 | 0) >> 2] = $2_1;
-    HEAP32[($1_1 + 8 | 0) >> 2] = $0_1;
-    return;
-   }
-   $2_1 = 31;
-   label$38 : {
-    if ($0_1 >>> 0 > 16777215 >>> 0) {
-     break label$38
-    }
-    $2_1 = Math_clz32($0_1 >>> 8 | 0);
-    $2_1 = ((($0_1 >>> (38 - $2_1 | 0) | 0) & 1 | 0) - ($2_1 << 1 | 0) | 0) + 62 | 0;
-   }
-   HEAP32[($1_1 + 28 | 0) >> 2] = $2_1;
-   HEAP32[($1_1 + 16 | 0) >> 2] = 0;
-   HEAP32[($1_1 + 20 | 0) >> 2] = 0;
-   $5_1 = ($2_1 << 2 | 0) + 69032 | 0;
-   label$39 : {
-    label$40 : {
-     label$41 : {
-      label$42 : {
-       $4_1 = HEAP32[(0 + 68732 | 0) >> 2] | 0;
-       $3_1 = 1 << $2_1 | 0;
-       if ($4_1 & $3_1 | 0) {
-        break label$42
-       }
-       HEAP32[(0 + 68732 | 0) >> 2] = $4_1 | $3_1 | 0;
-       HEAP32[$5_1 >> 2] = $1_1;
-       $0_1 = 8;
-       $2_1 = 24;
-       break label$41;
+       HEAP32[(0 + 68740 | 0) >> 2] = $8_1 | $4_1 | 0;
+       HEAP32[$1_1 >> 2] = $5_1;
+       HEAP32[($5_1 + 24 | 0) >> 2] = $1_1;
+       break block25;
       }
       $2_1 = $0_1 << (($2_1 | 0) == (31 | 0) ? 0 : 25 - ($2_1 >>> 1 | 0) | 0) | 0;
-      $5_1 = HEAP32[$5_1 >> 2] | 0;
-      label$43 : while (1) {
-       $4_1 = $5_1;
-       if (((HEAP32[($4_1 + 4 | 0) >> 2] | 0) & -8 | 0 | 0) == ($0_1 | 0)) {
-        break label$40
+      $8_1 = HEAP32[$1_1 >> 2] | 0;
+      label1 : while (1) {
+       $1_1 = $8_1;
+       if (((HEAP32[($1_1 + 4 | 0) >> 2] | 0) & -8 | 0 | 0) == ($0_1 | 0)) {
+        break block26
        }
-       $5_1 = $2_1 >>> 29 | 0;
+       $8_1 = $2_1 >>> 29 | 0;
        $2_1 = $2_1 << 1 | 0;
-       $3_1 = $4_1 + ($5_1 & 4 | 0) | 0;
-       $5_1 = HEAP32[($3_1 + 16 | 0) >> 2] | 0;
-       if ($5_1) {
-        continue label$43
+       $4_1 = $1_1 + ($8_1 & 4 | 0) | 0;
+       $8_1 = HEAP32[($4_1 + 16 | 0) >> 2] | 0;
+       if ($8_1) {
+        continue label1
        }
-       break label$43;
+       break label1;
       };
-      HEAP32[($3_1 + 16 | 0) >> 2] = $1_1;
-      $0_1 = 8;
-      $2_1 = 24;
-      $5_1 = $4_1;
+      $2_1 = $4_1 + 16 | 0;
+      if ($2_1 >>> 0 < (HEAP32[(0 + 68752 | 0) >> 2] | 0) >>> 0) {
+       break block6
+      }
+      HEAP32[$2_1 >> 2] = $5_1;
+      HEAP32[($5_1 + 24 | 0) >> 2] = $1_1;
      }
-     $4_1 = $1_1;
-     $3_1 = $1_1;
-     break label$39;
+     HEAP32[($5_1 + 12 | 0) >> 2] = $5_1;
+     HEAP32[($5_1 + 8 | 0) >> 2] = $5_1;
+     break block1;
     }
-    $5_1 = HEAP32[($4_1 + 8 | 0) >> 2] | 0;
+    $0_1 = HEAP32[(0 + 68752 | 0) >> 2] | 0;
+    if ($1_1 >>> 0 < $0_1 >>> 0) {
+     break block6
+    }
+    $2_1 = HEAP32[($1_1 + 8 | 0) >> 2] | 0;
+    if ($2_1 >>> 0 < $0_1 >>> 0) {
+     break block6
+    }
+    HEAP32[($2_1 + 12 | 0) >> 2] = $5_1;
+    HEAP32[($1_1 + 8 | 0) >> 2] = $5_1;
+    HEAP32[($5_1 + 24 | 0) >> 2] = 0;
     HEAP32[($5_1 + 12 | 0) >> 2] = $1_1;
-    HEAP32[($4_1 + 8 | 0) >> 2] = $1_1;
-    $3_1 = 0;
-    $0_1 = 24;
-    $2_1 = 8;
+    HEAP32[($5_1 + 8 | 0) >> 2] = $2_1;
    }
-   HEAP32[($1_1 + $2_1 | 0) >> 2] = $5_1;
-   HEAP32[($1_1 + 12 | 0) >> 2] = $4_1;
-   HEAP32[($1_1 + $0_1 | 0) >> 2] = $3_1;
-   $1_1 = (HEAP32[(0 + 68760 | 0) >> 2] | 0) + -1 | 0;
-   HEAP32[(0 + 68760 | 0) >> 2] = $1_1 ? $1_1 : -1;
+   return $3_1 + 8 | 0 | 0;
   }
+  $42();
+  wasm2js_trap();
  }
  
- function $102($0_1, $1_1) {
+ function $104($0_1) {
+  $0_1 = $0_1 | 0;
+  var $3_1 = 0, $5_1 = 0, $1_1 = 0, $6_1 = 0, $4_1 = 0, $2_1 = 0, $7_1 = 0, $8_1 = 0, $10_1 = 0, $9_1 = 0;
+  block1 : {
+   block : {
+    if (!$0_1) {
+     break block
+    }
+    $1_1 = $0_1 + -8 | 0;
+    $2_1 = HEAP32[(0 + 68752 | 0) >> 2] | 0;
+    if ($1_1 >>> 0 < $2_1 >>> 0) {
+     break block1
+    }
+    $3_1 = HEAP32[($0_1 + -4 | 0) >> 2] | 0;
+    if (($3_1 & 3 | 0 | 0) == (1 | 0)) {
+     break block1
+    }
+    $0_1 = $3_1 & -8 | 0;
+    $4_1 = $1_1 + $0_1 | 0;
+    block2 : {
+     if ($3_1 & 1 | 0) {
+      break block2
+     }
+     if (!($3_1 & 2 | 0)) {
+      break block
+     }
+     $5_1 = HEAP32[$1_1 >> 2] | 0;
+     $1_1 = $1_1 - $5_1 | 0;
+     if ($1_1 >>> 0 < $2_1 >>> 0) {
+      break block1
+     }
+     $0_1 = $5_1 + $0_1 | 0;
+     block3 : {
+      if (($1_1 | 0) == (HEAP32[(0 + 68756 | 0) >> 2] | 0 | 0)) {
+       break block3
+      }
+      $3_1 = HEAP32[($1_1 + 12 | 0) >> 2] | 0;
+      block4 : {
+       if ($5_1 >>> 0 > 255 >>> 0) {
+        break block4
+       }
+       block5 : {
+        $6_1 = HEAP32[($1_1 + 8 | 0) >> 2] | 0;
+        $7_1 = $5_1 >>> 3 | 0;
+        $5_1 = ($7_1 << 3 | 0) + 68776 | 0;
+        if (($6_1 | 0) == ($5_1 | 0)) {
+         break block5
+        }
+        if ($6_1 >>> 0 < $2_1 >>> 0) {
+         break block1
+        }
+        if ((HEAP32[($6_1 + 12 | 0) >> 2] | 0 | 0) != ($1_1 | 0)) {
+         break block1
+        }
+       }
+       block6 : {
+        if (($3_1 | 0) != ($6_1 | 0)) {
+         break block6
+        }
+        HEAP32[(0 + 68736 | 0) >> 2] = (HEAP32[(0 + 68736 | 0) >> 2] | 0) & (__wasm_rotl_i32(-2 | 0, $7_1 | 0) | 0) | 0;
+        break block2;
+       }
+       block7 : {
+        if (($3_1 | 0) == ($5_1 | 0)) {
+         break block7
+        }
+        if ($3_1 >>> 0 < $2_1 >>> 0) {
+         break block1
+        }
+        if ((HEAP32[($3_1 + 8 | 0) >> 2] | 0 | 0) != ($1_1 | 0)) {
+         break block1
+        }
+       }
+       HEAP32[($6_1 + 12 | 0) >> 2] = $3_1;
+       HEAP32[($3_1 + 8 | 0) >> 2] = $6_1;
+       break block2;
+      }
+      $8_1 = HEAP32[($1_1 + 24 | 0) >> 2] | 0;
+      block9 : {
+       block8 : {
+        if (($3_1 | 0) == ($1_1 | 0)) {
+         break block8
+        }
+        $5_1 = HEAP32[($1_1 + 8 | 0) >> 2] | 0;
+        if ($5_1 >>> 0 < $2_1 >>> 0) {
+         break block1
+        }
+        if ((HEAP32[($5_1 + 12 | 0) >> 2] | 0 | 0) != ($1_1 | 0)) {
+         break block1
+        }
+        if ((HEAP32[($3_1 + 8 | 0) >> 2] | 0 | 0) != ($1_1 | 0)) {
+         break block1
+        }
+        HEAP32[($5_1 + 12 | 0) >> 2] = $3_1;
+        HEAP32[($3_1 + 8 | 0) >> 2] = $5_1;
+        break block9;
+       }
+       block12 : {
+        block11 : {
+         block10 : {
+          $5_1 = HEAP32[($1_1 + 20 | 0) >> 2] | 0;
+          if (!$5_1) {
+           break block10
+          }
+          $6_1 = $1_1 + 20 | 0;
+          break block11;
+         }
+         $5_1 = HEAP32[($1_1 + 16 | 0) >> 2] | 0;
+         if (!$5_1) {
+          break block12
+         }
+         $6_1 = $1_1 + 16 | 0;
+        }
+        label : while (1) {
+         $7_1 = $6_1;
+         $3_1 = $5_1;
+         $6_1 = $3_1 + 20 | 0;
+         $5_1 = HEAP32[($3_1 + 20 | 0) >> 2] | 0;
+         if ($5_1) {
+          continue label
+         }
+         $6_1 = $3_1 + 16 | 0;
+         $5_1 = HEAP32[($3_1 + 16 | 0) >> 2] | 0;
+         if ($5_1) {
+          continue label
+         }
+         break label;
+        };
+        if ($7_1 >>> 0 < $2_1 >>> 0) {
+         break block1
+        }
+        HEAP32[$7_1 >> 2] = 0;
+        break block9;
+       }
+       $3_1 = 0;
+      }
+      if (!$8_1) {
+       break block2
+      }
+      block14 : {
+       block13 : {
+        $6_1 = HEAP32[($1_1 + 28 | 0) >> 2] | 0;
+        $5_1 = ($6_1 << 2 | 0) + 69040 | 0;
+        if (($1_1 | 0) != (HEAP32[$5_1 >> 2] | 0 | 0)) {
+         break block13
+        }
+        HEAP32[$5_1 >> 2] = $3_1;
+        if ($3_1) {
+         break block14
+        }
+        HEAP32[(0 + 68740 | 0) >> 2] = (HEAP32[(0 + 68740 | 0) >> 2] | 0) & (__wasm_rotl_i32(-2 | 0, $6_1 | 0) | 0) | 0;
+        break block2;
+       }
+       if ($8_1 >>> 0 < $2_1 >>> 0) {
+        break block1
+       }
+       block16 : {
+        block15 : {
+         if ((HEAP32[($8_1 + 16 | 0) >> 2] | 0 | 0) != ($1_1 | 0)) {
+          break block15
+         }
+         HEAP32[($8_1 + 16 | 0) >> 2] = $3_1;
+         break block16;
+        }
+        HEAP32[($8_1 + 20 | 0) >> 2] = $3_1;
+       }
+       if (!$3_1) {
+        break block2
+       }
+      }
+      if ($3_1 >>> 0 < $2_1 >>> 0) {
+       break block1
+      }
+      HEAP32[($3_1 + 24 | 0) >> 2] = $8_1;
+      block17 : {
+       $5_1 = HEAP32[($1_1 + 16 | 0) >> 2] | 0;
+       if (!$5_1) {
+        break block17
+       }
+       if ($5_1 >>> 0 < $2_1 >>> 0) {
+        break block1
+       }
+       HEAP32[($3_1 + 16 | 0) >> 2] = $5_1;
+       HEAP32[($5_1 + 24 | 0) >> 2] = $3_1;
+      }
+      $5_1 = HEAP32[($1_1 + 20 | 0) >> 2] | 0;
+      if (!$5_1) {
+       break block2
+      }
+      if ($5_1 >>> 0 < $2_1 >>> 0) {
+       break block1
+      }
+      HEAP32[($3_1 + 20 | 0) >> 2] = $5_1;
+      HEAP32[($5_1 + 24 | 0) >> 2] = $3_1;
+      break block2;
+     }
+     $3_1 = HEAP32[($4_1 + 4 | 0) >> 2] | 0;
+     if (($3_1 & 3 | 0 | 0) != (3 | 0)) {
+      break block2
+     }
+     HEAP32[(0 + 68744 | 0) >> 2] = $0_1;
+     HEAP32[($4_1 + 4 | 0) >> 2] = $3_1 & -2 | 0;
+     HEAP32[($1_1 + 4 | 0) >> 2] = $0_1 | 1 | 0;
+     HEAP32[$4_1 >> 2] = $0_1;
+     return;
+    }
+    if ($1_1 >>> 0 >= $4_1 >>> 0) {
+     break block1
+    }
+    $7_1 = HEAP32[($4_1 + 4 | 0) >> 2] | 0;
+    if (!($7_1 & 1 | 0)) {
+     break block1
+    }
+    block36 : {
+     block18 : {
+      if ($7_1 & 2 | 0) {
+       break block18
+      }
+      block19 : {
+       if (($4_1 | 0) != (HEAP32[(0 + 68760 | 0) >> 2] | 0 | 0)) {
+        break block19
+       }
+       HEAP32[(0 + 68760 | 0) >> 2] = $1_1;
+       $0_1 = (HEAP32[(0 + 68748 | 0) >> 2] | 0) + $0_1 | 0;
+       HEAP32[(0 + 68748 | 0) >> 2] = $0_1;
+       HEAP32[($1_1 + 4 | 0) >> 2] = $0_1 | 1 | 0;
+       if (($1_1 | 0) != (HEAP32[(0 + 68756 | 0) >> 2] | 0 | 0)) {
+        break block
+       }
+       HEAP32[(0 + 68744 | 0) >> 2] = 0;
+       HEAP32[(0 + 68756 | 0) >> 2] = 0;
+       return;
+      }
+      block20 : {
+       $9_1 = HEAP32[(0 + 68756 | 0) >> 2] | 0;
+       if (($4_1 | 0) != ($9_1 | 0)) {
+        break block20
+       }
+       HEAP32[(0 + 68756 | 0) >> 2] = $1_1;
+       $0_1 = (HEAP32[(0 + 68744 | 0) >> 2] | 0) + $0_1 | 0;
+       HEAP32[(0 + 68744 | 0) >> 2] = $0_1;
+       HEAP32[($1_1 + 4 | 0) >> 2] = $0_1 | 1 | 0;
+       HEAP32[($1_1 + $0_1 | 0) >> 2] = $0_1;
+       return;
+      }
+      $3_1 = HEAP32[($4_1 + 12 | 0) >> 2] | 0;
+      block24 : {
+       block21 : {
+        if ($7_1 >>> 0 > 255 >>> 0) {
+         break block21
+        }
+        block22 : {
+         $5_1 = HEAP32[($4_1 + 8 | 0) >> 2] | 0;
+         $8_1 = $7_1 >>> 3 | 0;
+         $6_1 = ($8_1 << 3 | 0) + 68776 | 0;
+         if (($5_1 | 0) == ($6_1 | 0)) {
+          break block22
+         }
+         if ($5_1 >>> 0 < $2_1 >>> 0) {
+          break block1
+         }
+         if ((HEAP32[($5_1 + 12 | 0) >> 2] | 0 | 0) != ($4_1 | 0)) {
+          break block1
+         }
+        }
+        block23 : {
+         if (($3_1 | 0) != ($5_1 | 0)) {
+          break block23
+         }
+         HEAP32[(0 + 68736 | 0) >> 2] = (HEAP32[(0 + 68736 | 0) >> 2] | 0) & (__wasm_rotl_i32(-2 | 0, $8_1 | 0) | 0) | 0;
+         break block24;
+        }
+        block25 : {
+         if (($3_1 | 0) == ($6_1 | 0)) {
+          break block25
+         }
+         if ($3_1 >>> 0 < $2_1 >>> 0) {
+          break block1
+         }
+         if ((HEAP32[($3_1 + 8 | 0) >> 2] | 0 | 0) != ($4_1 | 0)) {
+          break block1
+         }
+        }
+        HEAP32[($5_1 + 12 | 0) >> 2] = $3_1;
+        HEAP32[($3_1 + 8 | 0) >> 2] = $5_1;
+        break block24;
+       }
+       $10_1 = HEAP32[($4_1 + 24 | 0) >> 2] | 0;
+       block27 : {
+        block26 : {
+         if (($3_1 | 0) == ($4_1 | 0)) {
+          break block26
+         }
+         $5_1 = HEAP32[($4_1 + 8 | 0) >> 2] | 0;
+         if ($5_1 >>> 0 < $2_1 >>> 0) {
+          break block1
+         }
+         if ((HEAP32[($5_1 + 12 | 0) >> 2] | 0 | 0) != ($4_1 | 0)) {
+          break block1
+         }
+         if ((HEAP32[($3_1 + 8 | 0) >> 2] | 0 | 0) != ($4_1 | 0)) {
+          break block1
+         }
+         HEAP32[($5_1 + 12 | 0) >> 2] = $3_1;
+         HEAP32[($3_1 + 8 | 0) >> 2] = $5_1;
+         break block27;
+        }
+        block30 : {
+         block29 : {
+          block28 : {
+           $5_1 = HEAP32[($4_1 + 20 | 0) >> 2] | 0;
+           if (!$5_1) {
+            break block28
+           }
+           $6_1 = $4_1 + 20 | 0;
+           break block29;
+          }
+          $5_1 = HEAP32[($4_1 + 16 | 0) >> 2] | 0;
+          if (!$5_1) {
+           break block30
+          }
+          $6_1 = $4_1 + 16 | 0;
+         }
+         label1 : while (1) {
+          $8_1 = $6_1;
+          $3_1 = $5_1;
+          $6_1 = $3_1 + 20 | 0;
+          $5_1 = HEAP32[($3_1 + 20 | 0) >> 2] | 0;
+          if ($5_1) {
+           continue label1
+          }
+          $6_1 = $3_1 + 16 | 0;
+          $5_1 = HEAP32[($3_1 + 16 | 0) >> 2] | 0;
+          if ($5_1) {
+           continue label1
+          }
+          break label1;
+         };
+         if ($8_1 >>> 0 < $2_1 >>> 0) {
+          break block1
+         }
+         HEAP32[$8_1 >> 2] = 0;
+         break block27;
+        }
+        $3_1 = 0;
+       }
+       if (!$10_1) {
+        break block24
+       }
+       block32 : {
+        block31 : {
+         $6_1 = HEAP32[($4_1 + 28 | 0) >> 2] | 0;
+         $5_1 = ($6_1 << 2 | 0) + 69040 | 0;
+         if (($4_1 | 0) != (HEAP32[$5_1 >> 2] | 0 | 0)) {
+          break block31
+         }
+         HEAP32[$5_1 >> 2] = $3_1;
+         if ($3_1) {
+          break block32
+         }
+         HEAP32[(0 + 68740 | 0) >> 2] = (HEAP32[(0 + 68740 | 0) >> 2] | 0) & (__wasm_rotl_i32(-2 | 0, $6_1 | 0) | 0) | 0;
+         break block24;
+        }
+        if ($10_1 >>> 0 < $2_1 >>> 0) {
+         break block1
+        }
+        block34 : {
+         block33 : {
+          if ((HEAP32[($10_1 + 16 | 0) >> 2] | 0 | 0) != ($4_1 | 0)) {
+           break block33
+          }
+          HEAP32[($10_1 + 16 | 0) >> 2] = $3_1;
+          break block34;
+         }
+         HEAP32[($10_1 + 20 | 0) >> 2] = $3_1;
+        }
+        if (!$3_1) {
+         break block24
+        }
+       }
+       if ($3_1 >>> 0 < $2_1 >>> 0) {
+        break block1
+       }
+       HEAP32[($3_1 + 24 | 0) >> 2] = $10_1;
+       block35 : {
+        $5_1 = HEAP32[($4_1 + 16 | 0) >> 2] | 0;
+        if (!$5_1) {
+         break block35
+        }
+        if ($5_1 >>> 0 < $2_1 >>> 0) {
+         break block1
+        }
+        HEAP32[($3_1 + 16 | 0) >> 2] = $5_1;
+        HEAP32[($5_1 + 24 | 0) >> 2] = $3_1;
+       }
+       $5_1 = HEAP32[($4_1 + 20 | 0) >> 2] | 0;
+       if (!$5_1) {
+        break block24
+       }
+       if ($5_1 >>> 0 < $2_1 >>> 0) {
+        break block1
+       }
+       HEAP32[($3_1 + 20 | 0) >> 2] = $5_1;
+       HEAP32[($5_1 + 24 | 0) >> 2] = $3_1;
+      }
+      $0_1 = ($7_1 & -8 | 0) + $0_1 | 0;
+      HEAP32[($1_1 + 4 | 0) >> 2] = $0_1 | 1 | 0;
+      HEAP32[($1_1 + $0_1 | 0) >> 2] = $0_1;
+      if (($1_1 | 0) != ($9_1 | 0)) {
+       break block36
+      }
+      HEAP32[(0 + 68744 | 0) >> 2] = $0_1;
+      return;
+     }
+     HEAP32[($4_1 + 4 | 0) >> 2] = $7_1 & -2 | 0;
+     HEAP32[($1_1 + 4 | 0) >> 2] = $0_1 | 1 | 0;
+     HEAP32[($1_1 + $0_1 | 0) >> 2] = $0_1;
+    }
+    block37 : {
+     if ($0_1 >>> 0 > 255 >>> 0) {
+      break block37
+     }
+     $3_1 = ($0_1 & -8 | 0) + 68776 | 0;
+     block39 : {
+      block38 : {
+       $5_1 = HEAP32[(0 + 68736 | 0) >> 2] | 0;
+       $0_1 = 1 << ($0_1 >>> 3 | 0) | 0;
+       if ($5_1 & $0_1 | 0) {
+        break block38
+       }
+       HEAP32[(0 + 68736 | 0) >> 2] = $5_1 | $0_1 | 0;
+       $0_1 = $3_1;
+       break block39;
+      }
+      $0_1 = HEAP32[($3_1 + 8 | 0) >> 2] | 0;
+      if ($0_1 >>> 0 < $2_1 >>> 0) {
+       break block1
+      }
+     }
+     HEAP32[($3_1 + 8 | 0) >> 2] = $1_1;
+     HEAP32[($0_1 + 12 | 0) >> 2] = $1_1;
+     HEAP32[($1_1 + 12 | 0) >> 2] = $3_1;
+     HEAP32[($1_1 + 8 | 0) >> 2] = $0_1;
+     return;
+    }
+    $3_1 = 31;
+    block40 : {
+     if ($0_1 >>> 0 > 16777215 >>> 0) {
+      break block40
+     }
+     $3_1 = Math_clz32($0_1 >>> 8 | 0);
+     $3_1 = ((($0_1 >>> (38 - $3_1 | 0) | 0) & 1 | 0) - ($3_1 << 1 | 0) | 0) + 62 | 0;
+    }
+    HEAP32[($1_1 + 28 | 0) >> 2] = $3_1;
+    HEAP32[($1_1 + 16 | 0) >> 2] = 0;
+    HEAP32[($1_1 + 20 | 0) >> 2] = 0;
+    $6_1 = ($3_1 << 2 | 0) + 69040 | 0;
+    block44 : {
+     block43 : {
+      block42 : {
+       block41 : {
+        $5_1 = HEAP32[(0 + 68740 | 0) >> 2] | 0;
+        $4_1 = 1 << $3_1 | 0;
+        if ($5_1 & $4_1 | 0) {
+         break block41
+        }
+        HEAP32[(0 + 68740 | 0) >> 2] = $5_1 | $4_1 | 0;
+        HEAP32[$6_1 >> 2] = $1_1;
+        $0_1 = 8;
+        $3_1 = 24;
+        break block42;
+       }
+       $3_1 = $0_1 << (($3_1 | 0) == (31 | 0) ? 0 : 25 - ($3_1 >>> 1 | 0) | 0) | 0;
+       $6_1 = HEAP32[$6_1 >> 2] | 0;
+       label2 : while (1) {
+        $5_1 = $6_1;
+        if (((HEAP32[($5_1 + 4 | 0) >> 2] | 0) & -8 | 0 | 0) == ($0_1 | 0)) {
+         break block43
+        }
+        $6_1 = $3_1 >>> 29 | 0;
+        $3_1 = $3_1 << 1 | 0;
+        $4_1 = $5_1 + ($6_1 & 4 | 0) | 0;
+        $6_1 = HEAP32[($4_1 + 16 | 0) >> 2] | 0;
+        if ($6_1) {
+         continue label2
+        }
+        break label2;
+       };
+       $0_1 = $4_1 + 16 | 0;
+       if ($0_1 >>> 0 < $2_1 >>> 0) {
+        break block1
+       }
+       HEAP32[$0_1 >> 2] = $1_1;
+       $0_1 = 8;
+       $3_1 = 24;
+       $6_1 = $5_1;
+      }
+      $5_1 = $1_1;
+      $4_1 = $5_1;
+      break block44;
+     }
+     if ($5_1 >>> 0 < $2_1 >>> 0) {
+      break block1
+     }
+     $6_1 = HEAP32[($5_1 + 8 | 0) >> 2] | 0;
+     if ($6_1 >>> 0 < $2_1 >>> 0) {
+      break block1
+     }
+     HEAP32[($6_1 + 12 | 0) >> 2] = $1_1;
+     HEAP32[($5_1 + 8 | 0) >> 2] = $1_1;
+     $4_1 = 0;
+     $0_1 = 24;
+     $3_1 = 8;
+    }
+    HEAP32[($1_1 + $3_1 | 0) >> 2] = $6_1;
+    HEAP32[($1_1 + 12 | 0) >> 2] = $5_1;
+    HEAP32[($1_1 + $0_1 | 0) >> 2] = $4_1;
+    $1_1 = (HEAP32[(0 + 68768 | 0) >> 2] | 0) + -1 | 0;
+    HEAP32[(0 + 68768 | 0) >> 2] = $1_1 ? $1_1 : -1;
+   }
+   return;
+  }
+  $42();
+  wasm2js_trap();
+ }
+ 
+ function $105($0_1, $1_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   var i64toi32_i32$0 = 0, i64toi32_i32$1 = 0, i64toi32_i32$4 = 0, $2_1 = 0, i64toi32_i32$3 = 0, $11_1 = 0, $6$hi = 0, $8$hi = 0, $16_1 = 0, i64toi32_i32$2 = 0;
-  label$1 : {
-   label$2 : {
+  block1 : {
+   block : {
     if ($0_1) {
-     break label$2
+     break block
     }
     $2_1 = 0;
-    break label$1;
+    break block1;
    }
    i64toi32_i32$0 = 0;
    $6$hi = i64toi32_i32$0;
@@ -7957,7 +8358,7 @@ function asmFunc(imports) {
    i64toi32_i32$0 = i64toi32_i32$HIGH_BITS;
    $2_1 = i64toi32_i32$1;
    if (($1_1 | $0_1 | 0) >>> 0 < 65536 >>> 0) {
-    break label$1
+    break block1
    }
    $16_1 = i64toi32_i32$1;
    i64toi32_i32$2 = i64toi32_i32$1;
@@ -7973,54 +8374,71 @@ function asmFunc(imports) {
    }
    $2_1 = ($11_1 | 0) != (0 | 0) ? -1 : $16_1;
   }
-  label$3 : {
-   $0_1 = $99($2_1 | 0) | 0;
+  block2 : {
+   $0_1 = $102($2_1 | 0) | 0;
    if (!$0_1) {
-    break label$3
+    break block2
    }
    if (!((HEAPU8[($0_1 + -4 | 0) >> 0] | 0) & 3 | 0)) {
-    break label$3
+    break block2
    }
-   $61($0_1 | 0, 0 | 0, $2_1 | 0) | 0;
+   $82($0_1 | 0, 0 | 0, $2_1 | 0) | 0;
   }
   return $0_1 | 0;
  }
  
- function $103() {
+ function $106() {
   return __wasm_memory_size() << 16 | 0 | 0;
  }
  
- function $104($0_1) {
+ function $107($0_1) {
   $0_1 = $0_1 | 0;
   var $1_1 = 0, $2_1 = 0;
-  $1_1 = HEAP32[(0 + 68500 | 0) >> 2] | 0;
+  $1_1 = HEAP32[(0 + 68508 | 0) >> 2] | 0;
   $2_1 = ($0_1 + 7 | 0) & -8 | 0;
   $0_1 = $1_1 + $2_1 | 0;
-  label$1 : {
-   label$2 : {
-    label$3 : {
+  block2 : {
+   block1 : {
+    block : {
      if (!$2_1) {
-      break label$3
+      break block
      }
      if ($0_1 >>> 0 <= $1_1 >>> 0) {
-      break label$2
+      break block1
      }
     }
-    if ($0_1 >>> 0 <= ($103() | 0) >>> 0) {
-     break label$1
+    if ($0_1 >>> 0 <= ($106() | 0) >>> 0) {
+     break block2
     }
-    if (fimport$4($0_1 | 0) | 0) {
-     break label$1
+    if (fimport$3($0_1 | 0) | 0) {
+     break block2
     }
    }
-   HEAP32[($42() | 0) >> 2] = 48;
+   HEAP32[($43() | 0) >> 2] = 48;
    return -1 | 0;
   }
-  HEAP32[(0 + 68500 | 0) >> 2] = $0_1;
+  HEAP32[(0 + 68508 | 0) >> 2] = $0_1;
   return $1_1 | 0;
  }
  
- function $105($0_1, $1_1, $1$hi, $2_1, $2$hi, $3_1) {
+ function $108() {
+  global$2 = 65536;
+  global$1 = (0 + 15 | 0) & -16 | 0;
+ }
+ 
+ function $109() {
+  return global$0 - global$1 | 0 | 0;
+ }
+ 
+ function $110() {
+  return global$2 | 0;
+ }
+ 
+ function $111() {
+  return global$1 | 0;
+ }
+ 
+ function $112($0_1, $1_1, $1$hi, $2_1, $2$hi, $3_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $1$hi = $1$hi | 0;
@@ -8028,10 +8446,10 @@ function asmFunc(imports) {
   $2$hi = $2$hi | 0;
   $3_1 = $3_1 | 0;
   var i64toi32_i32$1 = 0, i64toi32_i32$4 = 0, i64toi32_i32$2 = 0, i64toi32_i32$0 = 0, i64toi32_i32$3 = 0, $4$hi = 0, $18_1 = 0, $20_1 = 0, $21_1 = 0, $22_1 = 0, $11$hi = 0, $18$hi = 0, $19_1 = 0, $19$hi = 0, $4_1 = 0, $24$hi = 0;
-  label$1 : {
-   label$2 : {
+  block1 : {
+   block : {
     if (!($3_1 & 64 | 0)) {
-     break label$2
+     break block
     }
     i64toi32_i32$0 = $1$hi;
     i64toi32_i32$0 = 0;
@@ -8053,10 +8471,10 @@ function asmFunc(imports) {
     i64toi32_i32$1 = 0;
     $1_1 = 0;
     $1$hi = i64toi32_i32$1;
-    break label$1;
+    break block1;
    }
    if (!$3_1) {
-    break label$1
+    break block1
    }
    i64toi32_i32$1 = $1$hi;
    i64toi32_i32$1 = 0;
@@ -8125,7 +8543,7 @@ function asmFunc(imports) {
   HEAP32[(i64toi32_i32$0 + 12 | 0) >> 2] = i64toi32_i32$2;
  }
  
- function $106($0_1, $1_1, $1$hi, $2_1, $2$hi, $3_1) {
+ function $113($0_1, $1_1, $1$hi, $2_1, $2$hi, $3_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $1$hi = $1$hi | 0;
@@ -8133,10 +8551,10 @@ function asmFunc(imports) {
   $2$hi = $2$hi | 0;
   $3_1 = $3_1 | 0;
   var i64toi32_i32$0 = 0, i64toi32_i32$4 = 0, i64toi32_i32$2 = 0, i64toi32_i32$1 = 0, i64toi32_i32$3 = 0, $4$hi = 0, $18_1 = 0, $20_1 = 0, $21_1 = 0, $22_1 = 0, $11$hi = 0, $18$hi = 0, $19_1 = 0, $19$hi = 0, $4_1 = 0, $24$hi = 0;
-  label$1 : {
-   label$2 : {
+  block1 : {
+   block : {
     if (!($3_1 & 64 | 0)) {
-     break label$2
+     break block
     }
     i64toi32_i32$0 = $2$hi;
     i64toi32_i32$0 = 0;
@@ -8158,10 +8576,10 @@ function asmFunc(imports) {
     i64toi32_i32$1 = 0;
     $2_1 = 0;
     $2$hi = i64toi32_i32$1;
-    break label$1;
+    break block1;
    }
    if (!$3_1) {
-    break label$1
+    break block1
    }
    i64toi32_i32$1 = $2$hi;
    i64toi32_i32$1 = 0;
@@ -8230,12 +8648,12 @@ function asmFunc(imports) {
   HEAP32[(i64toi32_i32$0 + 12 | 0) >> 2] = i64toi32_i32$2;
  }
  
- function $107($0_1, $0$hi, $1_1, $1$hi) {
+ function $114($0_1, $0$hi, $1_1, $1$hi) {
   $0_1 = $0_1 | 0;
   $0$hi = $0$hi | 0;
   $1_1 = $1_1 | 0;
   $1$hi = $1$hi | 0;
-  var i64toi32_i32$3 = 0, i64toi32_i32$2 = 0, i64toi32_i32$0 = 0, i64toi32_i32$1 = 0, i64toi32_i32$5 = 0, i64toi32_i32$4 = 0, $7_1 = 0, $7$hi = 0, $3_1 = 0, $2_1 = 0, $8_1 = 0, $8$hi = 0, $6_1 = 0, $47_1 = 0, $48_1 = 0, $49_1 = 0, $50_1 = 0, $51_1 = 0, $4_1 = 0, $5_1 = 0, $52_1 = 0, $53_1 = 0, $54_1 = 0, $23_1 = 0, $23$hi = 0, $25$hi = 0, $39$hi = 0, $48$hi = 0, $58_1 = 0, $58$hi = 0, $60$hi = 0, $79_1 = 0, $79$hi = 0, $92_1 = 0, $92$hi = 0, $96$hi = 0, $99_1 = 0, $99$hi = 0, $104_1 = 0, $104$hi = 0, $108_1 = 0, $108$hi = 0, $111_1 = 0, $112$hi = 0, $121$hi = 0, $125 = 0, $125$hi = 0, $136$hi = 0, $138 = 0, $138$hi = 0, $139$hi = 0;
+  var i64toi32_i32$3 = 0, i64toi32_i32$2 = 0, i64toi32_i32$0 = 0, i64toi32_i32$1 = 0, i64toi32_i32$5 = 0, i64toi32_i32$4 = 0, $7_1 = 0, $7$hi = 0, $3_1 = 0, $2_1 = 0, $8_1 = 0, $8$hi = 0, $6_1 = 0, $47_1 = 0, $48_1 = 0, $49_1 = 0, $50_1 = 0, $51_1 = 0, $4_1 = 0, $5_1 = 0, $52_1 = 0, $53_1 = 0, $54_1 = 0, $23_1 = 0, $23$hi = 0, $25$hi = 0, $39$hi = 0, $48$hi = 0, $58_1 = 0, $58$hi = 0, $60$hi = 0, $79_1 = 0, $79$hi = 0, $92_1 = 0, $92$hi = 0, $95$hi = 0, $98_1 = 0, $98$hi = 0, $103_1 = 0, $103$hi = 0, $105_1 = 0, $105$hi = 0, $108_1 = 0, $109$hi = 0, $118$hi = 0, $122_1 = 0, $122$hi = 0, $133$hi = 0, $135 = 0, $135$hi = 0, $136$hi = 0;
   $2_1 = global$0 - 32 | 0;
   global$0 = $2_1;
   i64toi32_i32$0 = $1$hi;
@@ -8245,8 +8663,8 @@ function asmFunc(imports) {
   i64toi32_i32$1 = i64toi32_i32$0 & i64toi32_i32$1 | 0;
   $7_1 = i64toi32_i32$2 & i64toi32_i32$3 | 0;
   $7$hi = i64toi32_i32$1;
-  label$1 : {
-   label$2 : {
+  block3 : {
+   block : {
     i64toi32_i32$1 = i64toi32_i32$0;
     i64toi32_i32$1 = i64toi32_i32$0;
     i64toi32_i32$0 = i64toi32_i32$2;
@@ -8268,7 +8686,7 @@ function asmFunc(imports) {
     $8$hi = i64toi32_i32$0;
     $3_1 = $8_1;
     if (($3_1 + -15361 | 0) >>> 0 > 2045 >>> 0) {
-     break label$2
+     break block
     }
     i64toi32_i32$0 = $0$hi;
     i64toi32_i32$2 = $0_1;
@@ -8307,8 +8725,8 @@ function asmFunc(imports) {
     i64toi32_i32$0 = 0;
     $8_1 = $3_1 + -15360 | 0;
     $8$hi = i64toi32_i32$0;
-    label$3 : {
-     label$4 : {
+    block2 : {
+     block1 : {
       i64toi32_i32$0 = $0$hi;
       i64toi32_i32$2 = $0_1;
       i64toi32_i32$1 = 268435455;
@@ -8320,7 +8738,7 @@ function asmFunc(imports) {
       i64toi32_i32$2 = 134217728;
       i64toi32_i32$3 = 1;
       if (i64toi32_i32$1 >>> 0 < i64toi32_i32$2 >>> 0 | ((i64toi32_i32$1 | 0) == (i64toi32_i32$2 | 0) & i64toi32_i32$0 >>> 0 < i64toi32_i32$3 >>> 0 | 0) | 0) {
-       break label$4
+       break block1
       }
       i64toi32_i32$0 = $7$hi;
       i64toi32_i32$3 = $7_1;
@@ -8333,14 +8751,14 @@ function asmFunc(imports) {
       }
       $7_1 = i64toi32_i32$4;
       $7$hi = i64toi32_i32$5;
-      break label$3;
+      break block2;
      }
      i64toi32_i32$5 = $0$hi;
      i64toi32_i32$0 = $0_1;
      i64toi32_i32$3 = 134217728;
      i64toi32_i32$2 = 0;
      if ((i64toi32_i32$0 | 0) != (i64toi32_i32$2 | 0) | (i64toi32_i32$5 | 0) != (i64toi32_i32$3 | 0) | 0) {
-      break label$3
+      break block2
      }
      i64toi32_i32$0 = $7$hi;
      i64toi32_i32$2 = $7_1;
@@ -8385,9 +8803,9 @@ function asmFunc(imports) {
     }
     $7_1 = i64toi32_i32$4;
     $7$hi = i64toi32_i32$1;
-    break label$1;
+    break block3;
    }
-   label$5 : {
+   block4 : {
     i64toi32_i32$1 = $0$hi;
     i64toi32_i32$1 = $7$hi;
     i64toi32_i32$1 = $0$hi;
@@ -8396,14 +8814,14 @@ function asmFunc(imports) {
     i64toi32_i32$5 = $7_1;
     i64toi32_i32$2 = i64toi32_i32$1 | i64toi32_i32$2 | 0;
     if (!(i64toi32_i32$3 | i64toi32_i32$5 | 0 | i64toi32_i32$2 | 0)) {
-     break label$5
+     break block4
     }
     i64toi32_i32$2 = $8$hi;
     i64toi32_i32$1 = $8_1;
     i64toi32_i32$3 = 0;
     i64toi32_i32$5 = 32767;
     if ((i64toi32_i32$1 | 0) != (i64toi32_i32$5 | 0) | (i64toi32_i32$2 | 0) != (i64toi32_i32$3 | 0) | 0) {
-     break label$5
+     break block4
     }
     i64toi32_i32$1 = $0$hi;
     i64toi32_i32$5 = $0_1;
@@ -8446,11 +8864,11 @@ function asmFunc(imports) {
     i64toi32_i32$2 = 0;
     $7_1 = 2047;
     $7$hi = i64toi32_i32$2;
-    break label$1;
+    break block3;
    }
-   label$6 : {
+   block5 : {
     if ($3_1 >>> 0 <= 17406 >>> 0) {
-     break label$6
+     break block5
     }
     i64toi32_i32$2 = 0;
     $7_1 = 2047;
@@ -8458,15 +8876,15 @@ function asmFunc(imports) {
     i64toi32_i32$2 = 0;
     $0_1 = 0;
     $0$hi = i64toi32_i32$2;
-    break label$1;
+    break block3;
    }
-   label$7 : {
+   block6 : {
     i64toi32_i32$2 = $8$hi;
     $4_1 = !($8_1 | i64toi32_i32$2 | 0);
     $5_1 = $4_1 ? 15360 : 15361;
     $6_1 = $5_1 - $3_1 | 0;
     if (($6_1 | 0) <= (112 | 0)) {
-     break label$7
+     break block6
     }
     i64toi32_i32$2 = 0;
     $0_1 = 0;
@@ -8474,7 +8892,7 @@ function asmFunc(imports) {
     i64toi32_i32$2 = 0;
     $7_1 = 0;
     $7$hi = i64toi32_i32$2;
-    break label$1;
+    break block3;
    }
    i64toi32_i32$2 = $0$hi;
    i64toi32_i32$2 = $7$hi;
@@ -8493,12 +8911,12 @@ function asmFunc(imports) {
    $7$hi = i64toi32_i32$2;
    i64toi32_i32$2 = $0$hi;
    i64toi32_i32$3 = $7$hi;
-   $105($2_1 + 16 | 0 | 0, $0_1 | 0, i64toi32_i32$2 | 0, $7_1 | 0, i64toi32_i32$3 | 0, 128 - $6_1 | 0 | 0);
+   $112($2_1 + 16 | 0 | 0, $0_1 | 0, i64toi32_i32$2 | 0, $7_1 | 0, i64toi32_i32$3 | 0, 128 - $6_1 | 0 | 0);
    i64toi32_i32$3 = i64toi32_i32$2;
    i64toi32_i32$3 = $7$hi;
    i64toi32_i32$3 = i64toi32_i32$2;
    i64toi32_i32$2 = $7$hi;
-   $106($2_1 | 0, $0_1 | 0, i64toi32_i32$3 | 0, $7_1 | 0, i64toi32_i32$2 | 0, $6_1 | 0);
+   $113($2_1 | 0, $0_1 | 0, i64toi32_i32$3 | 0, $7_1 | 0, i64toi32_i32$2 | 0, $6_1 | 0);
    i64toi32_i32$0 = $2_1;
    i64toi32_i32$2 = HEAP32[i64toi32_i32$0 >> 2] | 0;
    i64toi32_i32$3 = HEAP32[(i64toi32_i32$0 + 4 | 0) >> 2] | 0;
@@ -8517,9 +8935,9 @@ function asmFunc(imports) {
    }
    $92_1 = $52_1;
    $92$hi = i64toi32_i32$2;
-   i64toi32_i32$3 = $2_1 + 8 | 0;
-   i64toi32_i32$2 = HEAP32[i64toi32_i32$3 >> 2] | 0;
-   i64toi32_i32$0 = HEAP32[(i64toi32_i32$3 + 4 | 0) >> 2] | 0;
+   i64toi32_i32$3 = $2_1;
+   i64toi32_i32$2 = HEAP32[(i64toi32_i32$3 + 8 | 0) >> 2] | 0;
+   i64toi32_i32$0 = HEAP32[(i64toi32_i32$3 + 12 | 0) >> 2] | 0;
    i64toi32_i32$3 = i64toi32_i32$2;
    i64toi32_i32$2 = 0;
    i64toi32_i32$5 = 4;
@@ -8531,48 +8949,47 @@ function asmFunc(imports) {
     i64toi32_i32$2 = ((1 << i64toi32_i32$1 | 0) - 1 | 0) & (i64toi32_i32$3 >>> (32 - i64toi32_i32$1 | 0) | 0) | 0 | (i64toi32_i32$0 << i64toi32_i32$1 | 0) | 0;
     $53_1 = i64toi32_i32$3 << i64toi32_i32$1 | 0;
    }
-   $96$hi = i64toi32_i32$2;
+   $95$hi = i64toi32_i32$2;
    i64toi32_i32$2 = $92$hi;
    i64toi32_i32$0 = $92_1;
-   i64toi32_i32$3 = $96$hi;
+   i64toi32_i32$3 = $95$hi;
    i64toi32_i32$5 = $53_1;
    i64toi32_i32$3 = i64toi32_i32$2 | i64toi32_i32$3 | 0;
    $0_1 = i64toi32_i32$0 | i64toi32_i32$5 | 0;
    $0$hi = i64toi32_i32$3;
-   label$8 : {
-    label$9 : {
+   block8 : {
+    block7 : {
      i64toi32_i32$3 = $7$hi;
      i64toi32_i32$2 = $7_1;
      i64toi32_i32$0 = 268435455;
      i64toi32_i32$5 = -1;
      i64toi32_i32$0 = i64toi32_i32$3 & i64toi32_i32$0 | 0;
-     $99_1 = i64toi32_i32$2 & i64toi32_i32$5 | 0;
-     $99$hi = i64toi32_i32$0;
+     $98_1 = i64toi32_i32$2 & i64toi32_i32$5 | 0;
+     $98$hi = i64toi32_i32$0;
      i64toi32_i32$3 = $2_1;
      i64toi32_i32$0 = HEAP32[(i64toi32_i32$3 + 16 | 0) >> 2] | 0;
      i64toi32_i32$2 = HEAP32[(i64toi32_i32$3 + 20 | 0) >> 2] | 0;
-     $104_1 = i64toi32_i32$0;
-     $104$hi = i64toi32_i32$2;
-     i64toi32_i32$3 = (i64toi32_i32$3 + 16 | 0) + 8 | 0;
-     i64toi32_i32$2 = HEAP32[i64toi32_i32$3 >> 2] | 0;
-     i64toi32_i32$0 = HEAP32[(i64toi32_i32$3 + 4 | 0) >> 2] | 0;
-     $108_1 = i64toi32_i32$2;
-     $108$hi = i64toi32_i32$0;
-     i64toi32_i32$0 = $104$hi;
-     i64toi32_i32$3 = $104_1;
-     i64toi32_i32$2 = $108$hi;
-     i64toi32_i32$5 = $108_1;
+     $103_1 = i64toi32_i32$0;
+     $103$hi = i64toi32_i32$2;
+     i64toi32_i32$2 = HEAP32[(i64toi32_i32$3 + 24 | 0) >> 2] | 0;
+     i64toi32_i32$0 = HEAP32[(i64toi32_i32$3 + 28 | 0) >> 2] | 0;
+     $105_1 = i64toi32_i32$2;
+     $105$hi = i64toi32_i32$0;
+     i64toi32_i32$0 = $103$hi;
+     i64toi32_i32$3 = $103_1;
+     i64toi32_i32$2 = $105$hi;
+     i64toi32_i32$5 = $105_1;
      i64toi32_i32$2 = i64toi32_i32$0 | i64toi32_i32$2 | 0;
      i64toi32_i32$0 = i64toi32_i32$3 | i64toi32_i32$5 | 0;
      i64toi32_i32$3 = 0;
      i64toi32_i32$5 = 0;
-     $111_1 = ($5_1 | 0) != ($3_1 | 0) & ((i64toi32_i32$0 | 0) != (i64toi32_i32$5 | 0) | (i64toi32_i32$2 | 0) != (i64toi32_i32$3 | 0) | 0) | 0;
+     $108_1 = ($5_1 | 0) != ($3_1 | 0) & ((i64toi32_i32$0 | 0) != (i64toi32_i32$5 | 0) | (i64toi32_i32$2 | 0) != (i64toi32_i32$3 | 0) | 0) | 0;
      i64toi32_i32$0 = 0;
-     $112$hi = i64toi32_i32$0;
-     i64toi32_i32$0 = $99$hi;
-     i64toi32_i32$5 = $99_1;
-     i64toi32_i32$2 = $112$hi;
-     i64toi32_i32$3 = $111_1;
+     $109$hi = i64toi32_i32$0;
+     i64toi32_i32$0 = $98$hi;
+     i64toi32_i32$5 = $98_1;
+     i64toi32_i32$2 = $109$hi;
+     i64toi32_i32$3 = $108_1;
      i64toi32_i32$2 = i64toi32_i32$0 | i64toi32_i32$2 | 0;
      $7_1 = i64toi32_i32$5 | i64toi32_i32$3 | 0;
      $7$hi = i64toi32_i32$2;
@@ -8580,7 +8997,7 @@ function asmFunc(imports) {
      i64toi32_i32$5 = 134217728;
      i64toi32_i32$3 = 1;
      if (i64toi32_i32$2 >>> 0 < i64toi32_i32$5 >>> 0 | ((i64toi32_i32$2 | 0) == (i64toi32_i32$5 | 0) & i64toi32_i32$0 >>> 0 < i64toi32_i32$3 >>> 0 | 0) | 0) {
-      break label$9
+      break block7
      }
      i64toi32_i32$0 = $0$hi;
      i64toi32_i32$3 = $0_1;
@@ -8593,23 +9010,23 @@ function asmFunc(imports) {
      }
      $0_1 = i64toi32_i32$1;
      $0$hi = i64toi32_i32$4;
-     break label$8;
+     break block8;
     }
     i64toi32_i32$4 = $7$hi;
     i64toi32_i32$0 = $7_1;
     i64toi32_i32$3 = 134217728;
     i64toi32_i32$5 = 0;
     if ((i64toi32_i32$0 | 0) != (i64toi32_i32$5 | 0) | (i64toi32_i32$4 | 0) != (i64toi32_i32$3 | 0) | 0) {
-     break label$8
+     break block8
     }
     i64toi32_i32$0 = $0$hi;
     i64toi32_i32$5 = $0_1;
     i64toi32_i32$4 = 0;
     i64toi32_i32$3 = 1;
     i64toi32_i32$4 = i64toi32_i32$0 & i64toi32_i32$4 | 0;
-    $121$hi = i64toi32_i32$4;
+    $118$hi = i64toi32_i32$4;
     i64toi32_i32$4 = i64toi32_i32$0;
-    i64toi32_i32$4 = $121$hi;
+    i64toi32_i32$4 = $118$hi;
     i64toi32_i32$0 = i64toi32_i32$5 & i64toi32_i32$3 | 0;
     i64toi32_i32$5 = $0$hi;
     i64toi32_i32$3 = $0_1;
@@ -8626,16 +9043,16 @@ function asmFunc(imports) {
    i64toi32_i32$0 = 1048576;
    i64toi32_i32$3 = 0;
    i64toi32_i32$0 = i64toi32_i32$1 ^ i64toi32_i32$0 | 0;
-   $125 = i64toi32_i32$4 ^ i64toi32_i32$3 | 0;
-   $125$hi = i64toi32_i32$0;
+   $122_1 = i64toi32_i32$4 ^ i64toi32_i32$3 | 0;
+   $122$hi = i64toi32_i32$0;
    i64toi32_i32$0 = i64toi32_i32$1;
    i64toi32_i32$1 = i64toi32_i32$4;
    i64toi32_i32$4 = 1048575;
    i64toi32_i32$3 = -1;
    $3_1 = i64toi32_i32$0 >>> 0 > i64toi32_i32$4 >>> 0 | ((i64toi32_i32$0 | 0) == (i64toi32_i32$4 | 0) & i64toi32_i32$1 >>> 0 > i64toi32_i32$3 >>> 0 | 0) | 0;
    i64toi32_i32$5 = $3_1;
-   i64toi32_i32$1 = $125$hi;
-   i64toi32_i32$4 = i64toi32_i32$5 ? $125 : $0_1;
+   i64toi32_i32$1 = $122$hi;
+   i64toi32_i32$4 = i64toi32_i32$5 ? $122_1 : $0_1;
    i64toi32_i32$3 = i64toi32_i32$5 ? i64toi32_i32$1 : i64toi32_i32$0;
    $0_1 = i64toi32_i32$4;
    $0$hi = i64toi32_i32$3;
@@ -8656,22 +9073,22 @@ function asmFunc(imports) {
    i64toi32_i32$4 = ((1 << i64toi32_i32$0 | 0) - 1 | 0) & (i64toi32_i32$5 >>> (32 - i64toi32_i32$0 | 0) | 0) | 0 | (i64toi32_i32$3 << i64toi32_i32$0 | 0) | 0;
    $54_1 = i64toi32_i32$5 << i64toi32_i32$0 | 0;
   }
-  $136$hi = i64toi32_i32$4;
+  $133$hi = i64toi32_i32$4;
   i64toi32_i32$4 = $1$hi;
   i64toi32_i32$3 = $1_1;
   i64toi32_i32$5 = -2147483648;
   i64toi32_i32$1 = 0;
   i64toi32_i32$5 = i64toi32_i32$4 & i64toi32_i32$5 | 0;
-  $138 = i64toi32_i32$3 & i64toi32_i32$1 | 0;
-  $138$hi = i64toi32_i32$5;
-  i64toi32_i32$5 = $136$hi;
+  $135 = i64toi32_i32$3 & i64toi32_i32$1 | 0;
+  $135$hi = i64toi32_i32$5;
+  i64toi32_i32$5 = $133$hi;
   i64toi32_i32$4 = $54_1;
-  i64toi32_i32$3 = $138$hi;
-  i64toi32_i32$1 = $138;
+  i64toi32_i32$3 = $135$hi;
+  i64toi32_i32$1 = $135;
   i64toi32_i32$3 = i64toi32_i32$5 | i64toi32_i32$3 | 0;
-  $139$hi = i64toi32_i32$3;
+  $136$hi = i64toi32_i32$3;
   i64toi32_i32$3 = $0$hi;
-  i64toi32_i32$3 = $139$hi;
+  i64toi32_i32$3 = $136$hi;
   i64toi32_i32$5 = i64toi32_i32$4 | i64toi32_i32$1 | 0;
   i64toi32_i32$4 = $0$hi;
   i64toi32_i32$1 = $0_1;
@@ -8681,117 +9098,100 @@ function asmFunc(imports) {
   return +(+wasm2js_scratch_load_f64());
  }
  
- function $108($0_1) {
+ function $115($0_1) {
   $0_1 = $0_1 | 0;
-  global$1 = $0_1;
+  global$3 = $0_1;
  }
  
- function $110() {
-  global$3 = 65536;
-  global$2 = (0 + 15 | 0) & -16 | 0;
- }
- 
- function $111() {
-  return global$0 - global$2 | 0 | 0;
- }
- 
- function $112() {
-  return global$3 | 0;
- }
- 
- function $113() {
-  return global$2 | 0;
- }
- 
- function $114($0_1) {
+ function $117($0_1) {
   $0_1 = $0_1 | 0;
   var $1_1 = 0, i64toi32_i32$1 = 0, $2_1 = 0, i64toi32_i32$0 = 0, $3_1 = 0;
-  label$1 : {
+  block : {
    if ($0_1) {
-    break label$1
+    break block
    }
    $1_1 = 0;
-   label$2 : {
-    if (!(HEAP32[(0 + 68528 | 0) >> 2] | 0)) {
-     break label$2
+   block1 : {
+    if (!(HEAP32[(0 + 68536 | 0) >> 2] | 0)) {
+     break block1
     }
-    $1_1 = $114(HEAP32[(0 + 68528 | 0) >> 2] | 0 | 0) | 0;
+    $1_1 = $117(HEAP32[(0 + 68536 | 0) >> 2] | 0 | 0) | 0;
    }
-   label$3 : {
-    if (!(HEAP32[(0 + 68496 | 0) >> 2] | 0)) {
-     break label$3
+   block2 : {
+    if (!(HEAP32[(0 + 68504 | 0) >> 2] | 0)) {
+     break block2
     }
-    $1_1 = $114(HEAP32[(0 + 68496 | 0) >> 2] | 0 | 0) | 0 | $1_1 | 0;
+    $1_1 = $117(HEAP32[(0 + 68504 | 0) >> 2] | 0 | 0) | 0 | $1_1 | 0;
    }
-   label$4 : {
-    $0_1 = HEAP32[($48() | 0) >> 2] | 0;
+   block3 : {
+    $0_1 = HEAP32[($49() | 0) >> 2] | 0;
     if (!$0_1) {
-     break label$4
+     break block3
     }
-    label$5 : while (1) {
-     label$6 : {
-      label$7 : {
+    label : while (1) {
+     block5 : {
+      block4 : {
        if ((HEAP32[($0_1 + 76 | 0) >> 2] | 0 | 0) >= (0 | 0)) {
-        break label$7
+        break block4
        }
        $2_1 = 1;
-       break label$6;
+       break block5;
       }
-      $2_1 = !($43($0_1 | 0) | 0);
+      $2_1 = !($44($0_1 | 0) | 0);
      }
-     label$8 : {
+     block6 : {
       if ((HEAP32[($0_1 + 20 | 0) >> 2] | 0 | 0) == (HEAP32[($0_1 + 28 | 0) >> 2] | 0 | 0)) {
-       break label$8
+       break block6
       }
-      $1_1 = $114($0_1 | 0) | 0 | $1_1 | 0;
+      $1_1 = $117($0_1 | 0) | 0 | $1_1 | 0;
      }
-     label$9 : {
+     block7 : {
       if ($2_1) {
-       break label$9
+       break block7
       }
-      $44($0_1 | 0);
+      $45($0_1 | 0);
      }
      $0_1 = HEAP32[($0_1 + 56 | 0) >> 2] | 0;
      if ($0_1) {
-      continue label$5
+      continue label
      }
-     break label$5;
+     break label;
     };
    }
-   $49();
+   $50();
    return $1_1 | 0;
   }
-  label$10 : {
-   label$11 : {
+  block9 : {
+   block8 : {
     if ((HEAP32[($0_1 + 76 | 0) >> 2] | 0 | 0) >= (0 | 0)) {
-     break label$11
+     break block8
     }
     $2_1 = 1;
-    break label$10;
+    break block9;
    }
-   $2_1 = !($43($0_1 | 0) | 0);
+   $2_1 = !($44($0_1 | 0) | 0);
   }
-  label$12 : {
-   label$13 : {
-    label$14 : {
+  block12 : {
+   block11 : {
+    block10 : {
      if ((HEAP32[($0_1 + 20 | 0) >> 2] | 0 | 0) == (HEAP32[($0_1 + 28 | 0) >> 2] | 0 | 0)) {
-      break label$14
+      break block10
      }
      FUNCTION_TABLE[HEAP32[($0_1 + 36 | 0) >> 2] | 0 | 0]($0_1, 0, 0) | 0;
      if (HEAP32[($0_1 + 20 | 0) >> 2] | 0) {
-      break label$14
+      break block10
      }
      $1_1 = -1;
      if (!$2_1) {
-      break label$13
+      break block11
      }
-     break label$12;
+     break block12;
     }
-    label$15 : {
+    block13 : {
      $1_1 = HEAP32[($0_1 + 4 | 0) >> 2] | 0;
      $3_1 = HEAP32[($0_1 + 8 | 0) >> 2] | 0;
      if (($1_1 | 0) == ($3_1 | 0)) {
-      break label$15
+      break block13
      }
      i64toi32_i32$1 = $1_1 - $3_1 | 0;
      i64toi32_i32$0 = i64toi32_i32$1 >> 31 | 0;
@@ -8809,20 +9209,20 @@ function asmFunc(imports) {
     HEAP32[($0_1 + 4 | 0) >> 2] = 0;
     HEAP32[($0_1 + 8 | 0) >> 2] = i64toi32_i32$1;
     if ($2_1) {
-     break label$12
+     break block12
     }
    }
-   $44($0_1 | 0);
+   $45($0_1 | 0);
   }
   return $1_1 | 0;
  }
  
- function $115($0_1) {
+ function $118($0_1) {
   $0_1 = $0_1 | 0;
   global$0 = $0_1;
  }
  
- function $116($0_1) {
+ function $119($0_1) {
   $0_1 = $0_1 | 0;
   var $1_1 = 0;
   $1_1 = (global$0 - $0_1 | 0) & -16 | 0;
@@ -8830,11 +9230,11 @@ function asmFunc(imports) {
   return $1_1 | 0;
  }
  
- function $117() {
+ function $120() {
   return global$0 | 0;
  }
  
- function $118($0_1, $1_1, $2_1, $2$hi, $3_1) {
+ function $121($0_1, $1_1, $2_1, $2$hi, $3_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
@@ -8848,7 +9248,7 @@ function asmFunc(imports) {
   return i64toi32_i32$0 | 0;
  }
  
- function $119($0_1, $1_1) {
+ function $122($0_1, $1_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   var i64toi32_i32$2 = 0, i64toi32_i32$0 = 0, i64toi32_i32$1 = 0, i64toi32_i32$4 = 0, i64toi32_i32$3 = 0, $10_1 = 0, $3_1 = 0, $3$hi = 0, $6$hi = 0;
@@ -8876,7 +9276,7 @@ function asmFunc(imports) {
   return $29(i64toi32_i32$0 | i64toi32_i32$3 | 0 | 0, i64toi32_i32$2 | 0) | 0 | 0;
  }
  
- function $120($0_1, $1_1) {
+ function $123($0_1, $1_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   var i64toi32_i32$2 = 0, i64toi32_i32$0 = 0, i64toi32_i32$1 = 0, i64toi32_i32$4 = 0, i64toi32_i32$3 = 0, $10_1 = 0, $3_1 = 0, $3$hi = 0, $6$hi = 0;
@@ -8904,7 +9304,7 @@ function asmFunc(imports) {
   return $30(i64toi32_i32$0 | i64toi32_i32$3 | 0 | 0, i64toi32_i32$2 | 0) | 0 | 0;
  }
  
- function $121($0_1, $1_1, $2_1, $3_1, $4_1) {
+ function $124($0_1, $1_1, $2_1, $3_1, $4_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $2_1 = $2_1 | 0;
@@ -8934,7 +9334,7 @@ function asmFunc(imports) {
   i64toi32_i32$2 = $12$hi;
   i64toi32_i32$3 = $17_1;
   i64toi32_i32$2 = i64toi32_i32$1 | i64toi32_i32$2 | 0;
-  i64toi32_i32$2 = $118($6_1 | 0, $7_1 | 0, i64toi32_i32$0 | i64toi32_i32$3 | 0 | 0, i64toi32_i32$2 | 0, $4_1 | 0) | 0;
+  i64toi32_i32$2 = $121($6_1 | 0, $7_1 | 0, i64toi32_i32$0 | i64toi32_i32$3 | 0 | 0, i64toi32_i32$2 | 0, $4_1 | 0) | 0;
   i64toi32_i32$0 = i64toi32_i32$HIGH_BITS;
   $5_1 = i64toi32_i32$2;
   $5$hi = i64toi32_i32$0;
@@ -8949,12 +9349,12 @@ function asmFunc(imports) {
    i64toi32_i32$2 = i64toi32_i32$0 >>> i64toi32_i32$4 | 0;
    $18_1 = (((1 << i64toi32_i32$4 | 0) - 1 | 0) & i64toi32_i32$0 | 0) << (32 - i64toi32_i32$4 | 0) | 0 | (i64toi32_i32$1 >>> i64toi32_i32$4 | 0) | 0;
   }
-  $108($18_1 | 0);
+  $115($18_1 | 0);
   i64toi32_i32$2 = $5$hi;
   return $5_1 | 0;
  }
  
- function $122($0_1, $1_1, $1$hi, $2_1, $3_1) {
+ function $125($0_1, $1_1, $1$hi, $2_1, $3_1) {
   $0_1 = $0_1 | 0;
   $1_1 = $1_1 | 0;
   $1$hi = $1$hi | 0;
@@ -8975,7 +9375,7 @@ function asmFunc(imports) {
    i64toi32_i32$1 = i64toi32_i32$0 >>> i64toi32_i32$4 | 0;
    $12_1 = (((1 << i64toi32_i32$4 | 0) - 1 | 0) & i64toi32_i32$0 | 0) << (32 - i64toi32_i32$4 | 0) | 0 | (i64toi32_i32$2 >>> i64toi32_i32$4 | 0) | 0;
   }
-  return fimport$5($4_1 | 0, $6_1 | 0, $12_1 | 0, $2_1 | 0, $3_1 | 0) | 0 | 0;
+  return fimport$4($4_1 | 0, $6_1 | 0, $12_1 | 0, $2_1 | 0, $3_1 | 0) | 0 | 0;
  }
  
  function _ZN17compiler_builtins3int3mul3Mul3mul17h070e9a1c69faec5bE(var$0, var$0$hi, var$1, var$1$hi) {
@@ -9506,7 +9906,7 @@ function asmFunc(imports) {
 ;
  bufferView = HEAPU8;
  initActiveSegments(imports);
- var FUNCTION_TABLE = Table([null, $69, $70, $72, $90, $91, $94]);
+ var FUNCTION_TABLE = Table([null, $71, $72, $74, $93, $94, $97]);
  function __wasm_memory_size() {
   return buffer.byteLength / 65536 | 0;
  }
@@ -9525,7 +9925,7 @@ function asmFunc(imports) {
   }), 
   "__wasm_call_ctors": $0, 
   "__SUB_INTEGER_OR_NEGATIVE__": $1, 
-  "strlen_runtime": $39, 
+  "strlen_runtime": $41, 
   "__START_NUMBER__": $16, 
   "__END_NUMBER__": $17, 
   "__IS_CURRENT_CHARSET_ZERO__": $15, 
@@ -9558,22 +9958,23 @@ function asmFunc(imports) {
   "uitoa": $26, 
   "ltoa": $27, 
   "ultoa": $28, 
-  "lltoa": $119, 
-  "ulltoa": $120, 
+  "lltoa": $122, 
+  "ulltoa": $123, 
   "__SET_SIGN_POSITIVE__": $35, 
   "__IS_SIGN_POSITIVE__": $37, 
   "__IS_SIGN_NULL__": $38, 
-  "fflush": $114, 
-  "strerror": $74, 
-  "malloc": $99, 
-  "emscripten_stack_init": $110, 
-  "emscripten_stack_get_free": $111, 
-  "emscripten_stack_get_base": $112, 
-  "emscripten_stack_get_end": $113, 
-  "_emscripten_stack_restore": $115, 
-  "_emscripten_stack_alloc": $116, 
-  "emscripten_stack_get_current": $117, 
-  "dynCall_jiji": $121
+  "__INDEX_OF_SIGN_NEGATIVE__": $39, 
+  "__INDEX_OF_SIGN_POSITIVE__": $40, 
+  "fflush": $117, 
+  "strerror": $76, 
+  "emscripten_stack_get_end": $111, 
+  "emscripten_stack_get_base": $110, 
+  "emscripten_stack_init": $108, 
+  "emscripten_stack_get_free": $109, 
+  "_emscripten_stack_restore": $118, 
+  "_emscripten_stack_alloc": $119, 
+  "emscripten_stack_get_current": $120, 
+  "dynCall_jiji": $124
  };
 }
 
@@ -9601,6 +10002,7 @@ function asmFunc(imports) {
   isWasm2js: true,
 };
 // end include: wasm2js.js
+
 if (WebAssembly.isWasm2js) {
   // We don't need to actually download a wasm binary, mark it as present but
   // empty.
@@ -9612,8 +10014,6 @@ if (typeof WebAssembly != 'object') {
 }
 
 // Wasm globals
-
-var wasmMemory;
 
 //========================================
 // Runtime essentials
@@ -9641,54 +10041,21 @@ function assert(condition, text) {
 
 // We used to include malloc/free by default in the past. Show a helpful error in
 // builds with assertions.
+function _malloc() {
+  abort('malloc() called but not included in the build - add `_malloc` to EXPORTED_FUNCTIONS');
+}
 function _free() {
   // Show a helpful error since we used to include free by default in the past.
   abort('free() called but not included in the build - add `_free` to EXPORTED_FUNCTIONS');
 }
 
-// Memory management
+/**
+ * Indicates whether filename is delivered via file protocol (as opposed to http/https)
+ * @noinline
+ */
+var isFileURI = (filename) => filename.startsWith('file://');
 
-var HEAP,
-/** @type {!Int8Array} */
-  HEAP8,
-/** @type {!Uint8Array} */
-  HEAPU8,
-/** @type {!Int16Array} */
-  HEAP16,
-/** @type {!Uint16Array} */
-  HEAPU16,
-/** @type {!Int32Array} */
-  HEAP32,
-/** @type {!Uint32Array} */
-  HEAPU32,
-/** @type {!Float32Array} */
-  HEAPF32,
-/** @type {!Float64Array} */
-  HEAPF64;
-
-// include: runtime_shared.js
-function updateMemoryViews() {
-  var b = wasmMemory.buffer;
-  Module['HEAP8'] = HEAP8 = new Int8Array(b);
-  Module['HEAP16'] = HEAP16 = new Int16Array(b);
-  Module['HEAPU8'] = HEAPU8 = new Uint8Array(b);
-  Module['HEAPU16'] = HEAPU16 = new Uint16Array(b);
-  Module['HEAP32'] = HEAP32 = new Int32Array(b);
-  Module['HEAPU32'] = HEAPU32 = new Uint32Array(b);
-  Module['HEAPF32'] = HEAPF32 = new Float32Array(b);
-  Module['HEAPF64'] = HEAPF64 = new Float64Array(b);
-}
-
-// end include: runtime_shared.js
-assert(!Module['STACK_SIZE'], 'STACK_SIZE can no longer be set at runtime.  Use -sSTACK_SIZE at link time')
-
-assert(typeof Int32Array != 'undefined' && typeof Float64Array !== 'undefined' && Int32Array.prototype.subarray != undefined && Int32Array.prototype.set != undefined,
-       'JS engine does not provide full typed array support');
-
-// If memory is defined in wasm, the user can't provide it, or set INITIAL_MEMORY
-assert(!Module['wasmMemory'], 'Use of `wasmMemory` detected.  Use -sIMPORTED_MEMORY to define wasmMemory externally');
-assert(!Module['INITIAL_MEMORY'], 'Detected runtime INITIAL_MEMORY setting.  Use -sIMPORTED_MEMORY to define wasmMemory dynamically');
-
+// include: runtime_common.js
 // include: runtime_stack_check.js
 // Initializes the stack cookie. Called at the startup of main and at the startup of each thread in pthreads mode.
 function writeStackCookie() {
@@ -9727,12 +10094,172 @@ function checkStackCookie() {
   }
 }
 // end include: runtime_stack_check.js
-var __ATPRERUN__  = []; // functions called before the runtime is initialized
-var __ATINIT__    = []; // functions called during startup
-var __ATEXIT__    = []; // functions called during shutdown
-var __ATPOSTRUN__ = []; // functions called after the main() is called
+// include: runtime_exceptions.js
+// end include: runtime_exceptions.js
+// include: runtime_debug.js
+var runtimeDebug = true; // Switch to false at runtime to disable logging at the right times
+
+// Used by XXXXX_DEBUG settings to output debug messages.
+function dbg(...args) {
+  if (!runtimeDebug && typeof runtimeDebug != 'undefined') return;
+  // TODO(sbc): Make this configurable somehow.  Its not always convenient for
+  // logging to show up as warnings.
+  console.warn(...args);
+}
+
+// Endianness check
+(() => {
+  var h16 = new Int16Array(1);
+  var h8 = new Int8Array(h16.buffer);
+  h16[0] = 0x6373;
+  if (h8[0] !== 0x73 || h8[1] !== 0x63) throw 'Runtime error: expected the system to be little-endian! (Run with -sSUPPORT_BIG_ENDIAN to bypass)';
+})();
+
+function consumedModuleProp(prop) {
+  if (!Object.getOwnPropertyDescriptor(Module, prop)) {
+    Object.defineProperty(Module, prop, {
+      configurable: true,
+      set() {
+        abort(`Attempt to set \`Module.${prop}\` after it has already been processed.  This can happen, for example, when code is injected via '--post-js' rather than '--pre-js'`);
+
+      }
+    });
+  }
+}
+
+function makeInvalidEarlyAccess(name) {
+  return () => assert(false, `call to '${name}' via reference taken before Wasm module initialization`);
+
+}
+
+function ignoredModuleProp(prop) {
+  if (Object.getOwnPropertyDescriptor(Module, prop)) {
+    abort(`\`Module.${prop}\` was supplied but \`${prop}\` not included in INCOMING_MODULE_JS_API`);
+  }
+}
+
+// forcing the filesystem exports a few things by default
+function isExportedByForceFilesystem(name) {
+  return name === 'FS_createPath' ||
+         name === 'FS_createDataFile' ||
+         name === 'FS_createPreloadedFile' ||
+         name === 'FS_unlink' ||
+         name === 'addRunDependency' ||
+         // The old FS has some functionality that WasmFS lacks.
+         name === 'FS_createLazyFile' ||
+         name === 'FS_createDevice' ||
+         name === 'removeRunDependency';
+}
+
+/**
+ * Intercept access to a global symbol.  This enables us to give informative
+ * warnings/errors when folks attempt to use symbols they did not include in
+ * their build, or no symbols that no longer exist.
+ */
+function hookGlobalSymbolAccess(sym, func) {
+  // In MODULARIZE mode the generated code runs inside a function scope and not
+  // the global scope, and JavaScript does not provide access to function scopes
+  // so we cannot dynamically modify the scrope using `defineProperty` in this
+  // case.
+  //
+  // In this mode we simply ignore requests for `hookGlobalSymbolAccess`. Since
+  // this is a debug-only feature, skipping it is not major issue.
+}
+
+function missingGlobal(sym, msg) {
+  hookGlobalSymbolAccess(sym, () => {
+    warnOnce(`\`${sym}\` is not longer defined by emscripten. ${msg}`);
+  });
+}
+
+missingGlobal('buffer', 'Please use HEAP8.buffer or wasmMemory.buffer');
+missingGlobal('asm', 'Please use wasmExports instead');
+
+function missingLibrarySymbol(sym) {
+  hookGlobalSymbolAccess(sym, () => {
+    // Can't `abort()` here because it would break code that does runtime
+    // checks.  e.g. `if (typeof SDL === 'undefined')`.
+    var msg = `\`${sym}\` is a library symbol and not included by default; add it to your library.js __deps or to DEFAULT_LIBRARY_FUNCS_TO_INCLUDE on the command line`;
+    // DEFAULT_LIBRARY_FUNCS_TO_INCLUDE requires the name as it appears in
+    // library.js, which means $name for a JS name with no prefix, or name
+    // for a JS name like _name.
+    var librarySymbol = sym;
+    if (!librarySymbol.startsWith('_')) {
+      librarySymbol = '$' + sym;
+    }
+    msg += ` (e.g. -sDEFAULT_LIBRARY_FUNCS_TO_INCLUDE='${librarySymbol}')`;
+    if (isExportedByForceFilesystem(sym)) {
+      msg += '. Alternatively, forcing filesystem support (-sFORCE_FILESYSTEM) can export this for you';
+    }
+    warnOnce(msg);
+  });
+
+  // Any symbol that is not included from the JS library is also (by definition)
+  // not exported on the Module object.
+  unexportedRuntimeSymbol(sym);
+}
+
+function unexportedRuntimeSymbol(sym) {
+  if (!Object.getOwnPropertyDescriptor(Module, sym)) {
+    Object.defineProperty(Module, sym, {
+      configurable: true,
+      get() {
+        var msg = `'${sym}' was not exported. add it to EXPORTED_RUNTIME_METHODS (see the Emscripten FAQ)`;
+        if (isExportedByForceFilesystem(sym)) {
+          msg += '. Alternatively, forcing filesystem support (-sFORCE_FILESYSTEM) can export this for you';
+        }
+        abort(msg);
+      }
+    });
+  }
+}
+
+// end include: runtime_debug.js
+var readyPromiseResolve, readyPromiseReject;
+
+// Memory management
+
+var wasmMemory;
+
+var
+/** @type {!Int8Array} */
+  HEAP8,
+/** @type {!Uint8Array} */
+  HEAPU8,
+/** @type {!Int16Array} */
+  HEAP16,
+/** @type {!Uint16Array} */
+  HEAPU16,
+/** @type {!Int32Array} */
+  HEAP32,
+/** @type {!Uint32Array} */
+  HEAPU32,
+/** @type {!Float32Array} */
+  HEAPF32,
+/** @type {!Float64Array} */
+  HEAPF64;
 
 var runtimeInitialized = false;
+
+
+
+function updateMemoryViews() {
+  var b = wasmMemory.buffer;
+  HEAP8 = new Int8Array(b);
+  HEAP16 = new Int16Array(b);
+  HEAPU8 = new Uint8Array(b);
+  HEAPU16 = new Uint16Array(b);
+  HEAP32 = new Int32Array(b);
+  HEAPU32 = new Uint32Array(b);
+  HEAPF32 = new Float32Array(b);
+  HEAPF64 = new Float64Array(b);
+}
+
+// include: memoryprofiler.js
+// end include: memoryprofiler.js
+// end include: runtime_common.js
+assert(typeof Int32Array != 'undefined' && typeof Float64Array !== 'undefined' && Int32Array.prototype.subarray != undefined && Int32Array.prototype.set != undefined,
+       'JS engine does not provide full typed array support');
 
 function preRun() {
   if (Module['preRun']) {
@@ -9741,7 +10268,10 @@ function preRun() {
       addOnPreRun(Module['preRun'].shift());
     }
   }
-  callRuntimeCallbacks(__ATPRERUN__);
+  consumedModuleProp('preRun');
+  // Begin ATPRERUNS hooks
+  callRuntimeCallbacks(onPreRuns);
+  // End ATPRERUNS hooks
 }
 
 function initRuntime() {
@@ -9750,12 +10280,16 @@ function initRuntime() {
 
   checkStackCookie();
 
-  
-  callRuntimeCallbacks(__ATINIT__);
+  // No ATINITS hooks
+
+  wasmExports['__wasm_call_ctors']();
+
+  // No ATPOSTCTORS hooks
 }
 
 function postRun() {
   checkStackCookie();
+   // PThreads reuse the runtime from the main thread.
 
   if (Module['postRun']) {
     if (typeof Module['postRun'] == 'function') Module['postRun'] = [Module['postRun']];
@@ -9763,39 +10297,13 @@ function postRun() {
       addOnPostRun(Module['postRun'].shift());
     }
   }
+  consumedModuleProp('postRun');
 
-  callRuntimeCallbacks(__ATPOSTRUN__);
+  // Begin ATPOSTRUNS hooks
+  callRuntimeCallbacks(onPostRuns);
+  // End ATPOSTRUNS hooks
 }
 
-function addOnPreRun(cb) {
-  __ATPRERUN__.unshift(cb);
-}
-
-function addOnInit(cb) {
-  __ATINIT__.unshift(cb);
-}
-
-function addOnExit(cb) {
-}
-
-function addOnPostRun(cb) {
-  __ATPOSTRUN__.unshift(cb);
-}
-
-// include: runtime_math.js
-// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/imul
-
-// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/fround
-
-// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/clz32
-
-// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/trunc
-
-assert(Math.imul, 'This browser does not support Math.imul(), build with LEGACY_VM_SUPPORT or POLYFILL_OLD_MATH_FUNCTIONS to add in a polyfill');
-assert(Math.fround, 'This browser does not support Math.fround(), build with LEGACY_VM_SUPPORT or POLYFILL_OLD_MATH_FUNCTIONS to add in a polyfill');
-assert(Math.clz32, 'This browser does not support Math.clz32(), build with LEGACY_VM_SUPPORT or POLYFILL_OLD_MATH_FUNCTIONS to add in a polyfill');
-assert(Math.trunc, 'This browser does not support Math.trunc(), build with LEGACY_VM_SUPPORT or POLYFILL_OLD_MATH_FUNCTIONS to add in a polyfill');
-// end include: runtime_math.js
 // A counter of dependencies for calling run(). If we need to
 // do asynchronous work before running, increment this and
 // decrement it. Incrementing must happen in a place like
@@ -9804,17 +10312,9 @@ assert(Math.trunc, 'This browser does not support Math.trunc(), build with LEGAC
 // it happens right before run - run will be postponed until
 // the dependencies are met.
 var runDependencies = 0;
-var runDependencyWatcher = null;
 var dependenciesFulfilled = null; // overridden to take different actions when all run dependencies are fulfilled
 var runDependencyTracking = {};
-
-function getUniqueRunDependency(id) {
-  var orig = id;
-  while (1) {
-    if (!runDependencyTracking[id]) return id;
-    id = orig + Math.random();
-  }
-}
+var runDependencyWatcher = null;
 
 function addRunDependency(id) {
   runDependencies++;
@@ -9901,15 +10401,13 @@ function abort(what) {
   /** @suppress {checkTypes} */
   var e = new WebAssembly.RuntimeError(what);
 
-  readyPromiseReject(e);
+  readyPromiseReject?.(e);
   // Throw the error whether or not MODULARIZE is set because abort is used
   // in code paths apart from instantiation where an exception is expected
   // to be thrown when abort is called.
   throw e;
 }
 
-// include: memoryprofiler.js
-// end include: memoryprofiler.js
 // show errors on likely calls to FS when it was not included
 var FS = {
   error() {
@@ -9926,25 +10424,8 @@ var FS = {
 
   ErrnoError() { FS.error() },
 };
-Module['FS_createDataFile'] = FS.createDataFile;
-Module['FS_createPreloadedFile'] = FS.createPreloadedFile;
 
-// include: URIUtils.js
-// Prefix of data URIs emitted by SINGLE_FILE and related options.
-var dataURIPrefix = 'data:application/octet-stream;base64,';
 
-/**
- * Indicates whether filename is a base64 data URI.
- * @noinline
- */
-var isDataURI = (filename) => filename.startsWith(dataURIPrefix);
-
-/**
- * Indicates whether filename is delivered via file protocol (as opposed to http/https)
- * @noinline
- */
-var isFileURI = (filename) => filename.startsWith('file://');
-// end include: URIUtils.js
 function createExportWrapper(name, nargs) {
   return (...args) => {
     assert(runtimeInitialized, `native function \`${name}\` called before runtime initialization`);
@@ -9956,17 +10437,11 @@ function createExportWrapper(name, nargs) {
   };
 }
 
-// include: runtime_exceptions.js
-// end include: runtime_exceptions.js
-function findWasmBinary() {
-    var f = 'index.wasm';
-    if (!isDataURI(f)) {
-      return locateFile(f);
-    }
-    return f;
-}
-
 var wasmBinaryFile;
+
+function findWasmBinary() {
+    return locateFile('index.wasm');
+}
 
 function getBinarySync(file) {
   if (file == wasmBinaryFile && wasmBinary) {
@@ -9978,26 +10453,28 @@ function getBinarySync(file) {
   throw 'both async and sync fetching of the wasm failed';
 }
 
-function getBinaryPromise(binaryFile) {
+async function getWasmBinary(binaryFile) {
   // If we don't have the binary yet, load it asynchronously using readAsync.
-  if (!wasmBinary
-      ) {
+  if (!wasmBinary) {
     // Fetch the binary using readAsync
-    return readAsync(binaryFile).then(
-      (response) => new Uint8Array(/** @type{!ArrayBuffer} */(response)),
-      // Fall back to getBinarySync if readAsync fails
-      () => getBinarySync(binaryFile)
-    );
+    try {
+      var response = await readAsync(binaryFile);
+      return new Uint8Array(response);
+    } catch {
+      // Fall back to getBinarySync below;
+    }
   }
 
   // Otherwise, getBinarySync should be able to get it synchronously
-  return Promise.resolve().then(() => getBinarySync(binaryFile));
+  return getBinarySync(binaryFile);
 }
 
-function instantiateArrayBuffer(binaryFile, imports, receiver) {
-  return getBinaryPromise(binaryFile).then((binary) => {
-    return WebAssembly.instantiate(binary, imports);
-  }).then(receiver, (reason) => {
+async function instantiateArrayBuffer(binaryFile, imports) {
+  try {
+    var binary = await getWasmBinary(binaryFile);
+    var instance = await WebAssembly.instantiate(binary, imports);
+    return instance;
+  } catch (reason) {
     err(`failed to asynchronously prepare wasm: ${reason}`);
 
     // Warn on some common problems.
@@ -10005,43 +10482,34 @@ function instantiateArrayBuffer(binaryFile, imports, receiver) {
       err(`warning: Loading from a file URI (${wasmBinaryFile}) is not supported in most browsers. See https://emscripten.org/docs/getting_started/FAQ.html#how-do-i-run-a-local-webserver-for-testing-why-does-my-program-stall-in-downloading-or-preparing`);
     }
     abort(reason);
-  });
+  }
 }
 
-function instantiateAsync(binary, binaryFile, imports, callback) {
-  if (!binary &&
-      typeof WebAssembly.instantiateStreaming == 'function' &&
-      !isDataURI(binaryFile) &&
+async function instantiateAsync(binary, binaryFile, imports) {
+  if (!binary && typeof WebAssembly.instantiateStreaming == 'function'
       // Don't use streaming for file:// delivered objects in a webview, fetch them synchronously.
-      !isFileURI(binaryFile) &&
+      && !isFileURI(binaryFile)
       // Avoid instantiateStreaming() on Node.js environment for now, as while
       // Node.js v18.1.0 implements it, it does not have a full fetch()
       // implementation yet.
       //
       // Reference:
       //   https://github.com/emscripten-core/emscripten/pull/16917
-      !ENVIRONMENT_IS_NODE &&
-      typeof fetch == 'function') {
-    return fetch(binaryFile, { credentials: 'same-origin' }).then((response) => {
-      // Suppress closure warning here since the upstream definition for
-      // instantiateStreaming only allows Promise<Repsponse> rather than
-      // an actual Response.
-      // TODO(https://github.com/google/closure-compiler/pull/3913): Remove if/when upstream closure is fixed.
-      /** @suppress {checkTypes} */
-      var result = WebAssembly.instantiateStreaming(response, imports);
-
-      return result.then(
-        callback,
-        function(reason) {
-          // We expect the most common failure cause to be a bad MIME type for the binary,
-          // in which case falling back to ArrayBuffer instantiation should work.
-          err(`wasm streaming compile failed: ${reason}`);
-          err('falling back to ArrayBuffer instantiation');
-          return instantiateArrayBuffer(binaryFile, imports, callback);
-        });
-    });
+      && !ENVIRONMENT_IS_NODE
+     ) {
+    try {
+      var response = fetch(binaryFile, { credentials: 'same-origin' });
+      var instantiationResult = await WebAssembly.instantiateStreaming(response, imports);
+      return instantiationResult;
+    } catch (reason) {
+      // We expect the most common failure cause to be a bad MIME type for the binary,
+      // in which case falling back to ArrayBuffer instantiation should work.
+      err(`wasm streaming compile failed: ${reason}`);
+      err('falling back to ArrayBuffer instantiation');
+      // fall back of instantiateArrayBuffer below
+    };
   }
-  return instantiateArrayBuffer(binaryFile, imports, callback);
+  return instantiateArrayBuffer(binaryFile, imports);
 }
 
 function getWasmImports() {
@@ -10054,8 +10522,7 @@ function getWasmImports() {
 
 // Create the wasm instance.
 // Receives the wasm imports, returns the exports.
-function createWasm() {
-  var info = getWasmImports();
+async function createWasm() {
   // Load the wasm module and create an instance of using native support in the JS engine.
   // handle a generated wasm instance, receiving its exports and
   // performing other necessary setup
@@ -10070,8 +10537,7 @@ function createWasm() {
     assert(wasmMemory, 'memory not found in wasm exports');
     updateMemoryViews();
 
-    addOnInit(wasmExports['__wasm_call_ctors']);
-
+    assignWasmExports(wasmExports);
     removeRunDependency('wasm-instantiate');
     return wasmExports;
   }
@@ -10090,8 +10556,10 @@ function createWasm() {
     trueModule = null;
     // TODO: Due to Closure regression https://github.com/google/closure-compiler/issues/3193, the above line no longer optimizes out down to the following line.
     // When the regression is fixed, can restore the above PTHREADS-enabled path.
-    receiveInstance(result['instance']);
+    return receiveInstance(result['instance']);
   }
+
+  var info = getWasmImports();
 
   // User shell pages can write their own Module.instantiateWasm = function(imports, successCallback) callback
   // to manually instantiate the Wasm module themselves. This allows pages to
@@ -10100,143 +10568,31 @@ function createWasm() {
   // Also pthreads and wasm workers initialize the wasm instance through this
   // path.
   if (Module['instantiateWasm']) {
-    try {
-      return Module['instantiateWasm'](info, receiveInstance);
-    } catch(e) {
-      err(`Module.instantiateWasm callback failed with error: ${e}`);
-        // If instantiation fails, reject the module ready promise.
-        readyPromiseReject(e);
-    }
+    return new Promise((resolve, reject) => {
+      try {
+        Module['instantiateWasm'](info, (mod, inst) => {
+          resolve(receiveInstance(mod, inst));
+        });
+      } catch(e) {
+        err(`Module.instantiateWasm callback failed with error: ${e}`);
+        reject(e);
+      }
+    });
   }
 
   wasmBinaryFile ??= findWasmBinary();
-
-  // If instantiation fails, reject the module ready promise.
-  instantiateAsync(wasmBinary, wasmBinaryFile, info, receiveInstantiationResult).catch(readyPromiseReject);
-  return {}; // no exports yet; we'll fill them in later
+  var result = await instantiateAsync(wasmBinary, wasmBinaryFile, info);
+  var exports = receiveInstantiationResult(result);
+  return exports;
 }
 
 // Globals used by JS i64 conversions (see makeSetValue)
 var tempDouble;
 var tempI64;
 
-// include: runtime_debug.js
-// Endianness check
-(() => {
-  var h16 = new Int16Array(1);
-  var h8 = new Int8Array(h16.buffer);
-  h16[0] = 0x6373;
-  if (h8[0] !== 0x73 || h8[1] !== 0x63) throw 'Runtime error: expected the system to be little-endian! (Run with -sSUPPORT_BIG_ENDIAN to bypass)';
-})();
-
-if (Module['ENVIRONMENT']) {
-  throw new Error('Module.ENVIRONMENT has been deprecated. To force the environment, use the ENVIRONMENT compile-time option (for example, -sENVIRONMENT=web or -sENVIRONMENT=node)');
-}
-
-function legacyModuleProp(prop, newName, incoming=true) {
-  if (!Object.getOwnPropertyDescriptor(Module, prop)) {
-    Object.defineProperty(Module, prop, {
-      configurable: true,
-      get() {
-        let extra = incoming ? ' (the initial value can be provided on Module, but after startup the value is only looked for on a local variable of that name)' : '';
-        abort(`\`Module.${prop}\` has been replaced by \`${newName}\`` + extra);
-
-      }
-    });
-  }
-}
-
-function ignoredModuleProp(prop) {
-  if (Object.getOwnPropertyDescriptor(Module, prop)) {
-    abort(`\`Module.${prop}\` was supplied but \`${prop}\` not included in INCOMING_MODULE_JS_API`);
-  }
-}
-
-// forcing the filesystem exports a few things by default
-function isExportedByForceFilesystem(name) {
-  return name === 'FS_createPath' ||
-         name === 'FS_createDataFile' ||
-         name === 'FS_createPreloadedFile' ||
-         name === 'FS_unlink' ||
-         name === 'addRunDependency' ||
-         // The old FS has some functionality that WasmFS lacks.
-         name === 'FS_createLazyFile' ||
-         name === 'FS_createDevice' ||
-         name === 'removeRunDependency';
-}
-
-/**
- * Intercept access to a global symbol.  This enables us to give informative
- * warnings/errors when folks attempt to use symbols they did not include in
- * their build, or no symbols that no longer exist.
- */
-function hookGlobalSymbolAccess(sym, func) {
-  // In MODULARIZE mode the generated code runs inside a function scope and not
-  // the global scope, and JavaScript does not provide access to function scopes
-  // so we cannot dynamically modify the scrope using `defineProperty` in this
-  // case.
-  //
-  // In this mode we simply ignore requests for `hookGlobalSymbolAccess`. Since
-  // this is a debug-only feature, skipping it is not major issue.
-}
-
-function missingGlobal(sym, msg) {
-  hookGlobalSymbolAccess(sym, () => {
-    warnOnce(`\`${sym}\` is not longer defined by emscripten. ${msg}`);
-  });
-}
-
-missingGlobal('buffer', 'Please use HEAP8.buffer or wasmMemory.buffer');
-missingGlobal('asm', 'Please use wasmExports instead');
-
-function missingLibrarySymbol(sym) {
-  hookGlobalSymbolAccess(sym, () => {
-    // Can't `abort()` here because it would break code that does runtime
-    // checks.  e.g. `if (typeof SDL === 'undefined')`.
-    var msg = `\`${sym}\` is a library symbol and not included by default; add it to your library.js __deps or to DEFAULT_LIBRARY_FUNCS_TO_INCLUDE on the command line`;
-    // DEFAULT_LIBRARY_FUNCS_TO_INCLUDE requires the name as it appears in
-    // library.js, which means $name for a JS name with no prefix, or name
-    // for a JS name like _name.
-    var librarySymbol = sym;
-    if (!librarySymbol.startsWith('_')) {
-      librarySymbol = '$' + sym;
-    }
-    msg += ` (e.g. -sDEFAULT_LIBRARY_FUNCS_TO_INCLUDE='${librarySymbol}')`;
-    if (isExportedByForceFilesystem(sym)) {
-      msg += '. Alternatively, forcing filesystem support (-sFORCE_FILESYSTEM) can export this for you';
-    }
-    warnOnce(msg);
-  });
-
-  // Any symbol that is not included from the JS library is also (by definition)
-  // not exported on the Module object.
-  unexportedRuntimeSymbol(sym);
-}
-
-function unexportedRuntimeSymbol(sym) {
-  if (!Object.getOwnPropertyDescriptor(Module, sym)) {
-    Object.defineProperty(Module, sym, {
-      configurable: true,
-      get() {
-        var msg = `'${sym}' was not exported. add it to EXPORTED_RUNTIME_METHODS (see the Emscripten FAQ)`;
-        if (isExportedByForceFilesystem(sym)) {
-          msg += '. Alternatively, forcing filesystem support (-sFORCE_FILESYSTEM) can export this for you';
-        }
-        abort(msg);
-      }
-    });
-  }
-}
-
-// Used by XXXXX_DEBUG settings to output debug messages.
-function dbg(...args) {
-  // TODO(sbc): Make this configurable somehow.  Its not always convenient for
-  // logging to show up as warnings.
-  console.warn(...args);
-}
-// end include: runtime_debug.js
-// === Body ===
 // end include: preamble.js
+
+// Begin JS library code
 
 
   class ExitStatus {
@@ -10253,6 +10609,12 @@ function dbg(...args) {
         callbacks.shift()(Module);
       }
     };
+  var onPostRuns = [];
+  var addOnPostRun = (cb) => onPostRuns.push(cb);
+
+  var onPreRuns = [];
+  var addOnPreRun = (cb) => onPreRuns.push(cb);
+
 
   
     /**
@@ -10274,7 +10636,7 @@ function dbg(...args) {
     }
   }
 
-  var noExitRuntime = Module['noExitRuntime'] || true;
+  var noExitRuntime = true;
 
   var ptrToString = (ptr) => {
       assert(typeof ptr === 'number');
@@ -10317,20 +10679,9 @@ function dbg(...args) {
       }
     };
 
-  var __abort_js = () => {
+  var __abort_js = () =>
       abort('native code called abort()');
-    };
 
-  var __emscripten_memcpy_js = (dest, src, num) => HEAPU8.copyWithin(dest, src, src + num);
-
-  var getHeapMax = () =>
-      HEAPU8.length;
-  
-  var alignMemory = (size, alignment) => {
-      assert(alignment, "alignment argument is required");
-      return Math.ceil(size / alignment) * alignment;
-    };
-  
   var abortOnCannotGrowMemory = (requestedSize) => {
       abort(`Cannot enlarge memory arrays to size ${requestedSize} bytes (OOM). Either (1) compile with -sINITIAL_MEMORY=X with X higher than the current value ${HEAP8.length}, (2) compile with -sALLOW_MEMORY_GROWTH which allows increasing the size at runtime, or (3) if you want malloc to return NULL (0) instead of this abort, compile with -sABORTING_MALLOC=0`);
     };
@@ -10362,6 +10713,7 @@ function dbg(...args) {
       // so that undefined/NaN means Infinity)
       while (heapOrArray[endPtr] && !(endPtr >= endIdx)) ++endPtr;
   
+      // When using conditional TextDecoder, skip it for short strings as the overhead of the native call is not worth it.
       if (endPtr - idx > 16 && heapOrArray.buffer && UTF8Decoder) {
         return UTF8Decoder.decode(heapOrArray.subarray(idx, endPtr));
       }
@@ -10433,7 +10785,7 @@ function dbg(...args) {
   function _fd_seek(fd,offset_low, offset_high,whence,newOffset) {
     var offset = convertI32PairToI53Checked(offset_low, offset_high);
   
-    
+  
       return 70;
     ;
   }
@@ -10481,7 +10833,6 @@ function dbg(...args) {
       return func;
     };
   
-  
   var writeArrayToMemory = (array, buffer) => {
       assert(array.length >= 0, 'writeArrayToMemory array must have a length (should be an array or typed array)')
       HEAP8.set(array, buffer);
@@ -10518,18 +10869,10 @@ function dbg(...args) {
       var startIdx = outIdx;
       var endIdx = outIdx + maxBytesToWrite - 1; // -1 for string null terminator.
       for (var i = 0; i < str.length; ++i) {
-        // Gotcha: charCodeAt returns a 16-bit word that is a UTF-16 encoded code
-        // unit, not a Unicode code point of the character! So decode
-        // UTF16->UTF32->UTF8.
-        // See http://unicode.org/faq/utf_bom.html#utf16-3
         // For UTF8 byte structure, see http://en.wikipedia.org/wiki/UTF-8#Description
         // and https://www.ietf.org/rfc/rfc2279.txt
         // and https://tools.ietf.org/html/rfc3629
-        var u = str.charCodeAt(i); // possibly a lead surrogate
-        if (u >= 0xD800 && u <= 0xDFFF) {
-          var u1 = str.charCodeAt(++i);
-          u = 0x10000 + ((u & 0x3FF) << 10) | (u1 & 0x3FF);
-        }
+        var u = str.codePointAt(i);
         if (u <= 0x7F) {
           if (outIdx >= endIdx) break;
           heap[outIdx++] = u;
@@ -10549,6 +10892,9 @@ function dbg(...args) {
           heap[outIdx++] = 0x80 | ((u >> 12) & 63);
           heap[outIdx++] = 0x80 | ((u >> 6) & 63);
           heap[outIdx++] = 0x80 | (u & 63);
+          // Gotcha: if codePoint is over 0xFFFF, it is represented as a surrogate pair in UTF-16.
+          // We need to manually skip over the second code unit for correct iteration.
+          i++;
         }
       }
       // Null-terminate the pointer to the buffer.
@@ -10637,101 +10983,52 @@ function dbg(...args) {
       return (...args) => ccall(ident, returnType, argTypes, args, opts);
     };
 
+// End JS library code
 
-  
-  
-  
-  /** @suppress {duplicate } */
-  var stringToNewUTF8 = (str) => {
-      var size = lengthBytesUTF8(str) + 1;
-      var ret = _malloc(size);
-      if (ret) stringToUTF8(str, ret, size);
-      return ret;
-    };
-  var allocateUTF8 = stringToNewUTF8;
+// include: postlibrary.js
+// This file is included after the automatically-generated JS library code
+// but before the wasm module is created.
 
-  
-  var allocateUTF8OnStack = stringToUTF8OnStack;
+{
 
-function checkIncomingModuleAPI() {
-  ignoredModuleProp('fetchSettings');
+  // Begin ATMODULES hooks
+  if (Module['noExitRuntime']) noExitRuntime = Module['noExitRuntime'];
+if (Module['print']) out = Module['print'];
+if (Module['printErr']) err = Module['printErr'];
+if (Module['wasmBinary']) wasmBinary = Module['wasmBinary'];
+
+Module['FS_createDataFile'] = FS.createDataFile;
+Module['FS_createPreloadedFile'] = FS.createPreloadedFile;
+
+  // End ATMODULES hooks
+
+  checkIncomingModuleAPI();
+
+  if (Module['arguments']) arguments_ = Module['arguments'];
+  if (Module['thisProgram']) thisProgram = Module['thisProgram'];
+
+  // Assertions on removed incoming Module JS APIs.
+  assert(typeof Module['memoryInitializerPrefixURL'] == 'undefined', 'Module.memoryInitializerPrefixURL option was removed, use Module.locateFile instead');
+  assert(typeof Module['pthreadMainPrefixURL'] == 'undefined', 'Module.pthreadMainPrefixURL option was removed, use Module.locateFile instead');
+  assert(typeof Module['cdInitializerPrefixURL'] == 'undefined', 'Module.cdInitializerPrefixURL option was removed, use Module.locateFile instead');
+  assert(typeof Module['filePackagePrefixURL'] == 'undefined', 'Module.filePackagePrefixURL option was removed, use Module.locateFile instead');
+  assert(typeof Module['read'] == 'undefined', 'Module.read option was removed');
+  assert(typeof Module['readAsync'] == 'undefined', 'Module.readAsync option was removed (modify readAsync in JS)');
+  assert(typeof Module['readBinary'] == 'undefined', 'Module.readBinary option was removed (modify readBinary in JS)');
+  assert(typeof Module['setWindowTitle'] == 'undefined', 'Module.setWindowTitle option was removed (modify emscripten_set_window_title in JS)');
+  assert(typeof Module['TOTAL_MEMORY'] == 'undefined', 'Module.TOTAL_MEMORY has been renamed Module.INITIAL_MEMORY');
+  assert(typeof Module['ENVIRONMENT'] == 'undefined', 'Module.ENVIRONMENT has been deprecated. To force the environment, use the ENVIRONMENT compile-time option (for example, -sENVIRONMENT=web or -sENVIRONMENT=node)');
+  assert(typeof Module['STACK_SIZE'] == 'undefined', 'STACK_SIZE can no longer be set at runtime.  Use -sSTACK_SIZE at link time')
+  // If memory is defined in wasm, the user can't provide it, or set INITIAL_MEMORY
+  assert(typeof Module['wasmMemory'] == 'undefined', 'Use of `wasmMemory` detected.  Use -sIMPORTED_MEMORY to define wasmMemory externally');
+  assert(typeof Module['INITIAL_MEMORY'] == 'undefined', 'Detected runtime INITIAL_MEMORY setting.  Use -sIMPORTED_MEMORY to define wasmMemory dynamically');
+
 }
-var wasmImports = {
-  /** @export */
-  _abort_js: __abort_js,
-  /** @export */
-  _emscripten_memcpy_js: __emscripten_memcpy_js,
-  /** @export */
-  emscripten_resize_heap: _emscripten_resize_heap,
-  /** @export */
-  fd_close: _fd_close,
-  /** @export */
-  fd_seek: _fd_seek,
-  /** @export */
-  fd_write: _fd_write
-};
-var wasmExports = createWasm();
-var ___wasm_call_ctors = createExportWrapper('__wasm_call_ctors', 0);
-var ___SUB_INTEGER_OR_NEGATIVE__ = Module['___SUB_INTEGER_OR_NEGATIVE__'] = createExportWrapper('__SUB_INTEGER_OR_NEGATIVE__', 2);
-var _strlen_runtime = Module['_strlen_runtime'] = createExportWrapper('strlen_runtime', 1);
-var ___START_NUMBER__ = Module['___START_NUMBER__'] = createExportWrapper('__START_NUMBER__', 3);
-var ___END_NUMBER__ = Module['___END_NUMBER__'] = createExportWrapper('__END_NUMBER__', 3);
-var ___IS_CURRENT_CHARSET_ZERO__ = Module['___IS_CURRENT_CHARSET_ZERO__'] = createExportWrapper('__IS_CURRENT_CHARSET_ZERO__', 1);
-var ___IS_SIGN_NEGATIVE__ = Module['___IS_SIGN_NEGATIVE__'] = createExportWrapper('__IS_SIGN_NEGATIVE__', 3);
-var ___ADD_INTEGER_AND_POSITIVE__ = Module['___ADD_INTEGER_AND_POSITIVE__'] = createExportWrapper('__ADD_INTEGER_AND_POSITIVE__', 2);
-var ___GET_SIGN_NEGATIVE__ = Module['___GET_SIGN_NEGATIVE__'] = createExportWrapper('__GET_SIGN_NEGATIVE__', 0);
-var ___CMP_CHARSET__ = Module['___CMP_CHARSET__'] = createExportWrapper('__CMP_CHARSET__', 2);
-var ___SUB_INTEGER_AND_POSITIVE__ = Module['___SUB_INTEGER_AND_POSITIVE__'] = createExportWrapper('__SUB_INTEGER_AND_POSITIVE__', 2);
-var ___GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__ = Module['___GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__'] = createExportWrapper('__GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__', 0);
-var ___INDEX_OF_CURRENT_CHARSET__ = Module['___INDEX_OF_CURRENT_CHARSET__'] = createExportWrapper('__INDEX_OF_CURRENT_CHARSET__', 2);
-var ___CHARSET_AT__ = Module['___CHARSET_AT__'] = createExportWrapper('__CHARSET_AT__', 1);
-var ___ADD_INTEGER_OR_NEGATIVE__ = Module['___ADD_INTEGER_OR_NEGATIVE__'] = createExportWrapper('__ADD_INTEGER_OR_NEGATIVE__', 2);
-var ___SUB_INTEGER__ = Module['___SUB_INTEGER__'] = createExportWrapper('__SUB_INTEGER__', 2);
-var ___ADD_INTEGER__ = Module['___ADD_INTEGER__'] = createExportWrapper('__ADD_INTEGER__', 2);
-var ___ADD_REP_INTEGER__ = Module['___ADD_REP_INTEGER__'] = createExportWrapper('__ADD_REP_INTEGER__', 2);
-var ___MUL_INTEGER__ = Module['___MUL_INTEGER__'] = createExportWrapper('__MUL_INTEGER__', 2);
-var ___SAFE_CALC_INIT__ = Module['___SAFE_CALC_INIT__'] = createExportWrapper('__SAFE_CALC_INIT__', 3);
-var ___SAFE_SET_SIGN_NEGATIVE__ = Module['___SAFE_SET_SIGN_NEGATIVE__'] = createExportWrapper('__SAFE_SET_SIGN_NEGATIVE__', 1);
-var ___SAFE_SET_SIGN_POSITIVE__ = Module['___SAFE_SET_SIGN_POSITIVE__'] = createExportWrapper('__SAFE_SET_SIGN_POSITIVE__', 1);
-var ___SAFE_SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__ = Module['___SAFE_SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__'] = createExportWrapper('__SAFE_SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__', 1);
-var ___SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__ = Module['___SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__'] = createExportWrapper('__SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__', 1);
-var ___IS_CURRENT_NUMBER_CHARSET__ = Module['___IS_CURRENT_NUMBER_CHARSET__'] = createExportWrapper('__IS_CURRENT_NUMBER_CHARSET__', 2);
-var ___CMP_CURRENT_CHARSET__ = Module['___CMP_CURRENT_CHARSET__'] = createExportWrapper('__CMP_CURRENT_CHARSET__', 2);
-var _ctoa = Module['_ctoa'] = createExportWrapper('ctoa', 1);
-var _uctoa = Module['_uctoa'] = createExportWrapper('uctoa', 1);
-var _stoa = Module['_stoa'] = createExportWrapper('stoa', 1);
-var _ustoa = Module['_ustoa'] = createExportWrapper('ustoa', 1);
-var _itoa = Module['_itoa'] = createExportWrapper('itoa', 1);
-var _uitoa = Module['_uitoa'] = createExportWrapper('uitoa', 1);
-var _ltoa = Module['_ltoa'] = createExportWrapper('ltoa', 1);
-var _ultoa = Module['_ultoa'] = createExportWrapper('ultoa', 1);
-var _lltoa = Module['_lltoa'] = createExportWrapper('lltoa', 2);
-var _ulltoa = Module['_ulltoa'] = createExportWrapper('ulltoa', 2);
-var ___SET_SIGN_POSITIVE__ = Module['___SET_SIGN_POSITIVE__'] = createExportWrapper('__SET_SIGN_POSITIVE__', 1);
-var ___IS_SIGN_POSITIVE__ = Module['___IS_SIGN_POSITIVE__'] = createExportWrapper('__IS_SIGN_POSITIVE__', 3);
-var ___IS_SIGN_NULL__ = Module['___IS_SIGN_NULL__'] = createExportWrapper('__IS_SIGN_NULL__', 3);
-var _fflush = createExportWrapper('fflush', 1);
-var _strerror = createExportWrapper('strerror', 1);
-var _malloc = createExportWrapper('malloc', 1);
-var _emscripten_stack_init = () => (_emscripten_stack_init = wasmExports['emscripten_stack_init'])();
-var _emscripten_stack_get_free = () => (_emscripten_stack_get_free = wasmExports['emscripten_stack_get_free'])();
-var _emscripten_stack_get_base = () => (_emscripten_stack_get_base = wasmExports['emscripten_stack_get_base'])();
-var _emscripten_stack_get_end = () => (_emscripten_stack_get_end = wasmExports['emscripten_stack_get_end'])();
-var __emscripten_stack_restore = (a0) => (__emscripten_stack_restore = wasmExports['_emscripten_stack_restore'])(a0);
-var __emscripten_stack_alloc = (a0) => (__emscripten_stack_alloc = wasmExports['_emscripten_stack_alloc'])(a0);
-var _emscripten_stack_get_current = () => (_emscripten_stack_get_current = wasmExports['emscripten_stack_get_current'])();
-var dynCall_jiji = Module['dynCall_jiji'] = createExportWrapper('dynCall_jiji', 5);
 
-
-// include: postamble.js
-// === Auto-generated postamble setup entry stuff ===
-
-Module['ccall'] = ccall;
-Module['cwrap'] = cwrap;
-Module['UTF8ToString'] = UTF8ToString;
-Module['allocateUTF8'] = allocateUTF8;
-Module['allocateUTF8OnStack'] = allocateUTF8OnStack;
-var missingLibrarySymbols = [
+// Begin runtime exports
+  Module['ccall'] = ccall;
+  Module['cwrap'] = cwrap;
+  var missingLibrarySymbols = [
   'writeI53ToI64',
   'writeI53ToI64Clamped',
   'writeI53ToI64Signaling',
@@ -10745,7 +11042,9 @@ var missingLibrarySymbols = [
   'setTempRet0',
   'zeroMemory',
   'exitJS',
+  'getHeapMax',
   'growMemory',
+  'withStackSave',
   'strError',
   'inetPton4',
   'inetNtop4',
@@ -10757,7 +11056,6 @@ var missingLibrarySymbols = [
   'readEmAsmArgs',
   'jstoi_q',
   'getExecutableName',
-  'listenOnce',
   'autoResumeAudioContext',
   'dynCallLegacy',
   'getDynCaller',
@@ -10770,9 +11068,15 @@ var missingLibrarySymbols = [
   'maybeExit',
   'asmjsMangle',
   'asyncLoad',
+  'alignMemory',
   'mmapAlloc',
   'HandleAllocator',
   'getNativeTypeSize',
+  'getUniqueRunDependency',
+  'addOnInit',
+  'addOnPostCtor',
+  'addOnPreMain',
+  'addOnExit',
   'STACK_SIZE',
   'STACK_ALIGN',
   'POINTER_SIZE',
@@ -10801,6 +11105,7 @@ var missingLibrarySymbols = [
   'UTF32ToString',
   'stringToUTF32',
   'lengthBytesUTF32',
+  'stringToNewUTF8',
   'registerKeyEventCallback',
   'maybeCStringToJsString',
   'findEventTarget',
@@ -10851,11 +11156,10 @@ var missingLibrarySymbols = [
   'wasiOFlagsToMuslOFlags',
   'initRandomFill',
   'randomFill',
-  'createDyncallWrapper',
   'safeSetTimeout',
   'setImmediateWrapped',
+  'safeRequestAnimationFrame',
   'clearImmediateWrapped',
-  'polyfillSetImmediate',
   'registerPostMainLoop',
   'registerPreMainLoop',
   'getPromise',
@@ -10865,7 +11169,6 @@ var missingLibrarySymbols = [
   'ExceptionInfo',
   'findMatchingCatch',
   'Browser_asyncPrepareDataCounter',
-  'safeRequestAnimationFrame',
   'isLeapYear',
   'ydayFromDate',
   'arraySum',
@@ -10876,8 +11179,6 @@ var missingLibrarySymbols = [
   'FS_modeStringToFlags',
   'FS_getMode',
   'FS_stdin_getChar',
-  'FS_unlink',
-  'FS_createDataFile',
   'FS_mkdirTree',
   '_setNetworkCallback',
   'heapObjectForWebGLType',
@@ -10907,19 +11208,13 @@ var missingLibrarySymbols = [
   'allocate',
   'writeStringToMemory',
   'writeAsciiToMemory',
-  'setErrNo',
   'demangle',
   'stackTrace',
 ];
 missingLibrarySymbols.forEach(missingLibrarySymbol)
 
-var unexportedSymbols = [
+  var unexportedSymbols = [
   'run',
-  'addOnPreRun',
-  'addOnInit',
-  'addOnPreMain',
-  'addOnExit',
-  'addOnPostRun',
   'addRunDependency',
   'removeRunDependency',
   'out',
@@ -10928,6 +11223,16 @@ var unexportedSymbols = [
   'abort',
   'wasmMemory',
   'wasmExports',
+  'HEAPF32',
+  'HEAPF64',
+  'HEAP8',
+  'HEAPU8',
+  'HEAP16',
+  'HEAPU16',
+  'HEAP32',
+  'HEAPU32',
+  'HEAP64',
+  'HEAPU64',
   'writeStackCookie',
   'checkStackCookie',
   'convertI32PairToI53Checked',
@@ -10935,7 +11240,6 @@ var unexportedSymbols = [
   'stackRestore',
   'stackAlloc',
   'ptrToString',
-  'getHeapMax',
   'abortOnCannotGrowMemory',
   'ENV',
   'ERRNO_CODES',
@@ -10945,11 +11249,10 @@ var unexportedSymbols = [
   'timers',
   'warnOnce',
   'readEmAsmArgsArray',
-  'jstoi_s',
-  'alignMemory',
   'wasmTable',
   'noExitRuntime',
-  'getCFunc',
+  'addOnPreRun',
+  'addOnPostRun',
   'freeTableIndexes',
   'functionsInTableMap',
   'setValue',
@@ -10958,11 +11261,11 @@ var unexportedSymbols = [
   'PATH_FS',
   'UTF8Decoder',
   'UTF8ArrayToString',
+  'UTF8ToString',
   'stringToUTF8Array',
   'stringToUTF8',
   'lengthBytesUTF8',
   'UTF16Decoder',
-  'stringToNewUTF8',
   'stringToUTF8OnStack',
   'writeArrayToMemory',
   'JSEvents',
@@ -10973,11 +11276,19 @@ var unexportedSymbols = [
   'UNWIND_CACHE',
   'ExitStatus',
   'flush_NO_FILESYSTEM',
+  'emSetImmediate',
+  'emClearImmediate_deps',
+  'emClearImmediate',
   'promiseMap',
   'uncaughtExceptionCount',
   'exceptionLast',
   'exceptionCaught',
   'Browser',
+  'requestFullscreen',
+  'requestFullScreen',
+  'setCanvasSize',
+  'getUserMedia',
+  'createContext',
   'getPreloadedImageData__data',
   'wget',
   'MONTH_DAYS_REGULAR',
@@ -10987,11 +11298,123 @@ var unexportedSymbols = [
   'SYSCALLS',
   'preloadPlugins',
   'FS_stdin_getChar_buffer',
+  'FS_unlink',
   'FS_createPath',
   'FS_createDevice',
   'FS_readFile',
   'FS',
+  'FS_root',
+  'FS_mounts',
+  'FS_devices',
+  'FS_streams',
+  'FS_nextInode',
+  'FS_nameTable',
+  'FS_currentPath',
+  'FS_initialized',
+  'FS_ignorePermissions',
+  'FS_filesystems',
+  'FS_syncFSRequests',
+  'FS_readFiles',
+  'FS_lookupPath',
+  'FS_getPath',
+  'FS_hashName',
+  'FS_hashAddNode',
+  'FS_hashRemoveNode',
+  'FS_lookupNode',
+  'FS_createNode',
+  'FS_destroyNode',
+  'FS_isRoot',
+  'FS_isMountpoint',
+  'FS_isFile',
+  'FS_isDir',
+  'FS_isLink',
+  'FS_isChrdev',
+  'FS_isBlkdev',
+  'FS_isFIFO',
+  'FS_isSocket',
+  'FS_flagsToPermissionString',
+  'FS_nodePermissions',
+  'FS_mayLookup',
+  'FS_mayCreate',
+  'FS_mayDelete',
+  'FS_mayOpen',
+  'FS_checkOpExists',
+  'FS_nextfd',
+  'FS_getStreamChecked',
+  'FS_getStream',
+  'FS_createStream',
+  'FS_closeStream',
+  'FS_dupStream',
+  'FS_doSetAttr',
+  'FS_chrdev_stream_ops',
+  'FS_major',
+  'FS_minor',
+  'FS_makedev',
+  'FS_registerDevice',
+  'FS_getDevice',
+  'FS_getMounts',
+  'FS_syncfs',
+  'FS_mount',
+  'FS_unmount',
+  'FS_lookup',
+  'FS_mknod',
+  'FS_statfs',
+  'FS_statfsStream',
+  'FS_statfsNode',
+  'FS_create',
+  'FS_mkdir',
+  'FS_mkdev',
+  'FS_symlink',
+  'FS_rename',
+  'FS_rmdir',
+  'FS_readdir',
+  'FS_readlink',
+  'FS_stat',
+  'FS_fstat',
+  'FS_lstat',
+  'FS_doChmod',
+  'FS_chmod',
+  'FS_lchmod',
+  'FS_fchmod',
+  'FS_doChown',
+  'FS_chown',
+  'FS_lchown',
+  'FS_fchown',
+  'FS_doTruncate',
+  'FS_truncate',
+  'FS_ftruncate',
+  'FS_utime',
+  'FS_open',
+  'FS_close',
+  'FS_isClosed',
+  'FS_llseek',
+  'FS_read',
+  'FS_write',
+  'FS_mmap',
+  'FS_msync',
+  'FS_ioctl',
+  'FS_writeFile',
+  'FS_cwd',
+  'FS_chdir',
+  'FS_createDefaultDirectories',
+  'FS_createDefaultDevices',
+  'FS_createSpecialDirectories',
+  'FS_createStandardStreams',
+  'FS_staticInit',
+  'FS_init',
+  'FS_quit',
+  'FS_findObject',
+  'FS_analyzePath',
+  'FS_createFile',
+  'FS_createDataFile',
+  'FS_forceLoadFile',
   'FS_createLazyFile',
+  'FS_absolutePath',
+  'FS_createFolder',
+  'FS_createLink',
+  'FS_joinPath',
+  'FS_mmapAlloc',
+  'FS_standardizePath',
   'MEMFS',
   'TTY',
   'PIPEFS',
@@ -11007,20 +11430,147 @@ var unexportedSymbols = [
   'IDBStore',
   'SDL',
   'SDL_gfx',
+  'allocateUTF8',
+  'allocateUTF8OnStack',
   'print',
   'printErr',
+  'jstoi_s',
 ];
 unexportedSymbols.forEach(unexportedRuntimeSymbol);
 
+  // End runtime exports
+  // Begin JS library exports
+  // End JS library exports
 
+// end include: postlibrary.js
+
+function checkIncomingModuleAPI() {
+  ignoredModuleProp('fetchSettings');
+}
+
+// Imports from the Wasm binary.
+var ___SUB_INTEGER_OR_NEGATIVE__ = Module['___SUB_INTEGER_OR_NEGATIVE__'] = makeInvalidEarlyAccess('___SUB_INTEGER_OR_NEGATIVE__');
+var _strlen_runtime = Module['_strlen_runtime'] = makeInvalidEarlyAccess('_strlen_runtime');
+var ___START_NUMBER__ = Module['___START_NUMBER__'] = makeInvalidEarlyAccess('___START_NUMBER__');
+var ___END_NUMBER__ = Module['___END_NUMBER__'] = makeInvalidEarlyAccess('___END_NUMBER__');
+var ___IS_CURRENT_CHARSET_ZERO__ = Module['___IS_CURRENT_CHARSET_ZERO__'] = makeInvalidEarlyAccess('___IS_CURRENT_CHARSET_ZERO__');
+var ___IS_SIGN_NEGATIVE__ = Module['___IS_SIGN_NEGATIVE__'] = makeInvalidEarlyAccess('___IS_SIGN_NEGATIVE__');
+var ___ADD_INTEGER_AND_POSITIVE__ = Module['___ADD_INTEGER_AND_POSITIVE__'] = makeInvalidEarlyAccess('___ADD_INTEGER_AND_POSITIVE__');
+var ___GET_SIGN_NEGATIVE__ = Module['___GET_SIGN_NEGATIVE__'] = makeInvalidEarlyAccess('___GET_SIGN_NEGATIVE__');
+var ___CMP_CHARSET__ = Module['___CMP_CHARSET__'] = makeInvalidEarlyAccess('___CMP_CHARSET__');
+var ___SUB_INTEGER_AND_POSITIVE__ = Module['___SUB_INTEGER_AND_POSITIVE__'] = makeInvalidEarlyAccess('___SUB_INTEGER_AND_POSITIVE__');
+var ___GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__ = Module['___GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__'] = makeInvalidEarlyAccess('___GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__');
+var ___INDEX_OF_CURRENT_CHARSET__ = Module['___INDEX_OF_CURRENT_CHARSET__'] = makeInvalidEarlyAccess('___INDEX_OF_CURRENT_CHARSET__');
+var ___CHARSET_AT__ = Module['___CHARSET_AT__'] = makeInvalidEarlyAccess('___CHARSET_AT__');
+var ___ADD_INTEGER_OR_NEGATIVE__ = Module['___ADD_INTEGER_OR_NEGATIVE__'] = makeInvalidEarlyAccess('___ADD_INTEGER_OR_NEGATIVE__');
+var ___SUB_INTEGER__ = Module['___SUB_INTEGER__'] = makeInvalidEarlyAccess('___SUB_INTEGER__');
+var ___ADD_INTEGER__ = Module['___ADD_INTEGER__'] = makeInvalidEarlyAccess('___ADD_INTEGER__');
+var ___ADD_REP_INTEGER__ = Module['___ADD_REP_INTEGER__'] = makeInvalidEarlyAccess('___ADD_REP_INTEGER__');
+var ___MUL_INTEGER__ = Module['___MUL_INTEGER__'] = makeInvalidEarlyAccess('___MUL_INTEGER__');
+var ___SAFE_CALC_INIT__ = Module['___SAFE_CALC_INIT__'] = makeInvalidEarlyAccess('___SAFE_CALC_INIT__');
+var ___SAFE_SET_SIGN_NEGATIVE__ = Module['___SAFE_SET_SIGN_NEGATIVE__'] = makeInvalidEarlyAccess('___SAFE_SET_SIGN_NEGATIVE__');
+var ___SAFE_SET_SIGN_POSITIVE__ = Module['___SAFE_SET_SIGN_POSITIVE__'] = makeInvalidEarlyAccess('___SAFE_SET_SIGN_POSITIVE__');
+var ___SAFE_SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__ = Module['___SAFE_SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__'] = makeInvalidEarlyAccess('___SAFE_SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__');
+var ___SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__ = Module['___SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__'] = makeInvalidEarlyAccess('___SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__');
+var ___IS_CURRENT_NUMBER_CHARSET__ = Module['___IS_CURRENT_NUMBER_CHARSET__'] = makeInvalidEarlyAccess('___IS_CURRENT_NUMBER_CHARSET__');
+var ___CMP_CURRENT_CHARSET__ = Module['___CMP_CURRENT_CHARSET__'] = makeInvalidEarlyAccess('___CMP_CURRENT_CHARSET__');
+var _ctoa = Module['_ctoa'] = makeInvalidEarlyAccess('_ctoa');
+var _uctoa = Module['_uctoa'] = makeInvalidEarlyAccess('_uctoa');
+var _stoa = Module['_stoa'] = makeInvalidEarlyAccess('_stoa');
+var _ustoa = Module['_ustoa'] = makeInvalidEarlyAccess('_ustoa');
+var _itoa = Module['_itoa'] = makeInvalidEarlyAccess('_itoa');
+var _uitoa = Module['_uitoa'] = makeInvalidEarlyAccess('_uitoa');
+var _ltoa = Module['_ltoa'] = makeInvalidEarlyAccess('_ltoa');
+var _ultoa = Module['_ultoa'] = makeInvalidEarlyAccess('_ultoa');
+var _lltoa = Module['_lltoa'] = makeInvalidEarlyAccess('_lltoa');
+var _ulltoa = Module['_ulltoa'] = makeInvalidEarlyAccess('_ulltoa');
+var ___SET_SIGN_POSITIVE__ = Module['___SET_SIGN_POSITIVE__'] = makeInvalidEarlyAccess('___SET_SIGN_POSITIVE__');
+var ___IS_SIGN_POSITIVE__ = Module['___IS_SIGN_POSITIVE__'] = makeInvalidEarlyAccess('___IS_SIGN_POSITIVE__');
+var ___IS_SIGN_NULL__ = Module['___IS_SIGN_NULL__'] = makeInvalidEarlyAccess('___IS_SIGN_NULL__');
+var ___INDEX_OF_SIGN_NEGATIVE__ = Module['___INDEX_OF_SIGN_NEGATIVE__'] = makeInvalidEarlyAccess('___INDEX_OF_SIGN_NEGATIVE__');
+var ___INDEX_OF_SIGN_POSITIVE__ = Module['___INDEX_OF_SIGN_POSITIVE__'] = makeInvalidEarlyAccess('___INDEX_OF_SIGN_POSITIVE__');
+var _fflush = makeInvalidEarlyAccess('_fflush');
+var _strerror = makeInvalidEarlyAccess('_strerror');
+var _emscripten_stack_get_end = makeInvalidEarlyAccess('_emscripten_stack_get_end');
+var _emscripten_stack_get_base = makeInvalidEarlyAccess('_emscripten_stack_get_base');
+var _emscripten_stack_init = makeInvalidEarlyAccess('_emscripten_stack_init');
+var _emscripten_stack_get_free = makeInvalidEarlyAccess('_emscripten_stack_get_free');
+var __emscripten_stack_restore = makeInvalidEarlyAccess('__emscripten_stack_restore');
+var __emscripten_stack_alloc = makeInvalidEarlyAccess('__emscripten_stack_alloc');
+var _emscripten_stack_get_current = makeInvalidEarlyAccess('_emscripten_stack_get_current');
+var dynCall_jiji = makeInvalidEarlyAccess('dynCall_jiji');
+
+function assignWasmExports(wasmExports) {
+  Module['___SUB_INTEGER_OR_NEGATIVE__'] = ___SUB_INTEGER_OR_NEGATIVE__ = createExportWrapper('__SUB_INTEGER_OR_NEGATIVE__', 2);
+  Module['_strlen_runtime'] = _strlen_runtime = createExportWrapper('strlen_runtime', 1);
+  Module['___START_NUMBER__'] = ___START_NUMBER__ = createExportWrapper('__START_NUMBER__', 3);
+  Module['___END_NUMBER__'] = ___END_NUMBER__ = createExportWrapper('__END_NUMBER__', 3);
+  Module['___IS_CURRENT_CHARSET_ZERO__'] = ___IS_CURRENT_CHARSET_ZERO__ = createExportWrapper('__IS_CURRENT_CHARSET_ZERO__', 1);
+  Module['___IS_SIGN_NEGATIVE__'] = ___IS_SIGN_NEGATIVE__ = createExportWrapper('__IS_SIGN_NEGATIVE__', 3);
+  Module['___ADD_INTEGER_AND_POSITIVE__'] = ___ADD_INTEGER_AND_POSITIVE__ = createExportWrapper('__ADD_INTEGER_AND_POSITIVE__', 2);
+  Module['___GET_SIGN_NEGATIVE__'] = ___GET_SIGN_NEGATIVE__ = createExportWrapper('__GET_SIGN_NEGATIVE__', 0);
+  Module['___CMP_CHARSET__'] = ___CMP_CHARSET__ = createExportWrapper('__CMP_CHARSET__', 2);
+  Module['___SUB_INTEGER_AND_POSITIVE__'] = ___SUB_INTEGER_AND_POSITIVE__ = createExportWrapper('__SUB_INTEGER_AND_POSITIVE__', 2);
+  Module['___GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__'] = ___GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__ = createExportWrapper('__GET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__', 0);
+  Module['___INDEX_OF_CURRENT_CHARSET__'] = ___INDEX_OF_CURRENT_CHARSET__ = createExportWrapper('__INDEX_OF_CURRENT_CHARSET__', 2);
+  Module['___CHARSET_AT__'] = ___CHARSET_AT__ = createExportWrapper('__CHARSET_AT__', 1);
+  Module['___ADD_INTEGER_OR_NEGATIVE__'] = ___ADD_INTEGER_OR_NEGATIVE__ = createExportWrapper('__ADD_INTEGER_OR_NEGATIVE__', 2);
+  Module['___SUB_INTEGER__'] = ___SUB_INTEGER__ = createExportWrapper('__SUB_INTEGER__', 2);
+  Module['___ADD_INTEGER__'] = ___ADD_INTEGER__ = createExportWrapper('__ADD_INTEGER__', 2);
+  Module['___ADD_REP_INTEGER__'] = ___ADD_REP_INTEGER__ = createExportWrapper('__ADD_REP_INTEGER__', 2);
+  Module['___MUL_INTEGER__'] = ___MUL_INTEGER__ = createExportWrapper('__MUL_INTEGER__', 2);
+  Module['___SAFE_CALC_INIT__'] = ___SAFE_CALC_INIT__ = createExportWrapper('__SAFE_CALC_INIT__', 3);
+  Module['___SAFE_SET_SIGN_NEGATIVE__'] = ___SAFE_SET_SIGN_NEGATIVE__ = createExportWrapper('__SAFE_SET_SIGN_NEGATIVE__', 1);
+  Module['___SAFE_SET_SIGN_POSITIVE__'] = ___SAFE_SET_SIGN_POSITIVE__ = createExportWrapper('__SAFE_SET_SIGN_POSITIVE__', 1);
+  Module['___SAFE_SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__'] = ___SAFE_SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__ = createExportWrapper('__SAFE_SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__', 1);
+  Module['___SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__'] = ___SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__ = createExportWrapper('__SET_CUSTOM_INTEGER_DEF_NUMBER_CHARSET__', 1);
+  Module['___IS_CURRENT_NUMBER_CHARSET__'] = ___IS_CURRENT_NUMBER_CHARSET__ = createExportWrapper('__IS_CURRENT_NUMBER_CHARSET__', 2);
+  Module['___CMP_CURRENT_CHARSET__'] = ___CMP_CURRENT_CHARSET__ = createExportWrapper('__CMP_CURRENT_CHARSET__', 2);
+  Module['_ctoa'] = _ctoa = createExportWrapper('ctoa', 1);
+  Module['_uctoa'] = _uctoa = createExportWrapper('uctoa', 1);
+  Module['_stoa'] = _stoa = createExportWrapper('stoa', 1);
+  Module['_ustoa'] = _ustoa = createExportWrapper('ustoa', 1);
+  Module['_itoa'] = _itoa = createExportWrapper('itoa', 1);
+  Module['_uitoa'] = _uitoa = createExportWrapper('uitoa', 1);
+  Module['_ltoa'] = _ltoa = createExportWrapper('ltoa', 1);
+  Module['_ultoa'] = _ultoa = createExportWrapper('ultoa', 1);
+  Module['_lltoa'] = _lltoa = createExportWrapper('lltoa', 2);
+  Module['_ulltoa'] = _ulltoa = createExportWrapper('ulltoa', 2);
+  Module['___SET_SIGN_POSITIVE__'] = ___SET_SIGN_POSITIVE__ = createExportWrapper('__SET_SIGN_POSITIVE__', 1);
+  Module['___IS_SIGN_POSITIVE__'] = ___IS_SIGN_POSITIVE__ = createExportWrapper('__IS_SIGN_POSITIVE__', 3);
+  Module['___IS_SIGN_NULL__'] = ___IS_SIGN_NULL__ = createExportWrapper('__IS_SIGN_NULL__', 3);
+  Module['___INDEX_OF_SIGN_NEGATIVE__'] = ___INDEX_OF_SIGN_NEGATIVE__ = createExportWrapper('__INDEX_OF_SIGN_NEGATIVE__', 3);
+  Module['___INDEX_OF_SIGN_POSITIVE__'] = ___INDEX_OF_SIGN_POSITIVE__ = createExportWrapper('__INDEX_OF_SIGN_POSITIVE__', 3);
+  _fflush = createExportWrapper('fflush', 1);
+  _strerror = createExportWrapper('strerror', 1);
+  _emscripten_stack_get_end = wasmExports['emscripten_stack_get_end'];
+  _emscripten_stack_get_base = wasmExports['emscripten_stack_get_base'];
+  _emscripten_stack_init = wasmExports['emscripten_stack_init'];
+  _emscripten_stack_get_free = wasmExports['emscripten_stack_get_free'];
+  __emscripten_stack_restore = wasmExports['_emscripten_stack_restore'];
+  __emscripten_stack_alloc = wasmExports['_emscripten_stack_alloc'];
+  _emscripten_stack_get_current = wasmExports['emscripten_stack_get_current'];
+  dynCall_jiji = createExportWrapper('dynCall_jiji', 5);
+}
+var wasmImports = {
+  /** @export */
+  _abort_js: __abort_js,
+  /** @export */
+  emscripten_resize_heap: _emscripten_resize_heap,
+  /** @export */
+  fd_close: _fd_close,
+  /** @export */
+  fd_seek: _fd_seek,
+  /** @export */
+  fd_write: _fd_write
+};
+var wasmExports = await createWasm();
+
+
+// include: postamble.js
+// === Auto-generated postamble setup entry stuff ===
 
 var calledRun;
-
-dependenciesFulfilled = function runCaller() {
-  // If run has never been called, and we should call run (INVOKE_RUN is true, and Module.noInitialRun is not false)
-  if (!calledRun) run();
-  if (!calledRun) dependenciesFulfilled = runCaller; // try this again later, after new deps are fulfilled
-};
 
 function stackCheckInit() {
   // This is normally called automatically during __wasm_call_ctors but need to
@@ -11034,6 +11584,7 @@ function stackCheckInit() {
 function run() {
 
   if (runDependencies > 0) {
+    dependenciesFulfilled = run;
     return;
   }
 
@@ -11043,13 +11594,14 @@ function run() {
 
   // a preRun added a dependency, run will be called later
   if (runDependencies > 0) {
+    dependenciesFulfilled = run;
     return;
   }
 
   function doRun() {
     // run may have just been called through dependencies being fulfilled just in this very frame,
     // or while the async setStatus time below was happening
-    if (calledRun) return;
+    assert(!calledRun);
     calledRun = true;
     Module['calledRun'] = true;
 
@@ -11057,8 +11609,9 @@ function run() {
 
     initRuntime();
 
-    readyPromiseResolve(Module);
+    readyPromiseResolve?.(Module);
     Module['onRuntimeInitialized']?.();
+    consumedModuleProp('onRuntimeInitialized');
 
     assert(!Module['_main'], 'compiled without a main, but one is present. if you added it from JS, use Module["onRuntimeInitialized"]');
 
@@ -11107,13 +11660,17 @@ function checkUnflushedContent() {
   }
 }
 
-if (Module['preInit']) {
-  if (typeof Module['preInit'] == 'function') Module['preInit'] = [Module['preInit']];
-  while (Module['preInit'].length > 0) {
-    Module['preInit'].pop()();
+function preInit() {
+  if (Module['preInit']) {
+    if (typeof Module['preInit'] == 'function') Module['preInit'] = [Module['preInit']];
+    while (Module['preInit'].length > 0) {
+      Module['preInit'].shift()();
+    }
   }
+  consumedModuleProp('preInit');
 }
 
+preInit();
 run();
 
 // end include: postamble.js
@@ -11125,7 +11682,15 @@ run();
 // We assign to the `moduleRtn` global here and configure closure to see
 // this as and extern so it won't get minified.
 
-moduleRtn = readyPromise;
+if (runtimeInitialized)  {
+  moduleRtn = Module;
+} else {
+  // Set up the promise that indicates the Module is initialized
+  moduleRtn = new Promise((resolve, reject) => {
+    readyPromiseResolve = resolve;
+    readyPromiseReject = reject;
+  });
+}
 
 // Assertion for attempting to access module properties on the incoming
 // moduleArg.  In the past we used this object as the prototype of the module
@@ -11150,7 +11715,10 @@ for (const prop of Object.keys(Module)) {
 }
 );
 })();
-if (typeof exports === 'object' && typeof module === 'object')
+if (typeof exports === 'object' && typeof module === 'object') {
   module.exports = Module;
-else if (typeof define === 'function' && define['amd'])
+  // This default export looks redundant, but it allows TS to import this
+  // commonjs style module.
+  module.exports.default = Module;
+} else if (typeof define === 'function' && define['amd'])
   define([], () => Module);
