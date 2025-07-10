@@ -1,5 +1,7 @@
 *.h.gch
 *.gch
+*.h.pch
+*.pch
 *.out
 *.o
 *.dSYM
