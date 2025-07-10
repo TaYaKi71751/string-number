@@ -643,6 +643,32 @@ char \
 *b_start=0x00,\
 *b_end=0x00;
 
+size_t a_sign_negative_index = __INDEX_OF_SIGN_NEGATIVE__(0,al,a);
+size_t a_sign_positive_index = __INDEX_OF_SIGN_POSITIVE__(0,al,a);
+size_t b_sign_negative_index = __INDEX_OF_SIGN_NEGATIVE__(0,bl,b);
+size_t b_sign_positive_index = __INDEX_OF_SIGN_POSITIVE__(0,bl,b);
+char *a_sign = 0x00,*b_sign = 0x00;
+char *result_sign = 0x00;
+
+if(a_sign_negative_index!= (size_t)-1 && a_sign_positive_index!= (size_t)-1) a_sign = __GET_SIGN_POSITIVE__();
+else if(a_sign_negative_index!= (size_t)-1) a_sign = __GET_SIGN_POSITIVE__();
+else if(a_sign_positive_index!= (size_t)-1) a_sign = __GET_SIGN_POSITIVE__();
+else if(a_sign_negative_index < a_sign_positive_index) a_sign = __GET_SIGN_NEGATIVE__();
+else if(a_sign_positive_index < a_sign_negative_index) a_sign = __GET_SIGN_POSITIVE__();
+else a_sign = __GET_SIGN_POSITIVE__();
+
+if(b_sign_negative_index!= (size_t)-1 && b_sign_positive_index!= (size_t)-1) b_sign = __GET_SIGN_POSITIVE__();
+else if(b_sign_negative_index!= (size_t)-1) b_sign = __GET_SIGN_POSITIVE__();
+else if(b_sign_positive_index!= (size_t)-1) b_sign = __GET_SIGN_POSITIVE__();
+else if(b_sign_negative_index < b_sign_positive_index) b_sign = __GET_SIGN_NEGATIVE__();
+else if(b_sign_positive_index < b_sign_negative_index) b_sign = __GET_SIGN_POSITIVE__();
+else b_sign = __GET_SIGN_POSITIVE__();
+
+if(a_sign == 0x00 || b_sign == 0x00) abort();
+if(a_sign == b_sign) result_sign = __GET_SIGN_POSITIVE__();
+if(a_sign != b_sign) result_sign = __GET_SIGN_NEGATIVE__();
+
+
 a_start=__START_NUMBER__(0,al,a);
 a_end=__END_NUMBER__(a_start - a,al,a);
 anl=((size_t)a_end - (size_t)a_start) + 1;
@@ -668,6 +694,14 @@ char *_rt=__ADD_INTEGER__(_r,_tt);
 free(_tt);
 free(_r);
 _r=_rt;
+}
+if(result_sign == __GET_SIGN_NEGATIVE__()){
+	char *rl = strlen_runtime(_r);
+	char *tmp = calloc(strlen_runtime(__GET_SIGN_NEGATIVE__()) + rl + 1, sizeof(char));
+	memcpy(tmp, __GET_SIGN_NEGATIVE__(),strlen_runtime(__GET_SIGN_NEGATIVE__()));
+	memcpy(tmp + strlen_runtime(__GET_SIGN_NEGATIVE__()), _r, strlen_runtime(_r));
+	free(_r);
+	_r = tmp;
 }
 return _r;
 }
