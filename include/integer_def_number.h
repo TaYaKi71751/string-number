@@ -8,7 +8,6 @@
 #include<stdbool.h>
 
 #include "./string_function.h"
-#include "./string_def.h"
 
 #ifndef __CUSTOM_INTEGER_DEF_NUMBER_H__
 #define __CUSTOM_INTEGER_DEF_NUMBER_H__
