@@ -8,6 +8,11 @@ int main(){
 	char* result = __MUL_INTEGER__(minus,plus);
 	printf("%s * %s = %s\n",minus,plus,result);
 	free(result);
+	minus = "-0";
+	plus = "12";
+	result = __MUL_INTEGER__(minus,plus);
+	printf("%s * %s = %s\n",minus,plus,result);
+	free(result);
 	__TEST_ADD_INTEGER_LOOP__();
 	__TEST_SUB_INTEGER_LOOP__();
 	__TEST_MUL_INTEGER_LOOP__();

@@ -727,7 +727,7 @@ free(_tt);
 free(_r);
 _r=_rt;
 }
-if(result_sign == __GET_SIGN_NEGATIVE__()){
+if(result_sign == __GET_SIGN_NEGATIVE__() && ((*((char*)__START_NUMBER__(0, strlen_runtime(_r), _r))) != '0')){
 	size_t rl = strlen_runtime(_r);
 	char *tmp = calloc(strlen_runtime(__GET_SIGN_NEGATIVE__()) + rl + 1, sizeof(char));
 	memcpy(tmp, __GET_SIGN_NEGATIVE__(),strlen_runtime(__GET_SIGN_NEGATIVE__()));
