@@ -650,19 +650,51 @@ size_t b_sign_positive_index = __INDEX_OF_SIGN_POSITIVE__(0,bl,b);
 char *a_sign = 0x00,*b_sign = 0x00;
 char *result_sign = 0x00;
 
-if(a_sign_negative_index!= (size_t)-1 && a_sign_positive_index!= (size_t)-1) a_sign = __GET_SIGN_POSITIVE__();
-else if(a_sign_negative_index!= (size_t)-1) a_sign = __GET_SIGN_POSITIVE__();
-else if(a_sign_positive_index!= (size_t)-1) a_sign = __GET_SIGN_POSITIVE__();
-else if(a_sign_negative_index < a_sign_positive_index) a_sign = __GET_SIGN_NEGATIVE__();
-else if(a_sign_positive_index < a_sign_negative_index) a_sign = __GET_SIGN_POSITIVE__();
-else a_sign = __GET_SIGN_POSITIVE__();
+if(a_sign_negative_index!= (size_t)-1 && a_sign_positive_index!= (size_t)-1){ a_sign = __GET_SIGN_POSITIVE__(); }
+else if(a_sign_negative_index == ((size_t)-1)) {
+    a_sign = __GET_SIGN_POSITIVE__();
+}
+else if(a_sign_negative_index != ((size_t)-1) && a_sign_positive_index == ((size_t)-1)) {
+    a_sign = __GET_SIGN_NEGATIVE__();
+}
+else if(a_sign_negative_index < a_sign_positive_index && a_sign_negative_index != ((size_t)-1) && a_sign_positive_index != ((size_t)-1)) {
+    a_sign = __GET_SIGN_NEGATIVE__();
+}
+else if(a_sign_positive_index < a_sign_negative_index && a_sign_positive_index != ((size_t)-1) && a_sign_negative_index != ((size_t)-1)) {
+    a_sign = __GET_SIGN_POSITIVE__();
+}
+else if(a_sign_positive_index != ((size_t)-1) && a_sign_negative_index == ((size_t)-1)) {
+    a_sign = __GET_SIGN_POSITIVE__();
+}
+else if(a_sign_positive_index == ((size_t)-1)) {
+    a_sign = __GET_SIGN_POSITIVE__();
+}
+else {
+    a_sign = __GET_SIGN_POSITIVE__();
+}
 
-if(b_sign_negative_index!= (size_t)-1 && b_sign_positive_index!= (size_t)-1) b_sign = __GET_SIGN_POSITIVE__();
-else if(b_sign_negative_index!= (size_t)-1) b_sign = __GET_SIGN_POSITIVE__();
-else if(b_sign_positive_index!= (size_t)-1) b_sign = __GET_SIGN_POSITIVE__();
-else if(b_sign_negative_index < b_sign_positive_index) b_sign = __GET_SIGN_NEGATIVE__();
-else if(b_sign_positive_index < b_sign_negative_index) b_sign = __GET_SIGN_POSITIVE__();
-else b_sign = __GET_SIGN_POSITIVE__();
+if(b_sign_negative_index!= (size_t)-1 && b_sign_positive_index!= (size_t)-1){ b_sign = __GET_SIGN_POSITIVE__(); }
+else if(b_sign_negative_index == ((size_t)-1)) {
+    b_sign = __GET_SIGN_POSITIVE__();
+}
+else if(b_sign_negative_index != ((size_t)-1) && b_sign_positive_index == ((size_t)-1)) {
+    b_sign = __GET_SIGN_NEGATIVE__();
+}
+else if(b_sign_negative_index < b_sign_positive_index && b_sign_negative_index != ((size_t)-1) && b_sign_positive_index != ((size_t)-1)) {
+    b_sign = __GET_SIGN_NEGATIVE__();
+}
+else if(b_sign_positive_index < b_sign_negative_index && b_sign_positive_index != ((size_t)-1) && b_sign_negative_index != ((size_t)-1)) {
+    b_sign = __GET_SIGN_POSITIVE__();
+}
+else if(b_sign_positive_index != ((size_t)-1) && b_sign_negative_index == ((size_t)-1)) {
+    b_sign = __GET_SIGN_POSITIVE__();
+}
+else if(b_sign_positive_index == ((size_t)-1)) {
+    b_sign = __GET_SIGN_POSITIVE__();
+}
+else {
+    b_sign = __GET_SIGN_POSITIVE__();
+}
 
 if(a_sign == 0x00 || b_sign == 0x00) abort();
 if(a_sign == b_sign) result_sign = __GET_SIGN_POSITIVE__();
