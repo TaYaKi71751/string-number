@@ -22,8 +22,13 @@ char* parseCustomSign(char *str) {
 	sign_length = str_start - str;
 	sign = calloc(sign_length + 1,sizeof(char));
 	memcpy(sign,str,sign_length);
-	sign[sign_length] = 0x00;
-	return sign;
+	size_t negative_sign_index = __INDEX_OF_SIGN_NEGATIVE__(0,sign_length,sign);
+	size_t positive_sign_index = __INDEX_OF_SIGN_POSITIVE__(0,sign_length,sign);
+	free(sign);
+	if(negative_sign_index == (size_t)-1 && positive_sign_index == (size_t)-1) return __GET_SIGN_POSITIVE__();
+	if(negative_sign_index == (size_t)-1) return __GET_SIGN_POSITIVE__();
+	if(positive_sign_index == (size_t)-1) return __GET_SIGN_NEGATIVE__();
+	if(negative_sign_index > positive_sign_index) return __GET_SIGN_NEGATIVE__();
 }
 
 void __TEST_PARSE__(){
@@ -37,5 +42,4 @@ void __TEST_PARSE__(){
 	printf("parsed = \"%s\"\r\n",parsed);
 	free(parsed);
 	printf("sign = \"%s\"\r\n",sign);
-	free(sign);
 }

@@ -89,3 +89,20 @@ bool __IS_SIGN_NULL__(size_t sign_index,size_t sign_length,char* sign){
 	!__IS_SIGN_POSITIVE__(sign_index,sign_length,sign)
  );
 }
+
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+size_t __INDEX_OF_SIGN_NEGATIVE__(size_t sign_index,size_t sign_length,char* sign){
+ if(__IS_SIGN_NEGATIVE__(sign_index,sign_length,sign)) return sign_index;
+ if(sign_index >= sign_length) return (size_t)-1;
+ return __INDEX_OF_SIGN_NEGATIVE__(sign_index + 1,sign_length,sign);
+}
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+size_t __INDEX_OF_SIGN_POSITIVE__(size_t sign_index,size_t sign_length,char* sign){
+ if(__IS_SIGN_POSITIVE__(sign_index,sign_length,sign)) return sign_index;
+ if(sign_index >= sign_length) return (size_t)-1;
+ return __INDEX_OF_SIGN_POSITIVE__(sign_index + 1,sign_length,sign);
+}

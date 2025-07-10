@@ -1,6 +1,6 @@
 async function add(a,b){
 	return await new Promise((resolve,reject) => {
-		require('../wasm/index.cjs')()
+		require('../wasm/index.js')()
 			.then((Module)=>{
 				const _init = Module.cwrap('__SAFE_CALC_INIT__','undefined',['string','string','string']);
 				const _add = Module.cwrap('__ADD_INTEGER__','string',['string','string']);
@@ -15,7 +15,7 @@ async function add(a,b){
 
 async function sub(a,b){
 	return await new Promise((resolve,reject) => {
-		require('../wasm/index.cjs')()
+		require('../wasm/index.js')()
 			.then((Module)=>{
 				const _init = Module.cwrap('__SAFE_CALC_INIT__','undefined',['string','string','string']);
 				const _add = Module.cwrap('__ADD_INTEGER__','string',['string','string']);
@@ -31,7 +31,7 @@ async function sub(a,b){
 
 async function mul(a,b){
 	return await new Promise((resolve,reject) => {
-		require('../wasm/index.cjs')()
+		require('../wasm/index.js')()
 			.then((Module)=>{
 				const _init = Module.cwrap('__SAFE_CALC_INIT__','undefined',['string','string','string']);
 				const _add = Module.cwrap('__ADD_INTEGER__','string',['string','string']);
@@ -43,7 +43,7 @@ async function mul(a,b){
 			})
 	});
 }
-// require('../wasm/index.cjs')()
+// require('../wasm/index.js')()
 // 	.then(async (Module)=>{
 // 		const init = Module.cwrap('__SAFE_CALC_INIT__','undefined',['string','string','string']);
 // 		const add = Module.cwrap('__ADD_INTEGER__','string',['string','string']);
